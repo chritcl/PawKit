@@ -1,0 +1,52 @@
+@import "tailwindcss";
+
+/* 自定义样式 */
+:root {
+  --color-primary: #1677ff;
+  --color-primary-rgb: 22, 119, 255;
+}
+
+/* 暗色主题变量 */
+.dark {
+  color-scheme: dark;
+}
+
+/* 全局样式 */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+/* 滚动条样式 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.3);
+}
+
+/* 选中文本样式 */
+::selection {
+  background-color: rgba(22, 119, 255, 0.3);
+  color: white;
+}

@@ -1,0 +1,36 @@
+# 依赖目录
+node_modules/
+
+# 构建输出
+out/
+dist/
+release/
+
+# 日志文件
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# 环境变量
+.env
+.env.local
+.env.*.local
+
+# IDE 配置
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 系统文件
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Electron 缓存
+*.dmg
+*.blockmap
+
+# 本地 electron-store 数据
+*.json.bak
