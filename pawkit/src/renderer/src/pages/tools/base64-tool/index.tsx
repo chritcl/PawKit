@@ -117,15 +117,15 @@ export function Base64ToolPage(): JSX.Element {
       : outputText
 
   return (
-    <div className="flex h-full min-h-[600px] flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-2 border-b border-white/10 pb-4">
-        <div className="inline-flex rounded-md border border-white/10 bg-white/5 p-1">
+    <div className="tool-page">
+      <div className="toolbar-surface tool-toolbar">
+        <div className="segmented-control segmented-scroll">
           {modeItems.map((item) => {
             const Icon = item.icon
             return (
               <button
                 key={item.mode}
-                className={`flex h-9 items-center gap-2 rounded px-3 text-sm ${mode === item.mode ? 'bg-[#1677ff] text-white' : 'text-gray-400 hover:text-white'}`}
+                className={`segmented-item ${mode === item.mode ? 'segmented-item-active' : ''}`}
                 onClick={() => setMode(item.mode)}
                 title={item.label}
               >
@@ -137,61 +137,61 @@ export function Base64ToolPage(): JSX.Element {
         </div>
 
         {(mode === 'base64' || mode === 'url') && (
-          <div className="inline-flex rounded-md border border-white/10 bg-white/5 p-1">
-            <button className={`h-9 rounded px-3 text-sm ${operation === 'encode' ? 'bg-white/15 text-white' : 'text-gray-400 hover:text-white'}`} onClick={() => setOperation('encode')}>
+          <div className="segmented-control segmented-scroll">
+            <button className={`segmented-item ${operation === 'encode' ? 'segmented-item-active' : ''}`} onClick={() => setOperation('encode')}>
               编码
             </button>
-            <button className={`h-9 rounded px-3 text-sm ${operation === 'decode' ? 'bg-white/15 text-white' : 'text-gray-400 hover:text-white'}`} onClick={() => setOperation('decode')}>
+            <button className={`segmented-item ${operation === 'decode' ? 'segmented-item-active' : ''}`} onClick={() => setOperation('decode')}>
               解码
             </button>
           </div>
         )}
 
         {mode === 'base64' && (
-          <div className="inline-flex rounded-md border border-white/10 bg-white/5 p-1">
-            <button className={`h-9 rounded px-3 text-sm ${variant === 'standard' ? 'bg-white/15 text-white' : 'text-gray-400 hover:text-white'}`} onClick={() => setVariant('standard')}>
+          <div className="segmented-control segmented-scroll">
+            <button className={`segmented-item ${variant === 'standard' ? 'segmented-item-active' : ''}`} onClick={() => setVariant('standard')}>
               标准
             </button>
-            <button className={`h-9 rounded px-3 text-sm ${variant === 'url-safe' ? 'bg-white/15 text-white' : 'text-gray-400 hover:text-white'}`} onClick={() => setVariant('url-safe')}>
+            <button className={`segmented-item ${variant === 'url-safe' ? 'segmented-item-active' : ''}`} onClick={() => setVariant('url-safe')}>
               URL-safe
             </button>
           </div>
         )}
 
-        <div className="ml-auto flex items-center gap-2">
-          <button className="inline-flex h-10 items-center gap-2 rounded-md border border-white/10 bg-white/5 px-3 text-sm text-gray-200 hover:bg-white/10" onClick={pasteInput} title="粘贴">
+        <div className="toolbar-group toolbar-push">
+          <button className="toolbar-button" onClick={pasteInput} title="粘贴">
             <Clipboard className="h-4 w-4" />
             粘贴
           </button>
-          <button className="inline-flex h-10 items-center gap-2 rounded-md border border-white/10 bg-white/5 px-3 text-sm text-gray-200 hover:bg-white/10" onClick={fillExample} title="示例">
+          <button className="toolbar-button" onClick={fillExample} title="示例">
             <ScanText className="h-4 w-4" />
             示例
           </button>
-          <button className="inline-flex h-10 items-center gap-2 rounded-md border border-white/10 bg-white/5 px-3 text-sm text-gray-200 hover:bg-white/10" onClick={clearInput} title="清空">
+          <button className="toolbar-button" onClick={clearInput} title="清空">
             <RotateCcw className="h-4 w-4" />
             清空
           </button>
         </div>
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-2 gap-4">
-        <section className="flex min-h-0 flex-col overflow-hidden rounded-md border border-white/10 bg-white/[0.03]">
-          <div className="flex h-10 items-center justify-between border-b border-white/10 px-3 text-sm text-gray-300">
+      <div className="tool-workspace tool-grid-editor">
+        <section className="editor-surface tool-panel">
+          <div className="panel-header">
             <span>输入</span>
-            <span className="text-xs text-gray-500">{new Blob([input]).size} bytes</span>
+            <span className="text-xs text-[color:var(--text-muted)]">{new Blob([input]).size} bytes</span>
           </div>
           <textarea
             value={input}
             onChange={(event) => setInput(event.target.value)}
             placeholder={mode === 'jwt' ? '粘贴 JWT...' : mode === 'data-url' ? '粘贴 Data URL...' : '输入要转换的文本...'}
-            className="min-h-0 flex-1 resize-none bg-transparent p-4 font-mono text-sm text-gray-100 outline-none placeholder:text-gray-600"
+            className="editor-textarea"
           />
         </section>
 
-        <section className="flex min-h-0 flex-col overflow-hidden rounded-md border border-white/10 bg-white/[0.03]">
-          <div className="flex h-10 items-center justify-between border-b border-white/10 px-3 text-sm text-gray-300">
+        <section className="editor-surface tool-panel">
+          <div className="panel-header">
             <span>输出</span>
-            <button className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-gray-400 hover:bg-white/10 hover:text-white disabled:opacity-30" disabled={!outputText} onClick={() => void copyText(outputText, '输出已复制')} title="复制输出">
+            <button className="toolbar-button min-h-7 px-2 py-1 text-xs disabled:opacity-30" disabled={!outputText} onClick={() => void copyText(outputText, '输出已复制')} title="复制输出">
               <Copy className="h-3.5 w-3.5" />
               复制
             </button>
@@ -200,53 +200,53 @@ export function Base64ToolPage(): JSX.Element {
             value={outputText}
             readOnly
             placeholder="转换结果将显示在这里..."
-            className="min-h-0 flex-1 resize-none bg-transparent p-4 font-mono text-sm text-gray-100 outline-none placeholder:text-gray-600"
+            className="editor-textarea"
           />
         </section>
       </div>
 
       {computed.type === 'jwt' && computed.result.success && (
-        <div className="grid grid-cols-3 gap-3">
-          <button className="rounded-md border border-white/10 bg-white/[0.04] p-3 text-left hover:bg-white/[0.07]" onClick={() => void copyText(computed.result.headerJson ?? '', 'Header 已复制')}>
-            <div className="text-xs text-gray-500">Header</div>
-            <div className="mt-1 truncate font-mono text-sm text-gray-200">{computed.result.headerJson}</div>
+        <div className="data-grid">
+          <button className="glass-card p-3 text-left" onClick={() => void copyText(computed.result.headerJson ?? '', 'Header 已复制')}>
+            <div className="text-xs text-[color:var(--text-muted)]">Header</div>
+            <div className="mt-1 truncate font-mono text-sm text-[color:var(--text-secondary)]">{computed.result.headerJson}</div>
           </button>
-          <button className="rounded-md border border-white/10 bg-white/[0.04] p-3 text-left hover:bg-white/[0.07]" onClick={() => void copyText(computed.result.payloadJson ?? '', 'Payload 已复制')}>
-            <div className="text-xs text-gray-500">Payload</div>
-            <div className="mt-1 truncate font-mono text-sm text-gray-200">{computed.result.payloadJson}</div>
+          <button className="glass-card p-3 text-left" onClick={() => void copyText(computed.result.payloadJson ?? '', 'Payload 已复制')}>
+            <div className="text-xs text-[color:var(--text-muted)]">Payload</div>
+            <div className="mt-1 truncate font-mono text-sm text-[color:var(--text-secondary)]">{computed.result.payloadJson}</div>
           </button>
-          <button className="rounded-md border border-white/10 bg-white/[0.04] p-3 text-left hover:bg-white/[0.07]" onClick={() => void copyText(computed.result.signature ?? '', 'Signature 已复制')}>
-            <div className="text-xs text-gray-500">Signature</div>
-            <div className="mt-1 truncate font-mono text-sm text-gray-200">{computed.result.signature || '无'}</div>
+          <button className="glass-card p-3 text-left" onClick={() => void copyText(computed.result.signature ?? '', 'Signature 已复制')}>
+            <div className="text-xs text-[color:var(--text-muted)]">Signature</div>
+            <div className="mt-1 truncate font-mono text-sm text-[color:var(--text-secondary)]">{computed.result.signature || '无'}</div>
           </button>
         </div>
       )}
 
       {computed.type === 'data-url' && computed.result.success && (
-        <div className="grid grid-cols-3 gap-3 text-sm">
-          <div className="rounded-md border border-white/10 bg-white/[0.04] p-3">
-            <div className="text-xs text-gray-500">媒体类型</div>
-            <div className="mt-1 font-mono text-gray-200">{computed.result.mediaType}</div>
+        <div className="data-grid text-sm">
+          <div className="stat-card">
+            <div className="text-xs text-[color:var(--text-muted)]">媒体类型</div>
+            <div className="mt-1 font-mono text-[color:var(--text-secondary)]">{computed.result.mediaType}</div>
           </div>
-          <div className="rounded-md border border-white/10 bg-white/[0.04] p-3">
-            <div className="text-xs text-gray-500">编码方式</div>
-            <div className="mt-1 font-mono text-gray-200">{computed.result.isBase64 ? 'Base64' : 'URL 编码'}</div>
+          <div className="stat-card">
+            <div className="text-xs text-[color:var(--text-muted)]">编码方式</div>
+            <div className="mt-1 font-mono text-[color:var(--text-secondary)]">{computed.result.isBase64 ? 'Base64' : 'URL 编码'}</div>
           </div>
-          <button className="rounded-md border border-white/10 bg-white/[0.04] p-3 text-left hover:bg-white/[0.07]" onClick={() => void copyText(computed.result.data ?? '', 'Data URL 内容已复制')}>
-            <div className="text-xs text-gray-500">数据片段</div>
-            <div className="mt-1 truncate font-mono text-gray-200">{computed.result.data}</div>
+          <button className="glass-card p-3 text-left" onClick={() => void copyText(computed.result.data ?? '', 'Data URL 内容已复制')}>
+            <div className="text-xs text-[color:var(--text-muted)]">数据片段</div>
+            <div className="mt-1 truncate font-mono text-[color:var(--text-secondary)]">{computed.result.data}</div>
           </button>
         </div>
       )}
 
-      <div className="flex items-center gap-3 rounded-md border border-white/10 bg-white/[0.04] px-4 py-2 text-xs">
-        <span className={statusText === '转换成功' ? 'text-emerald-300' : 'text-gray-400'}>{message}</span>
-        <span className="text-gray-600">|</span>
-        <span className={statusText === '转换成功' ? 'text-emerald-300' : statusText === '等待输入' ? 'text-gray-400' : 'text-red-300'}>
+      <div className="status-strip flex items-center gap-3 text-xs">
+        <span className={statusText === '转换成功' ? 'text-emerald-300' : 'text-[color:var(--text-muted)]'}>{message}</span>
+        <span className="text-[color:var(--text-muted)]">|</span>
+        <span className={statusText === '转换成功' ? 'text-emerald-300' : statusText === '等待输入' ? 'text-[color:var(--text-muted)]' : 'text-red-300'}>
           {statusText}
         </span>
-        <span className="text-gray-600">|</span>
-        <span className="text-gray-400">Base64 是编码，不是加密；JWT 只本地解码，不校验签名</span>
+        <span className="text-[color:var(--text-muted)]">|</span>
+        <span className="text-[color:var(--text-secondary)]">Base64 是编码，不是加密；JWT 只本地解码，不校验签名</span>
       </div>
     </div>
   )

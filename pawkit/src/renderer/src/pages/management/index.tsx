@@ -33,17 +33,13 @@ export function ManagementPage(): JSX.Element {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="page-stack">
       {/* 标签页导航 */}
-      <div className="flex gap-2 rounded-lg border border-white/10 bg-white/5 p-1 backdrop-blur-xl">
+      <div className="segmented-control segmented-scroll w-full">
         {tabs.map((tab) => (
           <button
             key={tab.id}
-            className={`flex-1 rounded-md px-4 py-2 text-sm transition-colors ${
-              activeTab === tab.id
-                ? 'bg-white/10 text-white'
-                : 'text-gray-400 hover:bg-white/5 hover:text-white'
-            }`}
+            className={`segmented-item flex-1 ${activeTab === tab.id ? 'segmented-item-active' : ''}`}
             onClick={() => setActiveTab(tab.id)}
           >
             {tab.label}

@@ -8,7 +8,6 @@ export function Sidebar(): JSX.Element {
   const setActiveTool = useAppStore((state) => state.setActiveTool)
   const enabledTools = useAppStore((state) => state.enabledTools)
   const toolOrder = useAppStore((state) => state.toolOrder)
-  const theme = useAppStore((state) => state.theme)
 
   // 过滤显示的工具（首页、管理中心、设置始终显示，可禁用工具按用户排序显示）
   const homeTool = toolRegistry.find((tool) => tool.id === TOOL_IDS.HOME)
@@ -23,41 +22,55 @@ export function Sidebar(): JSX.Element {
     .map((id) => disableableTools.find((tool) => tool.id === id))
     .filter((tool) => tool && enabledTools.includes(tool.id))
 
-  const visibleTools = [homeTool, ...orderedTools, managementTool, settingsTool].filter(
+  const mainTools = [homeTool, ...orderedTools].filter(
+    (tool): tool is (typeof toolRegistry)[number] => Boolean(tool)
+  )
+  const footerTools = [managementTool, settingsTool].filter(
     (tool): tool is (typeof toolRegistry)[number] => Boolean(tool)
   )
 
+  const renderToolButton = (tool: (typeof toolRegistry)[number]): JSX.Element => {
+    const IconComponent = tool.icon
+    const active = activeTool === tool.id
+
+    return (
+      <button
+        key={tool.id}
+        className={`app-no-drag flex w-full items-center gap-2.5 rounded-[8px] border px-2.5 py-2 text-left text-sm transition-all ${
+          active
+            ? 'border-[rgba(var(--color-primary-rgb),0.28)] bg-[var(--color-primary-soft)] text-[color:var(--text-primary)] shadow-[inset_0_1px_0_rgba(255,255,255,0.18)]'
+            : 'border-transparent text-[color:var(--text-secondary)] hover:bg-[var(--glass-surface-hover)] hover:text-[color:var(--text-primary)]'
+        }`}
+        onClick={() => setActiveTool(tool.id as ToolId)}
+      >
+        <span
+          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-[7px] ${
+            active
+              ? 'bg-[rgba(var(--color-primary-rgb),0.18)] text-[rgb(var(--color-primary-rgb))]'
+              : 'bg-[var(--glass-muted)] text-[color:var(--text-muted)]'
+          }`}
+        >
+          <IconComponent size={17} />
+        </span>
+        <span className="min-w-0 flex-1 truncate font-medium">{tool.name}</span>
+      </button>
+    )
+  }
+
   return (
-    <div
-      className={`w-56 border-r backdrop-blur-xl ${
-        theme === 'dark'
-          ? 'border-white/10 bg-black/20'
-          : 'border-black/10 bg-white/40'
-      }`}
-    >
-      <div className="flex flex-col gap-1 p-3">
-        {visibleTools.map((tool) => {
-          const IconComponent = tool.icon
-          return (
-            <button
-              key={tool.id}
-              className={`flex items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors ${
-                activeTool === tool.id
-                  ? theme === 'dark'
-                    ? 'bg-white/10 text-white'
-                    : 'bg-black/10 text-gray-900'
-                  : theme === 'dark'
-                    ? 'text-gray-400 hover:bg-white/5 hover:text-white'
-                    : 'text-gray-600 hover:bg-black/5 hover:text-gray-900'
-              }`}
-              onClick={() => setActiveTool(tool.id as ToolId)}
-            >
-              <IconComponent size={18} />
-              <span>{tool.name}</span>
-            </button>
-          )
-        })}
+    <aside className="glass-rail flex w-60 shrink-0 flex-col border-y-0 border-l-0 p-3">
+      <div className="mb-3 px-2 text-[11px] font-medium uppercase tracking-[0.12em] text-[color:var(--text-muted)]">
+        工具箱
       </div>
-    </div>
+      <div className="min-h-0 flex-1 space-y-1 overflow-auto pr-1">
+        {mainTools.map(renderToolButton)}
+      </div>
+      <div className="mt-3 border-t border-[var(--glass-border)] pt-3">
+        <div className="mb-2 px-2 text-[11px] font-medium uppercase tracking-[0.12em] text-[color:var(--text-muted)]">
+          管理
+        </div>
+        <div className="space-y-1">{footerTools.map(renderToolButton)}</div>
+      </div>
+    </aside>
   )
 }

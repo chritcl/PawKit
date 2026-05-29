@@ -163,11 +163,11 @@ function TreeEditor({
   return (
     <div>
       <div
-        className="grid min-w-[720px] grid-cols-[24px_180px_110px_minmax(160px,1fr)_170px] items-center gap-2 border-b border-white/[0.06] px-3 py-2 text-sm hover:bg-white/[0.04]"
+        className="grid min-w-[640px] grid-cols-[24px_minmax(120px,1fr)_96px_minmax(140px,1.1fr)_140px] items-center gap-2 border-b border-[var(--glass-border)] px-3 py-2 text-sm hover:bg-[var(--glass-surface-hover)]"
         style={{ paddingLeft: 12 + node.depth * 18 }}
       >
         <button
-          className="flex h-6 w-6 items-center justify-center rounded text-gray-400 hover:bg-white/10 hover:text-white disabled:opacity-20"
+          className="flex h-6 w-6 items-center justify-center rounded text-[color:var(--text-muted)] hover:bg-[var(--glass-surface-hover)] hover:text-[color:var(--text-primary)] disabled:opacity-20"
           disabled={!node.expandable}
           onClick={() => onToggle(node.id)}
           title={isExpanded ? '收起节点' : '展开节点'}
@@ -182,7 +182,7 @@ function TreeEditor({
         {canRename ? (
           <input
             key={`${node.id}-key`}
-            className="h-8 rounded border border-white/10 bg-black/20 px-2 font-mono text-xs text-gray-200 outline-none focus:border-[#1677ff]/60"
+            className="field-input h-8 min-h-8 px-2 font-mono text-xs"
             defaultValue={node.key}
             onBlur={(event) => renameNode(event.target.value)}
             onKeyDown={(event) => {
@@ -194,13 +194,13 @@ function TreeEditor({
             title="键名"
           />
         ) : (
-          <div className="truncate font-mono text-xs text-gray-400" title={node.pathText}>
+          <div className="truncate font-mono text-xs text-[color:var(--text-muted)]" title={node.pathText}>
             {isRoot ? '$' : node.key}
           </div>
         )}
 
         <select
-          className="h-8 rounded border border-white/10 bg-[#101722] px-2 text-xs text-gray-200 outline-none focus:border-[#1677ff]/60"
+          className="field-select h-8 min-h-8 px-2 text-xs"
           value={node.kind}
           onChange={(event) => updateNodeKind(event.target.value as JsonValueKind)}
           title="类型"
@@ -213,7 +213,7 @@ function TreeEditor({
         {isPrimitive ? (
           <input
             key={`${node.id}-value-${node.kind}`}
-            className="h-8 rounded border border-white/10 bg-black/20 px-2 font-mono text-xs text-gray-200 outline-none focus:border-[#1677ff]/60"
+            className="field-input h-8 min-h-8 px-2 font-mono text-xs"
             defaultValue={node.editableValue}
             onBlur={(event) => updateNodeValue(event.target.value)}
             onKeyDown={(event) => {
@@ -225,26 +225,26 @@ function TreeEditor({
             title="节点值"
           />
         ) : (
-          <div className="truncate font-mono text-xs text-gray-500" title={node.valuePreview}>
+          <div className="truncate font-mono text-xs text-[color:var(--text-muted)]" title={node.valuePreview}>
             {node.valuePreview}
           </div>
         )}
 
-        <div className="flex items-center justify-end gap-1">
+        <div className="action-cluster-tight justify-end">
           {(node.kind === 'object' || node.kind === 'array') && (
             <>
-              <button className="rounded px-2 py-1 text-xs text-gray-400 hover:bg-white/10 hover:text-white" onClick={() => addChild('string')} title="添加字符串">
+              <button className="rounded px-2 py-1 text-xs text-[color:var(--text-muted)] hover:bg-[var(--glass-surface-hover)] hover:text-[color:var(--text-primary)]" onClick={() => addChild('string')} title="添加字符串">
                 <Plus className="h-3.5 w-3.5" />
               </button>
-              <button className="rounded px-2 py-1 text-xs text-gray-400 hover:bg-white/10 hover:text-white" onClick={() => addChild('object')} title="添加对象">
+              <button className="rounded px-2 py-1 text-xs text-[color:var(--text-muted)] hover:bg-[var(--glass-surface-hover)] hover:text-[color:var(--text-primary)]" onClick={() => addChild('object')} title="添加对象">
                 <Braces className="h-3.5 w-3.5" />
               </button>
             </>
           )}
-          <button className="rounded px-2 py-1 text-xs text-gray-400 hover:bg-white/10 hover:text-white" onClick={() => onCopy(node.pathText, '路径已复制')} title="复制路径">
+          <button className="rounded px-2 py-1 text-xs text-[color:var(--text-muted)] hover:bg-[var(--glass-surface-hover)] hover:text-[color:var(--text-primary)]" onClick={() => onCopy(node.pathText, '路径已复制')} title="复制路径">
             路径
           </button>
-          <button className="rounded px-2 py-1 text-xs text-gray-400 hover:bg-white/10 hover:text-white" onClick={() => onCopy(getNodeValueText(rootValue, node.path), '节点值已复制')} title="复制值">
+          <button className="rounded px-2 py-1 text-xs text-[color:var(--text-muted)] hover:bg-[var(--glass-surface-hover)] hover:text-[color:var(--text-primary)]" onClick={() => onCopy(getNodeValueText(rootValue, node.path), '节点值已复制')} title="复制值">
             值
           </button>
           {!isRoot && (
@@ -428,65 +428,65 @@ export function JsonToolPage(): JSX.Element {
     ? 'text-emerald-300'
     : status.type === 'error'
       ? 'text-red-300'
-      : 'text-gray-400'
+      : 'text-[color:var(--text-muted)]'
   const inputBytes = new Blob([input]).size
 
   return (
-    <div className="flex h-full min-h-[620px] flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-2 border-b border-white/10 pb-4">
-        <div className="mr-2 inline-flex rounded-md border border-white/10 bg-white/5 p-1">
-          <button className={`h-8 rounded px-3 text-sm ${mode === 'strict' ? 'bg-[#1677ff] text-white' : 'text-gray-400 hover:text-white'}`} onClick={() => handleModeChange('strict')}>
+    <div className="tool-page">
+      <div className="toolbar-surface tool-toolbar">
+        <div className="segmented-control segmented-scroll">
+          <button className={`segmented-item ${mode === 'strict' ? 'segmented-item-active' : ''}`} onClick={() => handleModeChange('strict')}>
             严格 JSON
           </button>
-          <button className={`h-8 rounded px-3 text-sm ${mode === 'jsonc' ? 'bg-[#1677ff] text-white' : 'text-gray-400 hover:text-white'}`} onClick={() => handleModeChange('jsonc')}>
+          <button className={`segmented-item ${mode === 'jsonc' ? 'segmented-item-active' : ''}`} onClick={() => handleModeChange('jsonc')}>
             JSONC
           </button>
         </div>
 
-        <button className="inline-flex h-10 items-center gap-2 rounded-md bg-[#1677ff] px-3 text-sm font-medium text-white hover:bg-[#2f86ff]" onClick={() => runAction('format')} title="格式化并回写">
+        <button className="toolbar-button-primary" onClick={() => runAction('format')} title="格式化并回写">
           <AlignLeft className="h-4 w-4" />
           格式化
         </button>
-        <button className="inline-flex h-10 items-center gap-2 rounded-md border border-white/10 bg-white/5 px-3 text-sm text-gray-200 hover:bg-white/10" onClick={() => runAction('compress')} title="压缩并回写">
+        <button className="toolbar-button" onClick={() => runAction('compress')} title="压缩并回写">
           <Minimize2 className="h-4 w-4" />
           压缩
         </button>
-        <button className="inline-flex h-10 items-center gap-2 rounded-md border border-white/10 bg-white/5 px-3 text-sm text-gray-200 hover:bg-white/10" onClick={() => runAction('sort')} title="递归排序并回写">
+        <button className="toolbar-button" onClick={() => runAction('sort')} title="递归排序并回写">
           <ArrowDownAZ className="h-4 w-4" />
           排序
         </button>
-        <button className="inline-flex h-10 items-center gap-2 rounded-md border border-white/10 bg-white/5 px-3 text-sm text-gray-200 hover:bg-white/10" onClick={() => runAction('validate')} title="校验">
+        <button className="toolbar-button" onClick={() => runAction('validate')} title="校验">
           <Check className="h-4 w-4" />
           校验
         </button>
 
-        <div className="ml-auto flex items-center gap-2">
-          <button className="inline-flex h-10 items-center gap-2 rounded-md border border-white/10 bg-white/5 px-3 text-sm text-gray-200 hover:bg-white/10" onClick={handlePaste} title="从剪贴板粘贴">
+        <div className="toolbar-group toolbar-push">
+          <button className="toolbar-button" onClick={handlePaste} title="从剪贴板粘贴">
             <Clipboard className="h-4 w-4" />
             粘贴
           </button>
-          <button className="inline-flex h-10 items-center gap-2 rounded-md border border-white/10 bg-white/5 px-3 text-sm text-gray-200 hover:bg-white/10 disabled:opacity-40" onClick={() => void handleCopy()} disabled={!input} title="复制 JSON">
+          <button className="toolbar-button disabled:opacity-40" onClick={() => void handleCopy()} disabled={!input} title="复制 JSON">
             <Copy className="h-4 w-4" />
             复制
           </button>
-          <button className="inline-flex h-10 items-center gap-2 rounded-md border border-white/10 bg-white/5 px-3 text-sm text-gray-200 hover:bg-white/10" onClick={handleExample} title="填充示例">
+          <button className="toolbar-button" onClick={handleExample} title="填充示例">
             <FileJson className="h-4 w-4" />
             示例
           </button>
-          <button className="inline-flex h-10 items-center gap-2 rounded-md border border-white/10 bg-white/5 px-3 text-sm text-gray-200 hover:bg-white/10" onClick={handleClear} title="清空">
+          <button className="toolbar-button" onClick={handleClear} title="清空">
             <Trash2 className="h-4 w-4" />
             清空
           </button>
         </div>
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-[minmax(360px,0.9fr)_minmax(440px,1.1fr)] gap-4">
-        <section className="flex min-h-0 flex-col overflow-hidden rounded-md border border-white/10 bg-white/[0.03]">
-          <div className="flex h-10 items-center justify-between border-b border-white/10 px-3 text-sm text-gray-300">
+      <div className="tool-workspace tool-grid-editor">
+        <section className="editor-surface tool-panel">
+          <div className="panel-header">
             <span>文本编辑</span>
-            <span className="text-xs text-gray-500">{inputBytes} bytes</span>
+            <span className="text-xs text-[color:var(--text-muted)]">{inputBytes} bytes</span>
           </div>
-          <div className="min-h-0 flex-1">
+          <div className="panel-body">
             <CodeMirror
               value={input}
               height="100%"
@@ -505,22 +505,22 @@ export function JsonToolPage(): JSX.Element {
           </div>
         </section>
 
-        <section className="flex min-h-0 flex-col overflow-hidden rounded-md border border-white/10 bg-white/[0.03]">
-          <div className="flex h-10 items-center justify-between border-b border-white/10 px-3 text-sm text-gray-300">
+        <section className="editor-surface tool-panel">
+          <div className="panel-header">
             <span>结构编辑</span>
-            <div className="flex items-center gap-1">
-              <button className="rounded px-2 py-1 text-xs text-gray-400 hover:bg-white/10 hover:text-white" disabled={!parsed.success} onClick={() => parsed.success && setExpanded(collectExpandablePaths(parsed.value))} title="展开全部">
+            <div className="action-cluster-tight">
+              <button className="icon-button h-7 min-h-7 w-7 min-w-7 disabled:opacity-30" disabled={!parsed.success} onClick={() => parsed.success && setExpanded(collectExpandablePaths(parsed.value))} title="展开全部">
                 <ListTree className="h-3.5 w-3.5" />
               </button>
-              <button className="rounded px-2 py-1 text-xs text-gray-400 hover:bg-white/10 hover:text-white" disabled={!parsed.success} onClick={() => setExpanded(new Set(['$']))} title="收起全部">
+              <button className="icon-button h-7 min-h-7 w-7 min-w-7 disabled:opacity-30" disabled={!parsed.success} onClick={() => setExpanded(new Set(['$']))} title="收起全部">
                 <ListCollapse className="h-3.5 w-3.5" />
               </button>
-              <button className="rounded px-2 py-1 text-xs text-gray-400 hover:bg-white/10 hover:text-white" disabled={!parsed.success} onClick={() => collapseToLevel(2)} title="展开前 2 层">
+              <button className="toolbar-button min-h-7 px-2 py-1 text-xs disabled:opacity-30" disabled={!parsed.success} onClick={() => collapseToLevel(2)} title="展开前 2 层">
                 2层
               </button>
             </div>
           </div>
-          <div className="min-h-0 flex-1 overflow-auto">
+          <div className="panel-body overflow-auto">
             {parsed.success && tree ? (
               <TreeEditor
                 node={tree}
@@ -532,8 +532,8 @@ export function JsonToolPage(): JSX.Element {
                 onCopy={handleCopy}
               />
             ) : (
-              <div className="flex h-full flex-col items-center justify-center gap-3 text-sm text-gray-500">
-                <Braces className="h-9 w-9 text-gray-600" />
+              <div className="empty-state flex-col gap-3 text-sm">
+                <Braces className="h-9 w-9" />
                 <span>{input ? 'JSON 无法解析，修正后可编辑结构树' : '输入 JSON 后显示结构树'}</span>
               </div>
             )}
@@ -541,16 +541,16 @@ export function JsonToolPage(): JSX.Element {
         </section>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3 rounded-md border border-white/10 bg-white/[0.04] px-4 py-2 text-xs">
+      <div className="status-strip flex flex-wrap items-center gap-3 text-xs">
         <span className={statusClassName}>{status.message}</span>
-        <span className="text-gray-600">|</span>
-        <span className="text-gray-400">模式：{mode === 'jsonc' ? 'JSONC' : '严格 JSON'}</span>
-        <span className="text-gray-600">|</span>
-        <span className="text-gray-400">光标：第 {cursor.line} 行，第 {cursor.column} 列</span>
+        <span className="text-[color:var(--text-muted)]">|</span>
+        <span className="text-[color:var(--text-secondary)]">模式：{mode === 'jsonc' ? 'JSONC' : '严格 JSON'}</span>
+        <span className="text-[color:var(--text-muted)]">|</span>
+        <span className="text-[color:var(--text-secondary)]">光标：第 {cursor.line} 行，第 {cursor.column} 列</span>
         {diagnostic && (
           <>
-            <span className="text-gray-600">|</span>
-            <button className="inline-flex items-center gap-1 text-red-300 hover:text-red-200" onClick={() => focusDiagnostic(diagnostic)}>
+            <span className="text-[color:var(--text-muted)]">|</span>
+            <button className="inline-flex items-center gap-1 rounded px-2 py-1 text-red-300 hover:bg-[rgba(248,113,113,0.12)] hover:text-red-200" onClick={() => focusDiagnostic(diagnostic)}>
               <RotateCcw className="h-3.5 w-3.5" />
               定位错误
             </button>

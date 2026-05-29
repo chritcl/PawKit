@@ -14,7 +14,6 @@ import { QRCodeToolPage } from '../../pages/tools/qrcode-tool'
 // 内容区组件
 export function ContentArea(): JSX.Element {
   const activeTool = useAppStore((state) => state.activeTool)
-  const theme = useAppStore((state) => state.theme)
   const toolMeta = getToolMeta(activeTool)
 
   // 根据当前激活的工具渲染对应的页面
@@ -46,21 +45,19 @@ export function ContentArea(): JSX.Element {
   }
 
   return (
-    <div
-      className={`flex-1 overflow-auto backdrop-blur-xl ${
-        theme === 'dark' ? 'bg-white/5' : 'bg-white/30'
-      }`}
-    >
+    <main className="flex min-w-0 flex-1 flex-col overflow-hidden bg-[var(--app-bg-deep)]">
       {/* 工具标题 */}
-      <div className={`border-b px-6 py-4 ${theme === 'dark' ? 'border-white/10' : 'border-black/10'}`}>
-        <h1 className="text-lg font-semibold">{toolMeta?.name ?? '未知工具'}</h1>
-        <p className={`mt-1 text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
+      <div className="border-b border-[var(--glass-border)] bg-[var(--window-surface)] px-5 py-3">
+        <h1 className="text-base font-semibold tracking-normal text-[color:var(--text-primary)]">
+          {toolMeta?.name ?? '未知工具'}
+        </h1>
+        <p className="mt-0.5 text-xs text-[color:var(--text-muted)]">
           {toolMeta?.description ?? ''}
         </p>
       </div>
 
       {/* 页面内容 */}
-      <div className="p-6">{renderPage()}</div>
-    </div>
+      <div className="content-scroll">{renderPage()}</div>
+    </main>
   )
 }

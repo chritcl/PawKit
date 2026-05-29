@@ -73,34 +73,36 @@ export function HomePage(): JSX.Element {
   ]
 
   return (
-    <div className="space-y-6">
-      <section className="grid gap-4 md:grid-cols-4">
+    <div className="page-stack">
+      <section className="data-grid">
         {dataStats.map((stat) => (
-          <div key={stat.label} className="rounded-lg border border-white/10 bg-white/5 p-4 backdrop-blur-xl">
-            <div className="text-sm text-gray-400">{stat.label}</div>
-            <div className="mt-2 text-lg font-semibold">{stat.value}</div>
+          <div key={stat.label} className="stat-card">
+            <div className="text-sm text-[color:var(--text-muted)]">{stat.label}</div>
+            <div className="mt-2 text-lg font-semibold text-[color:var(--text-primary)]">{stat.value}</div>
           </div>
         ))}
       </section>
 
-      <section className="rounded-lg border border-white/10 bg-white/5 p-5 backdrop-blur-xl">
+      <section className="glass-panel">
         <div className="flex items-center gap-2">
           <Star className="h-4 w-4 text-yellow-400" />
           <h3 className="font-medium">常用工具</h3>
         </div>
-        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="mt-4 grid gap-3 md:grid-cols-2 2xl:grid-cols-4">
           {quickTools.map((tool) => {
             const IconComponent = tool.icon
             return (
               <button
                 key={tool.id}
-                className="flex min-h-28 flex-col items-start justify-between rounded-lg border border-white/10 bg-black/20 p-4 text-left transition-colors hover:bg-white/10"
+                className="glass-card flex min-h-28 flex-col items-start justify-between p-4 text-left"
                 onClick={() => setActiveTool(tool.id as ToolId)}
               >
-                <IconComponent className="h-5 w-5 text-sky-300" />
+                <span className="flex h-10 w-10 items-center justify-center rounded-[10px] bg-[var(--color-primary-soft)] text-[rgb(var(--color-primary-rgb))]">
+                  <IconComponent className="h-5 w-5" />
+                </span>
                 <div>
                   <div className="font-medium">{tool.name}</div>
-                  <div className="mt-1 line-clamp-2 text-sm text-gray-500">{tool.description}</div>
+                  <div className="mt-1 line-clamp-2 text-sm text-[color:var(--text-muted)]">{tool.description}</div>
                 </div>
               </button>
             )
@@ -109,14 +111,14 @@ export function HomePage(): JSX.Element {
       </section>
 
       <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
-        <section className="rounded-lg border border-white/10 bg-white/5 p-5 backdrop-blur-xl">
+        <section className="glass-panel">
           <div className="flex items-center gap-2">
-            <Clock3 className="h-4 w-4 text-gray-400" />
+            <Clock3 className="h-4 w-4 text-[color:var(--text-muted)]" />
             <h3 className="font-medium">最近使用</h3>
           </div>
           <div className="mt-4 space-y-2">
             {recentTools.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-white/10 p-6 text-center text-sm text-gray-500">
+              <div className="rounded-[12px] border border-dashed border-[var(--glass-border)] p-6 text-center text-sm text-[color:var(--text-muted)]">
                 暂无工具使用记录
               </div>
             ) : (
@@ -127,14 +129,14 @@ export function HomePage(): JSX.Element {
                 return (
                   <button
                     key={item.toolId}
-                    className="flex w-full items-center justify-between rounded-lg border border-white/10 bg-black/20 p-3 text-left transition-colors hover:bg-white/10"
+                    className="glass-card flex w-full items-center justify-between p-3 text-left"
                     onClick={() => setActiveTool(item.toolId)}
                   >
                     <span className="flex min-w-0 items-center gap-3">
-                      <IconComponent className="h-4 w-4 shrink-0 text-gray-400" />
+                      <IconComponent className="h-4 w-4 shrink-0 text-[color:var(--text-muted)]" />
                       <span className="truncate">{tool.name}</span>
                     </span>
-                    <span className="shrink-0 text-xs text-gray-500">
+                    <span className="shrink-0 text-xs text-[color:var(--text-muted)]">
                       {item.count} 次 · {formatTime(item.lastUsedAt)}
                     </span>
                   </button>
@@ -144,9 +146,9 @@ export function HomePage(): JSX.Element {
           </div>
         </section>
 
-        <section className="rounded-lg border border-white/10 bg-white/5 p-5 backdrop-blur-xl">
+        <section className="glass-panel">
           <div className="flex items-center gap-2">
-            <TableProperties className="h-4 w-4 text-gray-400" />
+            <TableProperties className="h-4 w-4 text-[color:var(--text-muted)]" />
             <h3 className="font-medium">最近本地内容</h3>
           </div>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
@@ -174,27 +176,27 @@ export function HomePage(): JSX.Element {
         </section>
       </div>
 
-      <section className="grid gap-4 md:grid-cols-3">
+      <section className="data-grid">
         <button
-          className="rounded-lg border border-white/10 bg-white/5 p-5 text-left backdrop-blur-xl transition-colors hover:bg-white/10"
+          className="glass-card p-5 text-left"
           onClick={() => setActiveTool(TOOL_IDS.MANAGEMENT)}
         >
           <Activity className="h-5 w-5 text-emerald-300" />
           <div className="mt-3 font-medium">管理中心</div>
-          <div className="mt-1 text-sm text-gray-500">工具启用、排序、常用入口和本地数据</div>
+          <div className="mt-1 text-sm text-[color:var(--text-muted)]">工具启用、排序、常用入口和本地数据</div>
         </button>
         <button
-          className="rounded-lg border border-white/10 bg-white/5 p-5 text-left backdrop-blur-xl transition-colors hover:bg-white/10"
+          className="glass-card p-5 text-left"
           onClick={() => setActiveTool(TOOL_IDS.SETTINGS)}
         >
           <Keyboard className="h-5 w-5 text-sky-300" />
           <div className="mt-3 font-medium">偏好设置</div>
-          <div className="mt-1 text-sm text-gray-500">主题、启动页、隐私和窗口行为</div>
+          <div className="mt-1 text-sm text-[color:var(--text-muted)]">主题、启动页、隐私和窗口行为</div>
         </button>
-        <div className="rounded-lg border border-white/10 bg-white/5 p-5 backdrop-blur-xl">
-          <div className="text-sm text-gray-400">PawKit</div>
+        <div className="glass-card p-5">
+          <div className="text-sm text-[color:var(--text-muted)]">PawKit</div>
           <div className="mt-3 text-2xl font-semibold">v{APP_VERSION}</div>
-          <div className="mt-1 text-sm text-gray-500">本地优先，配置可导出</div>
+          <div className="mt-1 text-sm text-[color:var(--text-muted)]">本地优先，配置可导出</div>
         </div>
       </section>
     </div>
@@ -213,19 +215,19 @@ function RecentList({
   onOpen: () => void
 }): JSX.Element {
   return (
-    <div className="rounded-lg border border-white/10 bg-black/20 p-4">
+    <div className="soft-panel p-4">
       <div className="flex items-center justify-between gap-3">
         <h4 className="text-sm font-medium">{title}</h4>
-        <button className="text-xs text-gray-500 hover:text-white" onClick={onOpen}>打开</button>
+        <button className="text-xs text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)]" onClick={onOpen}>打开</button>
       </div>
       <div className="mt-3 space-y-2">
         {items.length === 0 ? (
-          <div className="py-5 text-center text-sm text-gray-500">{emptyText}</div>
+          <div className="py-5 text-center text-sm text-[color:var(--text-muted)]">{emptyText}</div>
         ) : (
           items.map((item) => (
-            <div key={item.id} className="min-w-0 rounded border border-white/10 bg-white/5 p-3">
-              <div className="truncate text-sm text-gray-300">{item.label}</div>
-              <div className="mt-1 text-xs text-gray-500">{item.meta}</div>
+            <div key={item.id} className="min-w-0 rounded-[9px] border border-[var(--glass-border)] bg-[var(--input-surface)] p-3">
+              <div className="truncate text-sm text-[color:var(--text-secondary)]">{item.label}</div>
+              <div className="mt-1 text-xs text-[color:var(--text-muted)]">{item.meta}</div>
             </div>
           ))
         )}

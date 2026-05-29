@@ -244,15 +244,13 @@ export function QRCodeToolPage(): JSX.Element {
   }
 
   return (
-    <div className="flex h-full min-h-[620px] flex-col">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-4">
-        <div className="flex flex-wrap rounded-lg border border-white/10 bg-white/5 p-1">
+    <div className="tool-page">
+      <div className="toolbar-surface tool-toolbar-spread">
+        <div className="segmented-control segmented-scroll">
           {templateOptions.map((option) => (
             <button
               key={option.id}
-              className={`rounded-md px-3 py-1.5 text-sm transition-colors ${
-                template === option.id ? 'bg-white/15 text-white' : 'text-gray-400 hover:text-white'
-              }`}
+              className={`segmented-item ${template === option.id ? 'segmented-item-active' : ''}`}
               onClick={() => switchTemplate(option.id)}
             >
               {option.label}
@@ -260,18 +258,18 @@ export function QRCodeToolPage(): JSX.Element {
           ))}
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          {message && <span className="text-sm text-gray-400">{message}</span>}
+        <div className="action-cluster">
+          {message && <span className="text-sm text-[color:var(--text-muted)]">{message}</span>}
           {error && <span className="text-sm text-red-400">{error}</span>}
           <button
-            className="inline-flex items-center gap-2 rounded-lg bg-white/10 px-3 py-2 text-sm hover:bg-white/20"
+            className="toolbar-button"
             onClick={handleReset}
           >
             <RotateCcw className="h-4 w-4" />
             重置
           </button>
           <button
-            className="inline-flex items-center gap-2 rounded-lg bg-sky-500/20 px-4 py-2 text-sm text-sky-200 hover:bg-sky-500/30"
+            className="toolbar-button-primary"
             onClick={handleGenerate}
           >
             <QrCode className="h-4 w-4" />
@@ -280,17 +278,17 @@ export function QRCodeToolPage(): JSX.Element {
         </div>
       </div>
 
-      <div className="grid flex-1 gap-4 overflow-hidden pt-4 xl:grid-cols-[0.9fr_1.1fr]">
+      <div className="tool-workspace xl:grid-cols-[minmax(330px,0.85fr)_minmax(0,1.15fr)]">
         <div className="min-h-0 space-y-4 overflow-auto pr-1">
-          <section className="rounded-lg border border-white/10 bg-white/5 p-5 backdrop-blur-xl">
+          <section className="glass-panel">
             <h3 className="font-medium">{getTemplateLabel(template)}内容</h3>
             <div className="mt-4">{renderTemplateFields(template, fields, setField)}</div>
           </section>
 
-          <section className="rounded-lg border border-white/10 bg-white/5 p-5 backdrop-blur-xl">
+          <section className="glass-panel">
             <h3 className="font-medium">样式参数</h3>
             <div className="mt-4 grid gap-4 md:grid-cols-2">
-              <label className="text-sm text-gray-400">
+              <label className="text-sm text-[color:var(--text-secondary)]">
                 尺寸
                 <input
                   type="number"
@@ -299,10 +297,10 @@ export function QRCodeToolPage(): JSX.Element {
                   step={16}
                   value={style.size}
                   onChange={(event) => updateStyle({ size: Number(event.target.value) })}
-                  className="mt-2 w-full rounded border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:border-white/20 focus:outline-none"
+                  className="field-input mt-2 text-sm"
                 />
               </label>
-              <label className="text-sm text-gray-400">
+              <label className="text-sm text-[color:var(--text-secondary)]">
                 边距
                 <input
                   type="number"
@@ -310,56 +308,52 @@ export function QRCodeToolPage(): JSX.Element {
                   max={8}
                   value={style.margin}
                   onChange={(event) => updateStyle({ margin: Number(event.target.value) })}
-                  className="mt-2 w-full rounded border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:border-white/20 focus:outline-none"
+                  className="field-input mt-2 text-sm"
                 />
               </label>
-              <label className="text-sm text-gray-400">
+              <label className="text-sm text-[color:var(--text-secondary)]">
                 前景色
-                <div className="mt-2 flex gap-2">
+                <div className="mt-2 flex gap-3">
                   <input
                     type="color"
                     value={style.darkColor}
                     onChange={(event) => updateStyle({ darkColor: event.target.value })}
-                    className="h-10 w-12 rounded border border-white/10 bg-white/5"
+                    className="h-10 w-12 rounded-[9px] border border-[var(--glass-border)] bg-[var(--input-surface)]"
                   />
                   <input
                     type="text"
                     value={style.darkColor}
                     onChange={(event) => updateStyle({ darkColor: event.target.value })}
-                    className="min-w-0 flex-1 rounded border border-white/10 bg-white/5 px-3 py-2 font-mono text-sm text-white focus:border-white/20 focus:outline-none"
+                    className="field-input min-w-0 flex-1 font-mono text-sm"
                   />
                 </div>
               </label>
-              <label className="text-sm text-gray-400">
+              <label className="text-sm text-[color:var(--text-secondary)]">
                 背景色
-                <div className="mt-2 flex gap-2">
+                <div className="mt-2 flex gap-3">
                   <input
                     type="color"
                     value={style.lightColor}
                     onChange={(event) => updateStyle({ lightColor: event.target.value })}
-                    className="h-10 w-12 rounded border border-white/10 bg-white/5"
+                    className="h-10 w-12 rounded-[9px] border border-[var(--glass-border)] bg-[var(--input-surface)]"
                   />
                   <input
                     type="text"
                     value={style.lightColor}
                     onChange={(event) => updateStyle({ lightColor: event.target.value })}
-                    className="min-w-0 flex-1 rounded border border-white/10 bg-white/5 px-3 py-2 font-mono text-sm text-white focus:border-white/20 focus:outline-none"
+                    className="field-input min-w-0 flex-1 font-mono text-sm"
                   />
                 </div>
               </label>
             </div>
 
-            <div className="mt-4">
-              <div className="text-sm text-gray-400">纠错级别</div>
-              <div className="mt-2 flex flex-wrap rounded-lg border border-white/10 bg-black/20 p-1">
+            <div className="mt-5">
+              <div className="text-sm text-[color:var(--text-muted)]">纠错级别</div>
+              <div className="segmented-control mt-2 flex w-full flex-wrap">
                 {errorCorrectionOptions.map((option) => (
                   <button
                     key={option.id}
-                    className={`flex-1 rounded-md px-3 py-1.5 text-sm transition-colors ${
-                      style.errorCorrectionLevel === option.id
-                        ? 'bg-white/15 text-white'
-                        : 'text-gray-400 hover:text-white'
-                    }`}
+                    className={`segmented-item flex-1 ${style.errorCorrectionLevel === option.id ? 'segmented-item-active' : ''}`}
                     onClick={() => updateStyle({ errorCorrectionLevel: option.id })}
                   >
                     {option.label}
@@ -370,13 +364,13 @@ export function QRCodeToolPage(): JSX.Element {
           </section>
         </div>
 
-        <div className="grid min-h-0 gap-4 overflow-hidden lg:grid-cols-[0.9fr_1.1fr]">
-          <section className="flex min-h-0 flex-col rounded-lg border border-white/10 bg-white/5 p-5 backdrop-blur-xl">
+        <div className="grid min-h-0 gap-4 overflow-hidden xl:grid-cols-[minmax(250px,0.85fr)_minmax(280px,1fr)]">
+          <section className="glass-panel tool-panel">
             <div className="flex items-center justify-between gap-3">
               <h3 className="font-medium">预览</h3>
-              <div className="flex gap-2">
+              <div className="action-cluster-tight">
                 <button
-                  className="rounded p-2 text-gray-500 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-30"
+                  className="icon-button icon-button-success disabled:opacity-30"
                   onClick={handleCopy}
                   disabled={!qrDataUrl}
                   title="复制图片"
@@ -384,7 +378,7 @@ export function QRCodeToolPage(): JSX.Element {
                   <ClipboardCopy className="h-4 w-4" />
                 </button>
                 <button
-                  className="rounded p-2 text-gray-500 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-30"
+                  className="icon-button icon-button-accent disabled:opacity-30"
                   onClick={handleSave}
                   disabled={!qrDataUrl}
                   title="保存 PNG"
@@ -393,36 +387,36 @@ export function QRCodeToolPage(): JSX.Element {
                 </button>
               </div>
             </div>
-            <div className="mt-4 flex flex-1 items-center justify-center rounded-lg border border-dashed border-white/10 bg-black/20 p-4">
+            <div className="content-block mt-4 flex min-h-56 flex-1 items-center justify-center border-dashed p-4">
               {qrDataUrl ? (
                 <div className="rounded bg-white p-3">
                   <img src={qrDataUrl} alt="二维码预览" className="h-64 w-64 object-contain" />
                 </div>
               ) : (
-                <div className="text-center text-sm text-gray-500">
+                <div className="text-center text-sm text-[color:var(--text-muted)]">
                   <QrCode className="mx-auto mb-3 h-8 w-8" />
                   生成后在这里预览
                 </div>
               )}
             </div>
-            <div className="mt-4 rounded border border-white/10 bg-black/20 p-3">
-              <div className="text-xs text-gray-500">Payload</div>
-              <pre className="mt-2 max-h-28 overflow-auto whitespace-pre-wrap break-all font-mono text-xs text-gray-300">
+            <div className="content-block mt-4">
+              <div className="text-xs text-[color:var(--text-muted)]">Payload</div>
+              <pre className="mt-2 max-h-28 overflow-auto whitespace-pre-wrap break-all font-mono text-xs text-[color:var(--text-secondary)]">
                 {payload || buildQrCodePayload(template, fields) || '等待输入'}
               </pre>
             </div>
           </section>
 
-          <section className="flex min-h-0 flex-col rounded-lg border border-white/10 bg-white/5 p-5 backdrop-blur-xl">
+          <section className="glass-panel tool-panel">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <h3 className="font-medium">最近记录</h3>
-                <div className="mt-1 text-xs text-gray-500">
+                <div className="mt-1 text-xs text-[color:var(--text-muted)]">
                   {history.length} 条 · {favoriteCount} 收藏 · 上限 {qrcodeHistoryLimit}
                 </div>
               </div>
               <button
-                className="rounded p-2 text-gray-500 transition-colors hover:bg-red-500/10 hover:text-red-400"
+                className="icon-button icon-button-danger"
                 onClick={() => setShowClearConfirm(true)}
                 disabled={history.every((item) => item.favorite)}
                 title="清空非收藏"
@@ -433,40 +427,40 @@ export function QRCodeToolPage(): JSX.Element {
 
             <div className="mt-4 min-h-0 flex-1 overflow-auto pr-1">
               {history.length === 0 ? (
-                <div className="flex h-full items-center justify-center text-sm text-gray-500">
+                <div className="empty-state text-sm">
                   暂无二维码记录
                 </div>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {history.map((item) => (
                     <div
                       key={item.id}
-                      className="rounded-lg border border-white/10 bg-black/20 p-3 transition-colors hover:bg-white/10"
+                      className="interactive-row p-3.5"
                     >
-                      <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start justify-between gap-4">
                         <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="rounded border border-white/10 bg-white/10 px-2 py-0.5 text-xs text-gray-300">
+                          <div className="flex flex-wrap items-center gap-2.5">
+                            <span className="chip">
                               {getTemplateLabel(item.template)}
                             </span>
-                            <span className="text-xs text-gray-500">{formatTime(item.updatedAt)}</span>
+                            <span className="text-xs text-[color:var(--text-muted)]">{formatTime(item.updatedAt)}</span>
                           </div>
                           <div className="mt-2 truncate text-sm font-medium">{item.title}</div>
-                          <div className="mt-1 line-clamp-2 break-all text-xs text-gray-500">
+                          <div className="mt-1 line-clamp-2 break-all text-xs text-[color:var(--text-muted)]">
                             {shortPreview(item.payload)}
                           </div>
                         </div>
-                        <div className="flex shrink-0 items-center gap-1">
+                        <div className="action-cluster-tight shrink-0">
                           <button
-                            className="rounded p-1.5 text-gray-500 hover:bg-white/10 hover:text-white"
+                            className="icon-button icon-button-accent h-8 min-h-8 w-8 min-w-8"
                             onClick={() => handleEditHistory(item)}
                             title="重新编辑"
                           >
                             <Pencil className="h-4 w-4" />
                           </button>
                           <button
-                            className={`rounded p-1.5 hover:bg-yellow-500/10 hover:text-yellow-400 ${
-                              item.favorite ? 'text-yellow-400' : 'text-gray-500'
+                            className={`icon-button icon-button-warning h-8 min-h-8 w-8 min-w-8 ${
+                              item.favorite ? 'text-yellow-400' : ''
                             }`}
                             onClick={() => handleToggleFavorite(item.id)}
                             title={item.favorite ? '取消收藏' : '收藏'}
@@ -474,7 +468,7 @@ export function QRCodeToolPage(): JSX.Element {
                             <Star className={`h-4 w-4 ${item.favorite ? 'fill-current' : ''}`} />
                           </button>
                           <button
-                            className="rounded p-1.5 text-gray-500 hover:bg-red-500/10 hover:text-red-400"
+                            className="icon-button icon-button-danger h-8 min-h-8 w-8 min-w-8"
                             onClick={() => handleRemove(item.id)}
                             title="删除"
                           >
@@ -493,18 +487,18 @@ export function QRCodeToolPage(): JSX.Element {
 
       {showClearConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="w-96 rounded-lg border border-white/10 bg-black/40 p-6 backdrop-blur-xl">
+          <div className="modal-surface w-96 rounded-[14px] p-6">
             <h3 className="text-lg font-semibold">确认清空</h3>
-            <p className="mt-2 text-sm text-gray-400">此操作会删除所有非收藏二维码记录，收藏记录会保留。</p>
+            <p className="mt-2 text-sm text-[color:var(--text-muted)]">此操作会删除所有非收藏二维码记录，收藏记录会保留。</p>
             <div className="mt-6 flex justify-end gap-3">
               <button
-                className="rounded-lg bg-white/10 px-4 py-2 text-sm hover:bg-white/20"
+                className="toolbar-button"
                 onClick={() => setShowClearConfirm(false)}
               >
                 取消
               </button>
               <button
-                className="rounded-lg bg-red-500/20 px-4 py-2 text-sm text-red-400 hover:bg-red-500/30"
+                className="toolbar-button-danger"
                 onClick={handleClearUnfavorite}
               >
                 确认清空
@@ -524,13 +518,13 @@ function renderTemplateFields(
 ): JSX.Element {
   if (template === 'url') {
     return (
-      <label className="block text-sm text-gray-400">
+      <label className="block text-sm text-[color:var(--text-secondary)]">
         URL
         <input
           value={fields.url ?? ''}
           onChange={(event) => setField('url', event.target.value)}
           placeholder="https://example.com"
-          className="mt-2 w-full rounded border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-white/20 focus:outline-none"
+          className="field-input mt-2 text-sm"
         />
       </label>
     )
@@ -538,37 +532,37 @@ function renderTemplateFields(
 
   if (template === 'wifi') {
     return (
-      <div className="grid gap-4 md:grid-cols-2">
-        <label className="text-sm text-gray-400">
+      <div className="grid gap-5 md:grid-cols-2">
+        <label className="text-sm text-[color:var(--text-secondary)]">
           WiFi 名称
           <input
             value={fields.ssid ?? ''}
             onChange={(event) => setField('ssid', event.target.value)}
-            className="mt-2 w-full rounded border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:border-white/20 focus:outline-none"
+            className="field-input mt-2 text-sm"
           />
         </label>
-        <label className="text-sm text-gray-400">
+        <label className="text-sm text-[color:var(--text-secondary)]">
           密码
           <input
             type="password"
             value={fields.password ?? ''}
             onChange={(event) => setField('password', event.target.value)}
-            className="mt-2 w-full rounded border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:border-white/20 focus:outline-none"
+            className="field-input mt-2 text-sm"
           />
         </label>
-        <label className="text-sm text-gray-400">
+        <label className="text-sm text-[color:var(--text-secondary)]">
           加密方式
           <select
             value={fields.encryption ?? 'WPA'}
             onChange={(event) => setField('encryption', event.target.value)}
-            className="mt-2 w-full rounded border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:border-white/20 focus:outline-none"
+            className="field-select mt-2 text-sm"
           >
             {encryptionOptions.map((option) => (
               <option key={option.id} value={option.id}>{option.label}</option>
             ))}
           </select>
         </label>
-        <label className="flex items-center gap-2 pt-7 text-sm text-gray-400">
+        <label className="flex items-center gap-3 pt-7 text-sm text-[color:var(--text-secondary)]">
           <input
             type="checkbox"
             checked={fields.hidden === 'true'}
@@ -583,46 +577,46 @@ function renderTemplateFields(
 
   if (template === 'vcard') {
     return (
-      <div className="grid gap-4 md:grid-cols-2">
-        <label className="text-sm text-gray-400">
+      <div className="grid gap-5 md:grid-cols-2">
+        <label className="text-sm text-[color:var(--text-secondary)]">
           姓名
           <input
             value={fields.name ?? ''}
             onChange={(event) => setField('name', event.target.value)}
-            className="mt-2 w-full rounded border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:border-white/20 focus:outline-none"
+            className="field-input mt-2 text-sm"
           />
         </label>
-        <label className="text-sm text-gray-400">
+        <label className="text-sm text-[color:var(--text-secondary)]">
           电话
           <input
             value={fields.phone ?? ''}
             onChange={(event) => setField('phone', event.target.value)}
-            className="mt-2 w-full rounded border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:border-white/20 focus:outline-none"
+            className="field-input mt-2 text-sm"
           />
         </label>
-        <label className="text-sm text-gray-400">
+        <label className="text-sm text-[color:var(--text-secondary)]">
           邮箱
           <input
             value={fields.email ?? ''}
             onChange={(event) => setField('email', event.target.value)}
-            className="mt-2 w-full rounded border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:border-white/20 focus:outline-none"
+            className="field-input mt-2 text-sm"
           />
         </label>
-        <label className="text-sm text-gray-400">
+        <label className="text-sm text-[color:var(--text-secondary)]">
           组织
           <input
             value={fields.org ?? ''}
             onChange={(event) => setField('org', event.target.value)}
-            className="mt-2 w-full rounded border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:border-white/20 focus:outline-none"
+            className="field-input mt-2 text-sm"
           />
         </label>
-        <label className="text-sm text-gray-400 md:col-span-2">
+        <label className="text-sm text-[color:var(--text-secondary)] md:col-span-2">
           主页
           <input
             value={fields.url ?? ''}
             onChange={(event) => setField('url', event.target.value)}
             placeholder="https://example.com"
-            className="mt-2 w-full rounded border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-white/20 focus:outline-none"
+            className="field-input mt-2 text-sm"
           />
         </label>
       </div>
@@ -630,13 +624,13 @@ function renderTemplateFields(
   }
 
   return (
-    <label className="block text-sm text-gray-400">
+    <label className="block text-sm text-[color:var(--text-secondary)]">
       文本
       <textarea
         value={fields.text ?? ''}
         onChange={(event) => setField('text', event.target.value)}
         placeholder="输入要写入二维码的文本"
-        className="mt-2 h-36 w-full resize-none rounded border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-white/20 focus:outline-none"
+        className="field-textarea mt-2 h-36 resize-none text-sm"
       />
     </label>
   )

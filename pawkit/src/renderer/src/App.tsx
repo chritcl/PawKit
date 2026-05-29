@@ -45,7 +45,7 @@ function MainApp(): JSX.Element {
   }, [setActiveTool])
 
   return (
-    <div className={`h-screen w-screen overflow-hidden ${theme === 'dark' ? 'dark' : ''}`}>
+    <div className={`app-root h-screen w-screen overflow-hidden ${theme === 'dark' ? 'dark' : ''}`}>
       <AppShell />
     </div>
   )

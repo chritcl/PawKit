@@ -75,120 +75,120 @@ export function TimestampToolPage(): JSX.Element {
   }
 
   return (
-    <div className="flex h-full min-h-[600px] flex-col gap-4">
-      <div className="grid grid-cols-3 gap-3">
-        <div className="rounded-md border border-white/10 bg-white/[0.04] p-4">
-          <div className="flex items-center gap-2 text-sm text-gray-400">
-            <Clock3 className="h-4 w-4 text-[#1677ff]" />
+    <div className="tool-page">
+      <div className="data-grid">
+        <div className="stat-card">
+          <div className="flex items-center gap-2 text-sm text-[color:var(--text-muted)]">
+            <Clock3 className="h-4 w-4 text-[rgb(var(--color-primary-rgb))]" />
             当前本地时间
           </div>
-          <div className="mt-2 font-mono text-xl text-white">{getCurrentTimeString()}</div>
+          <div className="mt-2 font-mono text-xl text-[color:var(--text-primary)]">{getCurrentTimeString()}</div>
         </div>
-        <div className="rounded-md border border-white/10 bg-white/[0.04] p-4">
-          <div className="text-sm text-gray-400">秒级时间戳</div>
-          <button className="mt-2 font-mono text-xl text-white hover:text-[#69a8ff]" onClick={() => void copyText(String(getCurrentTimestampSeconds()), '秒级时间戳已复制')}>
+        <div className="stat-card">
+          <div className="text-sm text-[color:var(--text-muted)]">秒级时间戳</div>
+          <button className="mt-2 font-mono text-xl text-[color:var(--text-primary)] hover:text-[rgb(var(--color-primary-rgb))]" onClick={() => void copyText(String(getCurrentTimestampSeconds()), '秒级时间戳已复制')}>
             {getCurrentTimestampSeconds()}
           </button>
         </div>
-        <div className="rounded-md border border-white/10 bg-white/[0.04] p-4">
-          <div className="text-sm text-gray-400">毫秒级时间戳</div>
-          <button className="mt-2 font-mono text-xl text-white hover:text-[#69a8ff]" onClick={() => void copyText(String(nowMillis), '毫秒级时间戳已复制')}>
+        <div className="stat-card">
+          <div className="text-sm text-[color:var(--text-muted)]">毫秒级时间戳</div>
+          <button className="mt-2 font-mono text-xl text-[color:var(--text-primary)] hover:text-[rgb(var(--color-primary-rgb))]" onClick={() => void copyText(String(nowMillis), '毫秒级时间戳已复制')}>
             {nowMillis}
           </button>
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 border-b border-white/10 pb-4">
-        <button className="inline-flex h-10 items-center gap-2 rounded-md bg-[#1677ff] px-3 text-sm font-medium text-white hover:bg-[#2f86ff]" onClick={fillNow} title="填入当前时间">
+      <div className="toolbar-surface tool-toolbar">
+        <button className="toolbar-button-primary" onClick={fillNow} title="填入当前时间">
           <TimerReset className="h-4 w-4" />
           now
         </button>
         {quickInputs.slice(1).map((item) => (
-          <button key={item} className="inline-flex h-10 items-center rounded-md border border-white/10 bg-white/5 px-3 font-mono text-sm text-gray-200 hover:bg-white/10" onClick={() => setInput(item)}>
+          <button key={item} className="toolbar-button font-mono" onClick={() => setInput(item)}>
             {item}
           </button>
         ))}
-        <div className="ml-auto flex items-center gap-2">
-          <span className="text-sm text-gray-400">固定偏移</span>
+        <div className="toolbar-group toolbar-push">
+          <span className="text-sm text-[color:var(--text-muted)]">固定偏移</span>
           <input
             value={offsetText}
             onChange={(event) => setOffsetText(event.target.value)}
-            className="h-10 w-32 rounded-md border border-white/10 bg-white/5 px-3 font-mono text-sm text-gray-200 outline-none focus:border-[#1677ff]/60"
+            className="field-input w-32 font-mono text-sm"
             placeholder="UTC+08:00"
           />
-          <button className="inline-flex h-10 items-center gap-2 rounded-md border border-white/10 bg-white/5 px-3 text-sm text-gray-200 hover:bg-white/10" onClick={clearInput} title="清空">
+          <button className="toolbar-button" onClick={clearInput} title="清空">
             <RotateCcw className="h-4 w-4" />
             清空
           </button>
         </div>
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-[minmax(300px,0.45fr)_minmax(420px,1fr)] gap-4">
-        <section className="flex min-h-0 flex-col overflow-hidden rounded-md border border-white/10 bg-white/[0.03]">
-          <div className="flex h-10 items-center justify-between border-b border-white/10 px-3 text-sm text-gray-300">
+      <div className="tool-workspace tool-grid-editor">
+        <section className="editor-surface tool-panel">
+          <div className="panel-header">
             <span>智能输入</span>
-            <span className="text-xs text-gray-500">支持多行</span>
+            <span className="text-xs text-[color:var(--text-muted)]">支持多行</span>
           </div>
           <textarea
             value={input}
             onChange={(event) => setInput(event.target.value)}
             placeholder="输入时间戳、日期、ISO 字符串或 now..."
-            className="min-h-0 flex-1 resize-none bg-transparent p-4 font-mono text-sm text-gray-100 outline-none placeholder:text-gray-600"
+            className="editor-textarea"
           />
         </section>
 
-        <section className="flex min-h-0 flex-col overflow-hidden rounded-md border border-white/10 bg-white/[0.03]">
-          <div className="flex h-10 items-center justify-between border-b border-white/10 px-3 text-sm text-gray-300">
+        <section className="editor-surface tool-panel">
+          <div className="panel-header">
             <span>转换结果</span>
-            <span className="text-xs text-gray-500">有效 {validCount} / {results.length}</span>
+            <span className="text-xs text-[color:var(--text-muted)]">有效 {validCount} / {results.length}</span>
           </div>
-          <div className="min-h-0 flex-1 overflow-auto p-3">
+          <div className="panel-body overflow-auto p-3">
             {results.length === 0 ? (
-              <div className="flex h-full items-center justify-center text-sm text-gray-500">
+              <div className="empty-state text-sm">
                 输入内容后实时转换
               </div>
             ) : (
               <div className="space-y-3">
                 {results.map((result, index) => (
-                  <div key={`${result.source}-${index}`} className={`rounded-md border p-3 ${result.valid ? 'border-white/10 bg-black/20' : 'border-red-500/20 bg-red-500/10'}`}>
+                  <div key={`${result.source}-${index}`} className={`rounded-[10px] border p-3 ${result.valid ? 'border-[var(--glass-border)] bg-[var(--glass-muted)]' : 'border-red-500/20 bg-red-500/10'}`}>
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-2">
                         {result.valid ? <Check className="h-4 w-4 text-emerald-300" /> : <Clock3 className="h-4 w-4 text-red-300" />}
-                        <span className="font-mono text-sm text-white">{result.source}</span>
-                        <span className="rounded bg-white/10 px-2 py-0.5 text-xs text-gray-400">{kindLabel(result.kind)}</span>
+                        <span className="font-mono text-sm text-[color:var(--text-primary)]">{result.source}</span>
+                        <span className="chip">{kindLabel(result.kind)}</span>
                       </div>
-                      <button className="rounded px-2 py-1 text-xs text-gray-400 hover:bg-white/10 hover:text-white disabled:opacity-30" disabled={!result.valid} onClick={() => void copyResult(result)} title="复制本条结果">
+                      <button className="icon-button h-7 min-h-7 w-7 min-w-7 disabled:opacity-30" disabled={!result.valid} onClick={() => void copyResult(result)} title="复制本条结果">
                         <Copy className="h-3.5 w-3.5" />
                       </button>
                     </div>
 
                     {result.valid ? (
-                      <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                        <button className="flex justify-between rounded bg-white/[0.04] px-3 py-2 text-left hover:bg-white/[0.08]" onClick={() => void copyText(String(result.seconds), '秒级时间戳已复制')}>
-                          <span className="text-gray-500">秒</span>
-                          <span className="font-mono text-gray-200">{result.seconds}</span>
+                      <div className="mt-3 grid grid-cols-1 gap-2 text-xs xl:grid-cols-2">
+                        <button className="copy-row" onClick={() => void copyText(String(result.seconds), '秒级时间戳已复制')}>
+                          <span className="text-[color:var(--text-muted)]">秒</span>
+                          <span className="font-mono text-[color:var(--text-secondary)]">{result.seconds}</span>
                         </button>
-                        <button className="flex justify-between rounded bg-white/[0.04] px-3 py-2 text-left hover:bg-white/[0.08]" onClick={() => void copyText(String(result.millis), '毫秒级时间戳已复制')}>
-                          <span className="text-gray-500">毫秒</span>
-                          <span className="font-mono text-gray-200">{result.millis}</span>
+                        <button className="copy-row" onClick={() => void copyText(String(result.millis), '毫秒级时间戳已复制')}>
+                          <span className="text-[color:var(--text-muted)]">毫秒</span>
+                          <span className="font-mono text-[color:var(--text-secondary)]">{result.millis}</span>
                         </button>
-                        <button className="flex justify-between rounded bg-white/[0.04] px-3 py-2 text-left hover:bg-white/[0.08]" onClick={() => void copyText(result.local ?? '', '本地时间已复制')}>
-                          <span className="text-gray-500">本地</span>
-                          <span className="font-mono text-gray-200">{result.local}</span>
+                        <button className="copy-row" onClick={() => void copyText(result.local ?? '', '本地时间已复制')}>
+                          <span className="text-[color:var(--text-muted)]">本地</span>
+                          <span className="font-mono text-[color:var(--text-secondary)]">{result.local}</span>
                         </button>
-                        <button className="flex justify-between rounded bg-white/[0.04] px-3 py-2 text-left hover:bg-white/[0.08]" onClick={() => void copyText(result.utc ?? '', 'UTC 时间已复制')}>
-                          <span className="text-gray-500">UTC</span>
-                          <span className="font-mono text-gray-200">{result.utc}</span>
+                        <button className="copy-row" onClick={() => void copyText(result.utc ?? '', 'UTC 时间已复制')}>
+                          <span className="text-[color:var(--text-muted)]">UTC</span>
+                          <span className="font-mono text-[color:var(--text-secondary)]">{result.utc}</span>
                         </button>
-                        <button className="col-span-2 flex justify-between rounded bg-white/[0.04] px-3 py-2 text-left hover:bg-white/[0.08]" onClick={() => void copyText(result.offset ?? '', `${formatOffsetLabel(offset.minutes)} 时间已复制`)}>
-                          <span className="text-gray-500">{offset.label}</span>
-                          <span className="font-mono text-gray-200">{result.offset}</span>
+                        <button className="copy-row xl:col-span-2" onClick={() => void copyText(result.offset ?? '', `${formatOffsetLabel(offset.minutes)} 时间已复制`)}>
+                          <span className="text-[color:var(--text-muted)]">{offset.label}</span>
+                          <span className="font-mono text-[color:var(--text-secondary)]">{result.offset}</span>
                         </button>
-                        <button className="col-span-2 flex justify-between rounded bg-white/[0.04] px-3 py-2 text-left hover:bg-white/[0.08]" onClick={() => void copyText(result.iso ?? '', 'ISO 时间已复制')}>
-                          <span className="text-gray-500">ISO</span>
-                          <span className="font-mono text-gray-200">{result.iso}</span>
+                        <button className="copy-row xl:col-span-2" onClick={() => void copyText(result.iso ?? '', 'ISO 时间已复制')}>
+                          <span className="text-[color:var(--text-muted)]">ISO</span>
+                          <span className="font-mono text-[color:var(--text-secondary)]">{result.iso}</span>
                         </button>
-                        <div className="col-span-2 rounded bg-white/[0.04] px-3 py-2 text-gray-300">
+                        <div className="compact-row xl:col-span-2 text-[color:var(--text-secondary)]">
                           {result.relative}
                         </div>
                       </div>
@@ -203,12 +203,12 @@ export function TimestampToolPage(): JSX.Element {
         </section>
       </div>
 
-      <div className="flex items-center gap-3 rounded-md border border-white/10 bg-white/[0.04] px-4 py-2 text-xs">
+      <div className="status-strip flex items-center gap-3 text-xs">
         <span className="text-emerald-300">{message}</span>
-        <span className="text-gray-600">|</span>
-        <span className="text-gray-400">固定偏移：{offset.label}</span>
-        <span className="text-gray-600">|</span>
-        <button className="inline-flex items-center gap-1 text-gray-400 hover:text-white" onClick={() => void copyText(results.filter((item) => item.valid).map((item) => item.iso).join('\n'), '全部 ISO 已复制')}>
+        <span className="text-[color:var(--text-muted)]">|</span>
+        <span className="text-[color:var(--text-secondary)]">固定偏移：{offset.label}</span>
+        <span className="text-[color:var(--text-muted)]">|</span>
+        <button className="inline-flex items-center gap-1 text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)]" onClick={() => void copyText(results.filter((item) => item.valid).map((item) => item.iso).join('\n'), '全部 ISO 已复制')}>
           <Clipboard className="h-3.5 w-3.5" />
           复制全部 ISO
         </button>

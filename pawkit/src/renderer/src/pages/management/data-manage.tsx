@@ -111,15 +111,15 @@ export function DataManage(): JSX.Element {
   ]
 
   return (
-    <div className="space-y-4">
-      <section className="rounded-lg border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
+    <div className="page-stack">
+      <section className="glass-panel">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 className="font-medium">本地数据统计</h3>
-            <p className="mt-1 text-sm text-gray-400">仅统计数量和配置状态，不展示完整内容</p>
+            <p className="mt-1 text-sm text-[color:var(--text-muted)]">仅统计数量和配置状态，不展示完整内容</p>
           </div>
           <button
-            className="inline-flex items-center gap-2 rounded-lg bg-white/10 px-3 py-2 text-sm hover:bg-white/20"
+            className="toolbar-button"
             onClick={() => loadData().then(() => setMessage('统计已刷新')).catch(() => setMessage('刷新失败'))}
           >
             <RefreshCcw className="h-4 w-4" />
@@ -127,10 +127,10 @@ export function DataManage(): JSX.Element {
           </button>
         </div>
 
-        <div className="mt-4 grid gap-3 md:grid-cols-3">
+        <div className="data-grid mt-4">
           {dataStats.map((stat) => (
-            <div key={stat.label} className="rounded-lg border border-white/10 bg-black/20 p-4">
-              <div className="text-sm text-gray-400">{stat.label}</div>
+            <div key={stat.label} className="stat-card">
+              <div className="text-sm text-[color:var(--text-muted)]">{stat.label}</div>
               <div className="mt-2 text-lg font-medium">
                 {stat.value} {stat.unit}
               </div>
@@ -139,62 +139,62 @@ export function DataManage(): JSX.Element {
         </div>
       </section>
 
-      <section className="rounded-lg border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
+      <section className="glass-panel">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 className="font-medium">配置与维护</h3>
-            <p className="mt-1 text-sm text-gray-400">导出配置、复制诊断信息或恢复默认配置</p>
+            <p className="mt-1 text-sm text-[color:var(--text-muted)]">导出配置、复制诊断信息或恢复默认配置</p>
           </div>
-          {message && <span className="text-sm text-gray-400">{message}</span>}
+          {message && <span className="text-sm text-[color:var(--text-muted)]">{message}</span>}
         </div>
 
-        <div className="mt-4 grid gap-3 md:grid-cols-3">
+        <div className="data-grid mt-4">
           <button
-            className="rounded-lg border border-white/10 bg-black/20 p-4 text-left transition-colors hover:bg-white/10 disabled:opacity-60"
+            className="glass-card p-4 text-left disabled:opacity-60"
             onClick={handleExport}
             disabled={loading}
           >
             <Download className="h-5 w-5 text-sky-300" />
             <div className="mt-3 font-medium">导出配置</div>
-            <div className="mt-1 text-sm text-gray-500">保存 UTF-8 JSON 配置文件</div>
+            <div className="mt-1 text-sm text-[color:var(--text-muted)]">保存 UTF-8 JSON 配置文件</div>
           </button>
 
           <button
-            className="rounded-lg border border-white/10 bg-black/20 p-4 text-left transition-colors hover:bg-white/10"
+            className="glass-card p-4 text-left"
             onClick={handleCopyDiagnostics}
           >
             <ClipboardCopy className="h-5 w-5 text-emerald-300" />
             <div className="mt-3 font-medium">复制诊断信息</div>
-            <div className="mt-1 text-sm text-gray-500">复制版本、数量和快捷键状态</div>
+            <div className="mt-1 text-sm text-[color:var(--text-muted)]">复制版本、数量和快捷键状态</div>
           </button>
 
           <button
-            className="rounded-lg border border-red-500/20 bg-red-500/5 p-4 text-left transition-colors hover:bg-red-500/10"
+            className="rounded-[9px] border border-red-500/20 bg-red-500/10 p-4 text-left transition-colors hover:bg-red-500/15"
             onClick={() => setShowConfirm(true)}
           >
             <RotateCcw className="h-5 w-5 text-red-300" />
             <div className="mt-3 font-medium text-red-300">重置配置</div>
-            <div className="mt-1 text-sm text-gray-500">恢复默认设置并清空本地配置</div>
+            <div className="mt-1 text-sm text-[color:var(--text-muted)]">恢复默认设置并清空本地配置</div>
           </button>
         </div>
       </section>
 
       {showConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="w-96 rounded-lg border border-white/10 bg-black/40 p-6 backdrop-blur-xl">
+          <div className="modal-surface w-96 rounded-[14px] p-6">
             <h3 className="text-lg font-semibold">确认重置</h3>
-            <p className="mt-2 text-sm text-gray-400">
+            <p className="mt-2 text-sm text-[color:var(--text-muted)]">
               此操作会恢复默认配置，并清空剪贴板、颜色、二维码历史和工具偏好。
             </p>
             <div className="mt-6 flex justify-end gap-3">
               <button
-                className="rounded-lg bg-white/10 px-4 py-2 text-sm hover:bg-white/20"
+                className="toolbar-button"
                 onClick={() => setShowConfirm(false)}
               >
                 取消
               </button>
               <button
-                className="rounded-lg bg-red-500/20 px-4 py-2 text-sm text-red-400 hover:bg-red-500/30 disabled:opacity-60"
+                className="toolbar-button-danger disabled:opacity-60"
                 onClick={handleReset}
                 disabled={loading}
               >

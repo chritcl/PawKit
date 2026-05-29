@@ -7,7 +7,7 @@ const statusMap: Record<string, { text: string; color: string }> = {
   failed: { text: '注册失败', color: 'text-red-400' },
   conflict: { text: '应用内冲突', color: 'text-yellow-400' },
   invalid: { text: '格式错误', color: 'text-red-400' },
-  disabled: { text: '已禁用', color: 'text-gray-500' }
+  disabled: { text: '已禁用', color: 'text-[color:var(--text-muted)]' }
 }
 
 // 快捷键管理组件
@@ -101,24 +101,24 @@ export function ShortcutManage(): JSX.Element {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center p-8 text-gray-400">
+      <div className="empty-state">
         加载中...
       </div>
     )
   }
 
   return (
-    <div className="space-y-4">
-      <div className="rounded-lg border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
-        <div className="flex items-center justify-between">
+    <div className="page-stack">
+      <div className="glass-panel">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 className="font-medium">全局快捷键</h3>
-            <p className="mt-1 text-sm text-gray-400">
+            <p className="mt-1 text-sm text-[color:var(--text-muted)]">
               全局快捷键会在应用启动时自动注册。如果某个快捷键注册失败，通常是因为已被系统或其他应用占用。
             </p>
           </div>
           <button
-            className="rounded-lg bg-white/10 px-4 py-2 text-sm hover:bg-white/20"
+            className="toolbar-button"
             onClick={handleReset}
           >
             恢复默认
@@ -126,7 +126,7 @@ export function ShortcutManage(): JSX.Element {
         </div>
 
         {error && (
-          <div className="mt-4 rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-400">
+          <div className="mt-4 rounded-[10px] border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-400">
             {error}
           </div>
         )}
@@ -139,9 +139,9 @@ export function ShortcutManage(): JSX.Element {
             return (
               <div
                 key={item.key}
-                className="rounded-lg border border-white/10 bg-white/5 p-4 backdrop-blur-xl transition-colors hover:bg-white/10"
+                className="glass-card p-4"
               >
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="flex-1">
                     <div className="flex items-center gap-3">
                       <span className="font-medium">{item.label}</span>
@@ -149,30 +149,30 @@ export function ShortcutManage(): JSX.Element {
                         {status.text}
                       </span>
                     </div>
-                    <p className="mt-1 text-xs text-gray-500">{item.description}</p>
+                    <p className="mt-1 text-xs text-[color:var(--text-muted)]">{item.description}</p>
                     {item.errorMessage && (
                       <p className="mt-1 text-xs text-red-400">{item.errorMessage}</p>
                     )}
                   </div>
 
-                  <div className="flex items-center gap-3">
+                  <div className="toolbar-group">
                     {isEditing ? (
-                      <div className="flex items-center gap-2">
+                      <div className="toolbar-group">
                         <input
                           type="text"
                           value={editValue}
                           onChange={(e) => setEditValue(e.target.value)}
-                          className="w-32 rounded border border-white/10 bg-white/5 px-2 py-1 text-sm focus:border-white/20 focus:outline-none"
+                          className="field-input h-8 min-h-8 w-32 px-2 py-1 text-sm"
                           placeholder="如 Alt+V"
                         />
                         <button
-                          className="rounded bg-green-500/20 px-2 py-1 text-xs text-green-400 hover:bg-green-500/30"
+                          className="toolbar-button min-h-8 border-green-500/20 bg-green-500/15 px-2 py-1 text-xs text-green-400 hover:bg-green-500/20"
                           onClick={() => handleSave(item.key)}
                         >
                           保存
                         </button>
                         <button
-                          className="rounded bg-white/10 px-2 py-1 text-xs hover:bg-white/20"
+                          className="toolbar-button min-h-8 px-2 py-1 text-xs"
                           onClick={handleCancelEdit}
                         >
                           取消
@@ -180,20 +180,20 @@ export function ShortcutManage(): JSX.Element {
                       </div>
                     ) : (
                       <>
-                        <span className="rounded bg-white/10 px-3 py-1 font-mono text-sm">
+                        <span className="chip font-mono text-sm">
                           {item.accelerator}
                         </span>
                         <button
-                          className="rounded bg-white/10 px-2 py-1 text-xs hover:bg-white/20"
+                          className="toolbar-button min-h-8 px-2 py-1 text-xs"
                           onClick={() => handleStartEdit(item)}
                         >
                           修改
                         </button>
                         <button
-                          className={`rounded px-2 py-1 text-xs ${
+                          className={`toolbar-button min-h-8 px-2 py-1 text-xs ${
                             item.enabled
-                              ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30'
-                              : 'bg-gray-500/20 text-gray-400 hover:bg-gray-500/30'
+                              ? 'border-green-500/20 bg-green-500/15 text-green-400'
+                              : ''
                           }`}
                           onClick={() => handleToggleEnabled(item.key, !item.enabled)}
                         >

@@ -41,15 +41,15 @@ export function Dashboard(): JSX.Element {
   ]
 
   return (
-    <div className="space-y-4">
-      <section className="rounded-lg border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
+    <div className="page-stack">
+      <section className="glass-panel">
         <h3 className="font-medium">应用概览</h3>
-        <p className="mt-1 text-sm text-gray-400">本地配置、工具状态和数据统计</p>
+        <p className="mt-1 text-sm text-[color:var(--text-muted)]">本地配置、工具状态和数据统计</p>
 
-        <div className="mt-4 grid gap-3 md:grid-cols-3 xl:grid-cols-5">
+        <div className="data-grid mt-4">
           {stats.map((stat) => (
-            <div key={stat.label} className="rounded-lg border border-white/10 bg-black/20 p-4">
-              <div className="text-sm text-gray-400">{stat.label}</div>
+            <div key={stat.label} className="stat-card">
+              <div className="text-sm text-[color:var(--text-muted)]">{stat.label}</div>
               <div className="mt-2 truncate text-lg font-medium">{stat.value}</div>
             </div>
           ))}

@@ -50,14 +50,14 @@ export function ToolManage(): JSX.Element {
   }
 
   return (
-    <div className="space-y-4">
-      <section className="rounded-lg border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
+    <div className="page-stack">
+      <section className="glass-panel">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 className="font-medium">工具管理</h3>
-            <p className="mt-1 text-sm text-gray-400">启用状态、侧边栏顺序和首页常用工具</p>
+            <p className="mt-1 text-sm text-[color:var(--text-muted)]">启用状态、侧边栏顺序和首页常用工具</p>
           </div>
-          <div className="text-sm text-gray-500">
+          <div className="text-sm text-[color:var(--text-muted)]">
             {enabledTools.length} 个启用 · {favoriteTools.length} 个常用
           </div>
         </div>
@@ -70,25 +70,25 @@ export function ToolManage(): JSX.Element {
             return (
               <div
                 key={tool.id}
-                className={`flex items-center gap-3 rounded-lg border p-4 backdrop-blur-xl transition-colors ${
-                  isEnabled ? 'border-white/10 bg-white/5' : 'border-white/5 bg-black/20 opacity-70'
-                }`}
+                className={`glass-card flex items-center gap-3 p-4 ${isEnabled ? '' : 'opacity-60'}`}
               >
-                <GripVertical className="h-4 w-4 shrink-0 text-gray-600" />
-                <IconComponent className="h-5 w-5 shrink-0 text-gray-400" />
+                <GripVertical className="h-4 w-4 shrink-0 text-[color:var(--text-muted)]" />
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-[var(--glass-muted)] text-[color:var(--text-secondary)]">
+                  <IconComponent className="h-5 w-5" />
+                </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-medium">{tool.name}</span>
-                    <span className="rounded border border-white/10 bg-white/10 px-2 py-0.5 text-xs text-gray-400">
+                    <span className="chip">
                       Phase {tool.phase}
                     </span>
                   </div>
-                  <div className="mt-1 truncate text-sm text-gray-500">{tool.description}</div>
+                  <div className="mt-1 truncate text-sm text-[color:var(--text-muted)]">{tool.description}</div>
                 </div>
 
                 <div className="flex shrink-0 items-center gap-1">
                   <button
-                    className="rounded p-2 text-gray-500 hover:bg-white/10 hover:text-white disabled:opacity-30"
+                    className="icon-button"
                     onClick={() => moveTool(tool.id, -1)}
                     disabled={index === 0}
                     title="上移"
@@ -96,7 +96,7 @@ export function ToolManage(): JSX.Element {
                     <ArrowUp className="h-4 w-4" />
                   </button>
                   <button
-                    className="rounded p-2 text-gray-500 hover:bg-white/10 hover:text-white disabled:opacity-30"
+                    className="icon-button"
                     onClick={() => moveTool(tool.id, 1)}
                     disabled={index === orderedTools.length - 1}
                     title="下移"
@@ -104,8 +104,8 @@ export function ToolManage(): JSX.Element {
                     <ArrowDown className="h-4 w-4" />
                   </button>
                   <button
-                    className={`rounded p-2 hover:bg-yellow-500/10 hover:text-yellow-400 disabled:opacity-30 ${
-                      isFavorite ? 'text-yellow-400' : 'text-gray-500'
+                    className={`icon-button hover:text-yellow-400 ${
+                      isFavorite ? 'text-yellow-400' : 'text-[color:var(--text-muted)]'
                     }`}
                     onClick={() => toggleFavorite(tool.id)}
                     disabled={!isEnabled}
@@ -114,10 +114,10 @@ export function ToolManage(): JSX.Element {
                     <Star className={`h-4 w-4 ${isFavorite ? 'fill-current' : ''}`} />
                   </button>
                   <button
-                    className={`rounded-lg px-3 py-1.5 text-sm transition-colors ${
+                    className={`toolbar-button min-h-8 px-3 py-1.5 ${
                       isEnabled
-                        ? 'bg-green-500/20 text-green-300 hover:bg-green-500/30'
-                        : 'bg-white/10 text-gray-400 hover:bg-white/20'
+                        ? 'border-emerald-400/25 bg-emerald-500/15 text-emerald-300'
+                        : ''
                     }`}
                     onClick={() => toggleTool(tool.id)}
                   >

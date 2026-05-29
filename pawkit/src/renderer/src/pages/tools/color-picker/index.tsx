@@ -232,23 +232,23 @@ export function ColorPickerPage(): JSX.Element {
   ]
 
   return (
-    <div className="space-y-6">
-      <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-        <div className="rounded-lg border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
+    <div className="page-stack">
+      <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+        <div className="glass-panel">
           <div className="flex flex-wrap items-center gap-4">
             <div
-              className="h-24 w-24 rounded-lg border border-white/10"
+              className="h-24 w-24 rounded-[14px] border border-[var(--glass-border)] shadow-[inset_0_1px_0_rgba(255,255,255,0.25)]"
               style={{ backgroundColor: hex }}
             />
             <div className="min-w-0 flex-1">
               <div className="font-mono text-2xl font-semibold">{hex}</div>
-              <div className="mt-1 text-sm text-gray-400">
+              <div className="mt-1 text-sm text-[color:var(--text-muted)]">
                 {formatRgb(rgb)} · {formatHsl(hsl)}
               </div>
               <div className="mt-3 flex flex-wrap gap-2">
                 <button
-                  className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${
-                    isFavorite ? 'bg-yellow-500/20 text-yellow-400' : 'bg-white/10 hover:bg-white/20'
+                  className={`toolbar-button ${
+                    isFavorite ? 'border-yellow-400/25 bg-yellow-500/20 text-yellow-400' : ''
                   }`}
                   onClick={handleFavorite}
                 >
@@ -256,14 +256,14 @@ export function ColorPickerPage(): JSX.Element {
                   {isFavorite ? '取消收藏' : '收藏'}
                 </button>
                 <button
-                  className="inline-flex items-center gap-2 rounded-lg bg-white/10 px-3 py-2 text-sm hover:bg-white/20"
+                  className="toolbar-button"
                   onClick={() => handleCopy('HEX', hex)}
                 >
                   <ClipboardCopy className="h-4 w-4" />
                   {copiedLabel === 'HEX' ? '已复制' : '复制 HEX'}
                 </button>
                 <button
-                  className="inline-flex items-center gap-2 rounded-lg bg-white/10 px-3 py-2 text-sm hover:bg-white/20"
+                  className="toolbar-button"
                   onClick={handlePickScreenColor}
                   disabled={capturing}
                 >
@@ -275,80 +275,94 @@ export function ColorPickerPage(): JSX.Element {
           </div>
         </div>
 
-        <div
-          className="rounded-lg border border-white/10 p-6"
-          style={{ backgroundColor: hex, color: readableText }}
-        >
-          <div className="text-sm opacity-80">对比度预览</div>
-          <div className="mt-4 text-3xl font-semibold">Aa 颜色可读性</div>
-          <div className="mt-3 text-sm opacity-80">
-            推荐文字 {readableText} · {readableRatio}:1 · {getContrastLevel(readableRatio)}
+        <div className="glass-panel">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className="text-sm text-[color:var(--text-muted)]">可读性</div>
+              <div className="mt-2 text-2xl font-semibold">Aa {readableRatio}:1</div>
+            </div>
+            <div
+              className="flex h-20 w-28 items-center justify-center rounded-[10px] border border-[var(--glass-border)] text-2xl font-semibold"
+              style={{ backgroundColor: hex, color: readableText }}
+            >
+              Aa
+            </div>
+          </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="compact-row">
+              <div className="text-xs text-[color:var(--text-muted)]">推荐文字</div>
+              <div className="mt-1 font-mono text-sm">{readableText}</div>
+            </div>
+            <div className="compact-row">
+              <div className="text-xs text-[color:var(--text-muted)]">等级</div>
+              <div className="mt-1 text-sm">{getContrastLevel(readableRatio)}</div>
+            </div>
           </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div className="rounded-lg border border-white/10 bg-white/5 p-4 backdrop-blur-xl">
-          <label className="text-sm text-gray-400">HEX</label>
+        <div className="glass-card p-4">
+          <label className="text-sm text-[color:var(--text-muted)]">HEX</label>
           <input
             type="text"
             value={hexInput}
             onChange={(event) => updateFromHex(event.target.value)}
-            className="mt-2 w-full rounded border border-white/10 bg-white/5 px-3 py-2 font-mono text-sm focus:border-white/20 focus:outline-none"
+            className="field-input mt-2 font-mono text-sm"
           />
           {hexError && <div className="mt-1 text-xs text-red-400">{hexError}</div>}
         </div>
 
-        <div className="rounded-lg border border-white/10 bg-white/5 p-4 backdrop-blur-xl">
-          <label className="text-sm text-gray-400">RGB</label>
+        <div className="glass-card p-4">
+          <label className="text-sm text-[color:var(--text-muted)]">RGB</label>
           <div className="mt-2 flex gap-2">
             <input
               type="number"
               value={rgbR}
               onChange={(event) => updateFromRgb(event.target.value, rgbG, rgbB)}
-              className="w-full rounded border border-white/10 bg-white/5 px-2 py-2 font-mono text-sm focus:border-white/20 focus:outline-none"
+              className="field-input w-full px-2 font-mono text-sm"
               placeholder="R"
             />
             <input
               type="number"
               value={rgbG}
               onChange={(event) => updateFromRgb(rgbR, event.target.value, rgbB)}
-              className="w-full rounded border border-white/10 bg-white/5 px-2 py-2 font-mono text-sm focus:border-white/20 focus:outline-none"
+              className="field-input w-full px-2 font-mono text-sm"
               placeholder="G"
             />
             <input
               type="number"
               value={rgbB}
               onChange={(event) => updateFromRgb(rgbR, rgbG, event.target.value)}
-              className="w-full rounded border border-white/10 bg-white/5 px-2 py-2 font-mono text-sm focus:border-white/20 focus:outline-none"
+              className="field-input w-full px-2 font-mono text-sm"
               placeholder="B"
             />
           </div>
           {rgbError && <div className="mt-1 text-xs text-red-400">{rgbError}</div>}
         </div>
 
-        <div className="rounded-lg border border-white/10 bg-white/5 p-4 backdrop-blur-xl">
-          <label className="text-sm text-gray-400">HSL</label>
+        <div className="glass-card p-4">
+          <label className="text-sm text-[color:var(--text-muted)]">HSL</label>
           <div className="mt-2 flex gap-2">
             <input
               type="number"
               value={hslH}
               onChange={(event) => updateFromHsl(event.target.value, hslS, hslL)}
-              className="w-full rounded border border-white/10 bg-white/5 px-2 py-2 font-mono text-sm focus:border-white/20 focus:outline-none"
+              className="field-input w-full px-2 font-mono text-sm"
               placeholder="H"
             />
             <input
               type="number"
               value={hslS}
               onChange={(event) => updateFromHsl(hslH, event.target.value, hslL)}
-              className="w-full rounded border border-white/10 bg-white/5 px-2 py-2 font-mono text-sm focus:border-white/20 focus:outline-none"
+              className="field-input w-full px-2 font-mono text-sm"
               placeholder="S"
             />
             <input
               type="number"
               value={hslL}
               onChange={(event) => updateFromHsl(hslH, hslS, event.target.value)}
-              className="w-full rounded border border-white/10 bg-white/5 px-2 py-2 font-mono text-sm focus:border-white/20 focus:outline-none"
+              className="field-input w-full px-2 font-mono text-sm"
               placeholder="L"
             />
           </div>
@@ -357,13 +371,13 @@ export function ColorPickerPage(): JSX.Element {
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
-        <div className="rounded-lg border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
+        <div className="glass-panel">
           <div className="flex items-center justify-between gap-3">
             <h3 className="font-medium">屏幕取色</h3>
-            {pickerMessage && <span className="text-sm text-gray-400">{pickerMessage}</span>}
+            {pickerMessage && <span className="text-sm text-[color:var(--text-muted)]">{pickerMessage}</span>}
           </div>
           <button
-            className="mt-4 flex h-40 w-full items-center justify-center rounded-lg border border-dashed border-white/15 bg-white/5 text-gray-300 transition-colors hover:bg-white/10 disabled:cursor-wait disabled:opacity-70"
+            className="mt-4 flex h-32 w-full items-center justify-center rounded-[9px] border border-dashed border-[var(--glass-border-strong)] bg-[var(--input-surface)] text-[color:var(--text-secondary)] transition-colors hover:bg-[var(--glass-surface-hover)] disabled:cursor-wait disabled:opacity-70"
             onClick={handlePickScreenColor}
             disabled={capturing}
           >
@@ -374,15 +388,15 @@ export function ColorPickerPage(): JSX.Element {
           </button>
         </div>
 
-        <div className="rounded-lg border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
+        <div className="glass-panel">
           <h3 className="font-medium">开发格式</h3>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
             {outputFormats.map((item) => (
-              <div key={item.label} className="rounded-lg border border-white/10 bg-black/20 p-3">
+              <div key={item.label} className="soft-panel p-3">
                 <div className="flex items-center justify-between gap-3">
-                  <span className="text-sm text-gray-400">{item.label}</span>
+                  <span className="text-sm text-[color:var(--text-muted)]">{item.label}</span>
                   <button
-                    className="rounded p-1.5 text-gray-500 hover:bg-white/10 hover:text-white"
+                    className="icon-button h-8 min-h-8 w-8 min-w-8"
                     onClick={() => handleCopy(item.label, item.value)}
                     title="复制"
                   >
@@ -393,7 +407,7 @@ export function ColorPickerPage(): JSX.Element {
                     )}
                   </button>
                 </div>
-                <pre className="mt-2 max-h-32 overflow-auto whitespace-pre-wrap break-all font-mono text-xs text-gray-300">
+                <pre className="mt-2 max-h-32 overflow-auto whitespace-pre-wrap break-all font-mono text-xs text-[color:var(--text-secondary)]">
                   {item.value}
                 </pre>
               </div>
@@ -403,43 +417,43 @@ export function ColorPickerPage(): JSX.Element {
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
-        <div className="rounded-lg border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
+        <div className="glass-panel">
           <div className="flex items-center gap-2">
-            <Palette className="h-4 w-4 text-gray-400" />
+            <Palette className="h-4 w-4 text-[color:var(--text-muted)]" />
             <h3 className="font-medium">色阶</h3>
           </div>
-          <div className="mt-4 grid grid-cols-5 gap-2 md:grid-cols-10">
+          <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-5">
             {scale.map((item) => (
               <button
                 key={item.label}
-                className="overflow-hidden rounded border border-white/10 text-left transition-transform hover:scale-105"
+                className="overflow-hidden rounded-[10px] border border-[var(--glass-border)] text-left transition-transform hover:scale-105"
                 onClick={() => applyColor(item.hex, 'manual')}
                 title={item.hex}
               >
                 <div className="h-12" style={{ backgroundColor: item.hex }} />
-                <div className="bg-black/20 px-2 py-1">
-                  <div className="text-xs text-gray-300">{item.label}</div>
-                  <div className="truncate font-mono text-[11px] text-gray-500">{item.hex}</div>
+                <div className="bg-[var(--input-surface)] px-2 py-1">
+                  <div className="text-xs text-[color:var(--text-secondary)]">{item.label}</div>
+                  <div className="truncate font-mono text-[11px] text-[color:var(--text-muted)]">{item.hex}</div>
                 </div>
               </button>
             ))}
           </div>
         </div>
 
-        <div className="rounded-lg border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
+        <div className="glass-panel">
           <h3 className="font-medium">配色建议</h3>
           <div className="mt-4 grid grid-cols-2 gap-2 md:grid-cols-3">
             {harmony.map((item) => (
               <button
                 key={item.label}
-                className="overflow-hidden rounded-lg border border-white/10 text-left transition-transform hover:scale-105"
+                className="overflow-hidden rounded-[10px] border border-[var(--glass-border)] text-left transition-transform hover:scale-105"
                 onClick={() => applyColor(item.hex, 'manual')}
                 title={item.hex}
               >
                 <div className="h-14" style={{ backgroundColor: item.hex }} />
-                <div className="bg-black/20 px-3 py-2">
-                  <div className="text-sm text-gray-300">{item.label}</div>
-                  <div className="font-mono text-xs text-gray-500">{item.hex}</div>
+                <div className="bg-[var(--input-surface)] px-3 py-2">
+                  <div className="text-sm text-[color:var(--text-secondary)]">{item.label}</div>
+                  <div className="font-mono text-xs text-[color:var(--text-muted)]">{item.hex}</div>
                 </div>
               </button>
             ))}
@@ -447,11 +461,11 @@ export function ColorPickerPage(): JSX.Element {
         </div>
       </div>
 
-      <div className="rounded-lg border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
+      <div className="glass-panel">
         <h3 className="font-medium">对比度</h3>
         <div className="mt-4 grid gap-3 md:grid-cols-2">
           <div
-            className="rounded-lg border border-white/10 p-4 text-black"
+            className="rounded-[9px] border border-[var(--glass-border)] p-4 text-black"
             style={{ backgroundColor: hex }}
           >
             <div className="text-sm opacity-60">黑色文字</div>
@@ -459,7 +473,7 @@ export function ColorPickerPage(): JSX.Element {
             <div className="mt-1 text-sm opacity-60">{getContrastLevel(blackRatio)}</div>
           </div>
           <div
-            className="rounded-lg border border-white/10 p-4 text-white"
+            className="rounded-[9px] border border-[var(--glass-border)] p-4 text-white"
             style={{ backgroundColor: hex }}
           >
             <div className="text-sm opacity-70">白色文字</div>
@@ -472,13 +486,13 @@ export function ColorPickerPage(): JSX.Element {
       {(favorites.length > 0 || recent.length > 0) && (
         <div className="grid gap-4 xl:grid-cols-2">
           {favorites.length > 0 && (
-            <div className="rounded-lg border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
+            <div className="glass-panel">
               <h3 className="font-medium">收藏颜色</h3>
               <div className="mt-3 flex flex-wrap gap-2">
                 {favorites.map((record) => (
                   <button
                     key={record.hex}
-                    className="h-9 w-9 rounded border border-white/10 transition-transform hover:scale-110"
+                    className="h-9 w-9 rounded-[9px] border border-[var(--glass-border)] transition-transform hover:scale-110"
                     style={{ backgroundColor: record.hex }}
                     onClick={() => selectColor(record)}
                     title={record.hex}
@@ -489,13 +503,13 @@ export function ColorPickerPage(): JSX.Element {
           )}
 
           {recent.length > 0 && (
-            <div className="rounded-lg border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
+            <div className="glass-panel">
               <h3 className="font-medium">最近颜色</h3>
               <div className="mt-3 flex flex-wrap gap-2">
                 {recent.map((record) => (
                   <button
                     key={`${record.hex}-${record.createdAt}`}
-                    className="h-9 w-9 rounded border border-white/10 transition-transform hover:scale-110"
+                    className="h-9 w-9 rounded-[9px] border border-[var(--glass-border)] transition-transform hover:scale-110"
                     style={{ backgroundColor: record.hex }}
                     onClick={() => selectColor(record)}
                     title={record.hex}
