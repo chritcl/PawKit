@@ -1,10 +1,17 @@
 /// <reference types="vite/client" />
 
 import { ElectronAPI } from '../../shared/types'
+import type { JSX as ReactJSX } from 'react'
 
 declare global {
   interface Window {
     electronAPI: ElectronAPI
+  }
+
+  namespace JSX {
+    type Element = ReactJSX.Element
+    type IntrinsicElements = ReactJSX.IntrinsicElements
+    type IntrinsicAttributes = ReactJSX.IntrinsicAttributes
   }
 }
 
@@ -48,6 +55,7 @@ declare module 'qrcode' {
     toDataURL: (text: string, options?: {
       width?: number
       margin?: number
+      errorCorrectionLevel?: 'L' | 'M' | 'Q' | 'H'
       color?: { dark?: string; light?: string }
     }) => Promise<string>
   }

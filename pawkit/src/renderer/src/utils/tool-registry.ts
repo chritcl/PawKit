@@ -71,9 +71,9 @@ export const toolRegistry: ExtendedToolMeta[] = [
   },
   {
     id: TOOL_IDS.BASE64_TOOL,
-    name: 'Base64',
+    name: '编码转换',
     icon: Binary,
-    description: 'Base64 编解码工具',
+    description: 'Base64、URL、JWT 和 Data URL 调试',
     phase: 5,
     canDisable: true
   },
@@ -81,7 +81,7 @@ export const toolRegistry: ExtendedToolMeta[] = [
     id: TOOL_IDS.QRCODE,
     name: '二维码',
     icon: QrCode,
-    description: '二维码生成工具',
+    description: '文本、URL、WiFi 和名片二维码',
     phase: 5,
     canDisable: true
   },

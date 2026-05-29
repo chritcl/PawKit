@@ -1,4 +1,6 @@
 import Store from 'electron-store'
+import { BrowserWindow, dialog } from 'electron'
+import { writeFile } from 'fs/promises'
 import { AppSettings, AppTheme, WindowBounds } from '../shared/types'
 import { TOOL_IDS } from '../shared/constants'
 
@@ -8,12 +10,18 @@ const ALLOWED_KEYS = [
   'app.shortcuts',
   'app.windowBounds',
   'app.enabledTools',
+  'app.startPage',
+  'app.lastActiveTool',
+  'app.toolUsage',
   'management.toolOrder',
+  'management.favoriteTools',
   'management.autoUpdate',
   'management.lastCheckUpdateTime',
   'clipboard.history',
   'color.favorites',
-  'color.recent'
+  'color.recent',
+  'qrcode.history',
+  'privacy.qrcodeHistoryLimit'
 ] as const
 
 type AllowedKey = (typeof ALLOWED_KEYS)[number]
@@ -37,10 +45,22 @@ const defaultSettings: AppSettings = {
       TOOL_IDS.SCREENSHOT,
       TOOL_IDS.BASE64_TOOL,
       TOOL_IDS.QRCODE
-    ]
+    ],
+    startPage: TOOL_IDS.HOME,
+    lastActiveTool: TOOL_IDS.HOME,
+    toolUsage: []
   },
   management: {
-    toolOrder: [TOOL_IDS.CLIPBOARD, TOOL_IDS.COLOR_PICKER, TOOL_IDS.JSON_TOOL, TOOL_IDS.TIMESTAMP_TOOL],
+    toolOrder: [
+      TOOL_IDS.CLIPBOARD,
+      TOOL_IDS.COLOR_PICKER,
+      TOOL_IDS.JSON_TOOL,
+      TOOL_IDS.TIMESTAMP_TOOL,
+      TOOL_IDS.SCREENSHOT,
+      TOOL_IDS.BASE64_TOOL,
+      TOOL_IDS.QRCODE
+    ],
+    favoriteTools: [TOOL_IDS.CLIPBOARD, TOOL_IDS.JSON_TOOL, TOOL_IDS.SCREENSHOT],
     autoUpdate: false,
     lastCheckUpdateTime: null
   },
@@ -50,6 +70,12 @@ const defaultSettings: AppSettings = {
   color: {
     favorites: [],
     recent: []
+  },
+  qrcode: {
+    history: []
+  },
+  privacy: {
+    qrcodeHistoryLimit: 50
   }
 }
 
@@ -103,6 +129,28 @@ export function getAllSettings(): AppSettings {
 export function resetSettings(): boolean {
   store.clear()
   return true
+}
+
+// 导出配置到 JSON 文件
+export async function exportConfig(ownerWindow?: BrowserWindow | null): Promise<{ success: boolean; path?: string; message: string }> {
+  const result = ownerWindow && !ownerWindow.isDestroyed()
+    ? await dialog.showSaveDialog(ownerWindow, {
+      title: '导出 PawKit 配置',
+      defaultPath: `pawkit-config-${Date.now()}.json`,
+      filters: [{ name: 'JSON 文件', extensions: ['json'] }]
+    })
+    : await dialog.showSaveDialog({
+      title: '导出 PawKit 配置',
+      defaultPath: `pawkit-config-${Date.now()}.json`,
+      filters: [{ name: 'JSON 文件', extensions: ['json'] }]
+    })
+
+  if (result.canceled || !result.filePath) {
+    return { success: false, message: '导出已取消' }
+  }
+
+  await writeFile(result.filePath, JSON.stringify(getAllSettings(), null, 2), 'utf8')
+  return { success: true, path: result.filePath, message: '配置已导出' }
 }
 
 // 获取主题

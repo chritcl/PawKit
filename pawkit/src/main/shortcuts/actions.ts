@@ -1,6 +1,8 @@
 import { BrowserWindow } from 'electron'
 import { ShortcutKey } from './types'
 import { showWindow, toggleWindow } from '../window'
+import { IPC_CHANNELS } from '../../shared/ipc-channels'
+import { startScreenshotCapture } from '../screenshot-service'
 
 // 主窗口引用
 let mainWindowRef: BrowserWindow | null = null
@@ -13,7 +15,7 @@ export function setMainWindowForShortcuts(window: BrowserWindow): void {
 // 发送导航事件到渲染进程
 function sendNavigateToRenderer(page: string): void {
   if (mainWindowRef && !mainWindowRef.isDestroyed()) {
-    mainWindowRef.webContents.send('shortcut:navigate', { page })
+    mainWindowRef.webContents.send(IPC_CHANNELS.SHORTCUT_NAVIGATE, { page })
   }
 }
 
@@ -35,8 +37,14 @@ export function handleShortcutAction(key: ShortcutKey): void {
 
     case 'screenshot':
       if (mainWindowRef) {
-        showWindow(mainWindowRef)
-        sendNavigateToRenderer('screenshot')
+        void startScreenshotCapture(mainWindowRef).then((response) => {
+          if (!mainWindowRef || mainWindowRef.isDestroyed()) return
+          if (response.status === 'captured') {
+            showWindow(mainWindowRef)
+            sendNavigateToRenderer('screenshot')
+            mainWindowRef.webContents.send(IPC_CHANNELS.SCREENSHOT_CAPTURE_RESULT, response)
+          }
+        })
       }
       break
 

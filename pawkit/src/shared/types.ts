@@ -12,6 +12,16 @@ export interface ToolMeta {
 // 应用主题
 export type AppTheme = 'light' | 'dark'
 
+// 应用启动页策略
+export type AppStartPage = 'home' | 'last' | ToolId
+
+// 工具使用记录
+export interface ToolUsageRecord {
+  toolId: ToolId
+  count: number
+  lastUsedAt: string
+}
+
 // 剪贴板基础项
 export interface ClipboardBaseItem {
   id: string
@@ -111,8 +121,37 @@ export interface ColorRecord {
 // 管理配置
 export interface ManagementSettings {
   toolOrder: string[]
+  favoriteTools: string[]
   autoUpdate: boolean
   lastCheckUpdateTime: string | null
+}
+
+// 二维码模板类型
+export type QrCodeTemplateType = 'text' | 'url' | 'wifi' | 'vcard'
+
+// 二维码纠错级别
+export type QrCodeErrorCorrectionLevel = 'L' | 'M' | 'Q' | 'H'
+
+// 二维码样式配置
+export interface QrCodeStyleSettings {
+  size: number
+  margin: number
+  darkColor: string
+  lightColor: string
+  errorCorrectionLevel: QrCodeErrorCorrectionLevel
+}
+
+// 二维码历史项
+export interface QrCodeHistoryItem {
+  id: string
+  template: QrCodeTemplateType
+  title: string
+  payload: string
+  fields: Record<string, string>
+  style: QrCodeStyleSettings
+  favorite: boolean
+  createdAt: string
+  updatedAt: string
 }
 
 // 应用配置
@@ -122,6 +161,9 @@ export interface AppSettings {
     shortcuts: Record<string, { accelerator: string; enabled: boolean }>
     windowBounds: { x: number; y: number; width: number; height: number } | null
     enabledTools: string[]
+    startPage: AppStartPage
+    lastActiveTool: ToolId
+    toolUsage: ToolUsageRecord[]
   }
   management: ManagementSettings
   clipboard: {
@@ -130,6 +172,12 @@ export interface AppSettings {
   color: {
     favorites: ColorRecord[]
     recent: ColorRecord[]
+  }
+  qrcode: {
+    history: QrCodeHistoryItem[]
+  }
+  privacy: {
+    qrcodeHistoryLimit: number
   }
 }
 
@@ -147,6 +195,44 @@ export interface ScreenshotResult {
   width: number
   height: number
   createdAt: string
+  displayId?: string
+  displayBounds?: WindowBounds
+  scaleFactor?: number
+}
+
+// 截图覆盖层数据
+export interface ScreenshotCapturePayload {
+  screenshot: ScreenshotResult
+  displayBounds: WindowBounds
+  scaleFactor: number
+}
+
+// 截图状态
+export type ScreenshotCaptureStatus =
+  | 'captured'
+  | 'cancelled'
+  | 'busy'
+  | 'no-source'
+  | 'load-failed'
+  | 'timeout'
+  | 'error'
+
+// 截图响应
+export interface ScreenshotCaptureResponse {
+  status: ScreenshotCaptureStatus
+  message: string
+  result?: ScreenshotResult
+}
+
+// 图片保存状态
+export type ImageSaveStatus = 'saved' | 'cancelled' | 'error'
+
+// 图片保存结果
+export interface ImageSaveResult {
+  success: boolean
+  status: ImageSaveStatus
+  path?: string
+  message?: string
 }
 
 // 屏幕取色图片源
@@ -246,6 +332,7 @@ export interface ElectronAPI {
     set: (key: string, value: unknown) => Promise<boolean>
     getAll: () => Promise<AppSettings>
     reset: () => Promise<boolean>
+    exportConfig: () => Promise<{ success: boolean; path?: string; message: string }>
   }
   clipboard: {
     readText: () => Promise<string>
@@ -259,8 +346,14 @@ export interface ElectronAPI {
   }
   screenshot: {
     captureFullScreen: () => Promise<ScreenshotResult>
+    startCapture: () => Promise<ScreenshotCaptureResponse>
     copyImageToClipboard: (dataUrl: string) => Promise<boolean>
-    saveImage: (dataUrl: string) => Promise<{ success: boolean; path?: string }>
+    saveImage: (dataUrl: string) => Promise<ImageSaveResult>
+    captureOverlayReady: () => void
+    finishCapture: (result: ScreenshotResult) => void
+    cancelCapture: () => void
+    onCaptureData: (callback: (payload: ScreenshotCapturePayload) => void) => () => void
+    onCaptureResult: (callback: (response: ScreenshotCaptureResponse) => void) => () => void
     pickScreenColor: () => Promise<ScreenColorPickResponse>
     colorPickerReady: () => void
     finishColorPick: (result: ScreenColorPickResult) => void

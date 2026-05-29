@@ -1,73 +1,60 @@
 import { useEffect, useState } from 'react'
-import { useAppStore } from '../../stores/app-store'
+import { APP_VERSION } from '../../../../shared/constants'
 import { AppSettings, ShortcutStatusItem } from '../../../../shared/types'
+import { useAppStore } from '../../stores/app-store'
+import { getToolMeta } from '../../utils/tool-registry'
+
+function getStartPageLabel(settings: AppSettings | null): string {
+  const value = settings?.app?.startPage ?? 'home'
+  if (value === 'last') return '上次页面'
+  if (value === 'home') return '首页'
+  return getToolMeta(value)?.name ?? value
+}
 
 // 应用概览组件
 export function Dashboard(): JSX.Element {
   const theme = useAppStore((state) => state.theme)
   const enabledTools = useAppStore((state) => state.enabledTools)
+  const favoriteTools = useAppStore((state) => state.favoriteTools)
   const [settings, setSettings] = useState<AppSettings | null>(null)
   const [shortcuts, setShortcuts] = useState<ShortcutStatusItem[]>([])
 
-  // 加载设置和快捷键状态
   useEffect(() => {
-    if (window.electronAPI?.setting?.getAll) {
-      window.electronAPI.setting.getAll().then(setSettings).catch(() => {})
-    }
-    if (window.electronAPI?.shortcut?.getStatus) {
-      window.electronAPI.shortcut.getStatus().then(setShortcuts).catch(() => {})
-    }
+    window.electronAPI?.setting?.getAll().then(setSettings).catch(() => {})
+    window.electronAPI?.shortcut?.getStatus().then(setShortcuts).catch(() => {})
   }, [])
 
-  // 统计注册成功的快捷键数量
-  const registeredCount = shortcuts.filter((s) => s.status === 'registered').length
+  const registeredCount = shortcuts.filter((item) => item.status === 'registered').length
+  const usageCount = settings?.app?.toolUsage?.reduce((sum, item) => sum + item.count, 0) ?? 0
 
-  // 统计信息
   const stats = [
-    {
-      label: '应用版本',
-      value: '0.0.1'
-    },
-    {
-      label: '当前主题',
-      value: theme === 'dark' ? '暗色' : '浅色'
-    },
-    {
-      label: '启用工具数量',
-      value: `${enabledTools.length} 个`
-    },
-    {
-      label: '快捷键状态',
-      value: `${registeredCount} / ${shortcuts.length} 已注册`
-    },
-    {
-      label: '剪贴板历史',
-      value: `${settings?.clipboard?.history?.length ?? 0} 条`
-    },
-    {
-      label: '颜色收藏',
-      value: `${settings?.color?.favorites?.length ?? 0} 个`
-    }
+    { label: '应用版本', value: APP_VERSION },
+    { label: '当前主题', value: theme === 'dark' ? '暗色' : '浅色' },
+    { label: '启动页', value: getStartPageLabel(settings) },
+    { label: '启用工具', value: `${enabledTools.length} 个` },
+    { label: '首页常用', value: `${favoriteTools.length} 个` },
+    { label: '快捷键状态', value: `${registeredCount} / ${shortcuts.length} 已注册` },
+    { label: '剪贴板历史', value: `${settings?.clipboard?.history?.length ?? 0} 条` },
+    { label: '二维码历史', value: `${settings?.qrcode?.history?.length ?? 0} 条` },
+    { label: '颜色记录', value: `${(settings?.color?.favorites?.length ?? 0) + (settings?.color?.recent?.length ?? 0)} 个` },
+    { label: '工具使用', value: `${usageCount} 次` }
   ]
 
   return (
     <div className="space-y-4">
-      <div className="rounded-lg border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
+      <section className="rounded-lg border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
         <h3 className="font-medium">应用概览</h3>
-        <p className="mt-1 text-sm text-gray-400">PawKit 应用状态和统计信息</p>
+        <p className="mt-1 text-sm text-gray-400">本地配置、工具状态和数据统计</p>
 
-        <div className="mt-4 grid grid-cols-2 gap-4">
+        <div className="mt-4 grid gap-3 md:grid-cols-3 xl:grid-cols-5">
           {stats.map((stat) => (
-            <div
-              key={stat.label}
-              className="rounded-lg border border-white/10 bg-white/5 p-4 backdrop-blur-xl transition-colors hover:bg-white/10"
-            >
+            <div key={stat.label} className="rounded-lg border border-white/10 bg-black/20 p-4">
               <div className="text-sm text-gray-400">{stat.label}</div>
-              <div className="mt-1 text-lg font-medium">{stat.value}</div>
+              <div className="mt-2 truncate text-lg font-medium">{stat.value}</div>
             </div>
           ))}
         </div>
-      </div>
+      </section>
     </div>
   )
 }

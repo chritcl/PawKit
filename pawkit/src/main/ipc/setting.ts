@@ -1,6 +1,6 @@
-import { ipcMain } from 'electron'
+import { BrowserWindow, ipcMain } from 'electron'
 import { IPC_CHANNELS } from '../../shared/ipc-channels'
-import { getSetting, setSetting, getAllSettings, resetSettings } from '../store'
+import { exportConfig, getSetting, setSetting, getAllSettings, resetSettings } from '../store'
 import { validateSender } from './validate-sender'
 
 // 注册设置相关 IPC 处理器
@@ -27,5 +27,11 @@ export function registerSettingIpcHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.SETTING_RESET, (event) => {
     if (!validateSender(event)) return false
     return resetSettings()
+  })
+
+  // 导出配置
+  ipcMain.handle(IPC_CHANNELS.SETTING_EXPORT_CONFIG, async (event) => {
+    if (!validateSender(event)) return { success: false, message: 'IPC 请求来源无效' }
+    return await exportConfig(BrowserWindow.fromWebContents(event.sender))
   })
 }

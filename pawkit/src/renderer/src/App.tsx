@@ -3,6 +3,7 @@ import { useAppStore } from './stores/app-store'
 import { ToolId } from '../../shared/constants'
 import { AppShell } from './components/layout/app-shell'
 import { ColorPickerOverlay } from './pages/tools/color-picker/color-picker-overlay'
+import { ScreenshotCaptureOverlay } from './pages/tools/screenshot/screenshot-capture-overlay'
 
 // 页面名称到工具 ID 的映射
 const pageToToolId: Record<string, ToolId> = {
@@ -56,6 +57,10 @@ function App(): JSX.Element {
 
   if (mode === 'color-picker-overlay') {
     return <ColorPickerOverlay />
+  }
+
+  if (mode === 'screenshot-capture-overlay') {
+    return <ScreenshotCaptureOverlay />
   }
 
   return <MainApp />

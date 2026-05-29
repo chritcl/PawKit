@@ -13,6 +13,7 @@ export const IPC_CHANNELS = {
   SETTING_SET: 'setting:set',
   SETTING_GET_ALL: 'setting:get-all',
   SETTING_RESET: 'setting:reset',
+  SETTING_EXPORT_CONFIG: 'setting:export-config',
 
   // 剪贴板相关
   CLIPBOARD_READ_TEXT: 'clipboard:read-text',
@@ -26,8 +27,14 @@ export const IPC_CHANNELS = {
 
   // 截图相关
   SCREENSHOT_CAPTURE_FULL_SCREEN: 'screenshot:capture-full-screen',
+  SCREENSHOT_START_CAPTURE: 'screenshot:start-capture',
   SCREENSHOT_COPY_IMAGE_TO_CLIPBOARD: 'screenshot:copy-image-to-clipboard',
   SCREENSHOT_SAVE_IMAGE: 'screenshot:save-image',
+  SCREENSHOT_CAPTURE_READY: 'screenshot:capture-ready',
+  SCREENSHOT_CAPTURE_DATA: 'screenshot:capture-data',
+  SCREENSHOT_CAPTURE_FINISH: 'screenshot:capture-finish',
+  SCREENSHOT_CAPTURE_CANCEL: 'screenshot:capture-cancel',
+  SCREENSHOT_CAPTURE_RESULT: 'screenshot:capture-result',
   SCREENSHOT_PICK_SCREEN_COLOR: 'screenshot:pick-screen-color',
   SCREENSHOT_COLOR_PICKER_READY: 'screenshot:color-picker-ready',
   SCREENSHOT_COLOR_PICKER_DATA: 'screenshot:color-picker-data',
@@ -38,7 +45,8 @@ export const IPC_CHANNELS = {
   SHORTCUT_GET_STATUS: 'shortcut:get-status',
   SHORTCUT_UPDATE: 'shortcut:update',
   SHORTCUT_RESET: 'shortcut:reset',
-  SHORTCUT_SET_ENABLED: 'shortcut:set-enabled'
+  SHORTCUT_SET_ENABLED: 'shortcut:set-enabled',
+  SHORTCUT_NAVIGATE: 'shortcut:navigate'
 } as const
 
 // IPC 通道类型

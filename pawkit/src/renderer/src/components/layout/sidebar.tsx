@@ -1,17 +1,30 @@
 import { useAppStore } from '../../stores/app-store'
 import { toolRegistry } from '../../utils/tool-registry'
-import { ToolId } from '../../../../shared/constants'
+import { TOOL_IDS, ToolId } from '../../../../shared/constants'
 
 // 侧边栏组件
 export function Sidebar(): JSX.Element {
   const activeTool = useAppStore((state) => state.activeTool)
   const setActiveTool = useAppStore((state) => state.setActiveTool)
   const enabledTools = useAppStore((state) => state.enabledTools)
+  const toolOrder = useAppStore((state) => state.toolOrder)
   const theme = useAppStore((state) => state.theme)
 
-  // 过滤显示的工具（首页、管理中心、设置始终显示，其他工具根据启用状态）
-  const visibleTools = toolRegistry.filter(
-    (tool) => !tool.canDisable || enabledTools.includes(tool.id)
+  // 过滤显示的工具（首页、管理中心、设置始终显示，可禁用工具按用户排序显示）
+  const homeTool = toolRegistry.find((tool) => tool.id === TOOL_IDS.HOME)
+  const managementTool = toolRegistry.find((tool) => tool.id === TOOL_IDS.MANAGEMENT)
+  const settingsTool = toolRegistry.find((tool) => tool.id === TOOL_IDS.SETTINGS)
+  const disableableTools = toolRegistry.filter((tool) => tool.canDisable)
+  const orderedToolIds = [
+    ...toolOrder,
+    ...disableableTools.map((tool) => tool.id).filter((id) => !toolOrder.includes(id))
+  ]
+  const orderedTools = orderedToolIds
+    .map((id) => disableableTools.find((tool) => tool.id === id))
+    .filter((tool) => tool && enabledTools.includes(tool.id))
+
+  const visibleTools = [homeTool, ...orderedTools, managementTool, settingsTool].filter(
+    (tool): tool is (typeof toolRegistry)[number] => Boolean(tool)
   )
 
   return (

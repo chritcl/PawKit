@@ -1,6 +1,6 @@
-import { ipcMain } from 'electron'
+import { BrowserWindow, ipcMain } from 'electron'
 import { IPC_CHANNELS } from '../../shared/ipc-channels'
-import { captureFullScreen, copyImageToClipboard, pickScreenColor, saveImage } from '../screenshot-service'
+import { captureFullScreen, copyImageToClipboard, pickScreenColor, saveImage, startScreenshotCapture } from '../screenshot-service'
 import { validateSender } from './validate-sender'
 
 // 注册截图相关 IPC 处理器
@@ -16,6 +16,20 @@ export function registerScreenshotIpcHandlers(): void {
     }
   })
 
+  // 启动系统级截图
+  ipcMain.handle(IPC_CHANNELS.SCREENSHOT_START_CAPTURE, async (event) => {
+    if (!validateSender(event)) {
+      return { status: 'error', message: 'IPC 请求来源无效' }
+    }
+    try {
+      const window = BrowserWindow.fromWebContents(event.sender)
+      return await startScreenshotCapture(window)
+    } catch (error) {
+      console.error('截图失败:', error)
+      return { status: 'error', message: '截图失败' }
+    }
+  })
+
   // 复制图片到剪贴板
   ipcMain.handle(IPC_CHANNELS.SCREENSHOT_COPY_IMAGE_TO_CLIPBOARD, (event, dataUrl: string) => {
     if (!validateSender(event)) return false
@@ -24,7 +38,7 @@ export function registerScreenshotIpcHandlers(): void {
 
   // 保存图片到本地
   ipcMain.handle(IPC_CHANNELS.SCREENSHOT_SAVE_IMAGE, async (event, dataUrl: string) => {
-    if (!validateSender(event)) return { success: false }
+    if (!validateSender(event)) return { success: false, status: 'error', message: 'IPC 请求来源无效' }
     return await saveImage(dataUrl)
   })
 

@@ -4,9 +4,12 @@ import { is } from '@electron-toolkit/utils'
 import { writeFile } from 'fs/promises'
 import { join } from 'path'
 import {
+  ImageSaveResult,
   ScreenColorPickerPayload,
   ScreenColorPickResponse,
   ScreenColorPickResult,
+  ScreenshotCapturePayload,
+  ScreenshotCaptureResponse,
   ScreenshotResult,
   WindowBounds
 } from '../shared/types'
@@ -14,50 +17,238 @@ import { IPC_CHANNELS } from '../shared/ipc-channels'
 
 // 当前取色覆盖层窗口
 let activeColorPickerWindow: BrowserWindow | null = null
+// 当前截图覆盖层窗口
+let activeScreenshotWindow: BrowserWindow | null = null
 
-// 获取主屏幕尺寸（考虑高 DPI）
-function getPrimaryScreenSize(): { width: number; height: number } {
-  const primaryDisplay = screen.getPrimaryDisplay()
-  const { width, height } = primaryDisplay.size
-  const scaleFactor = primaryDisplay.scaleFactor
-  return {
-    width: width * scaleFactor,
-    height: height * scaleFactor
-  }
+// 等待指定毫秒
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-// 全屏截图
-export async function captureFullScreen(): Promise<ScreenshotResult> {
-  const screenSize = getPrimaryScreenSize()
+// 截取指定显示器
+async function captureDisplay(display: Display): Promise<ScreenshotResult> {
+  const captureWidth = Math.max(1, Math.round(display.bounds.width * display.scaleFactor))
+  const captureHeight = Math.max(1, Math.round(display.bounds.height * display.scaleFactor))
 
   const sources = await desktopCapturer.getSources({
     types: ['screen'],
-    thumbnailSize: screenSize
+    thumbnailSize: {
+      width: captureWidth,
+      height: captureHeight
+    }
   })
 
   if (sources.length === 0) {
     throw new Error('没有找到屏幕源')
   }
 
-  // 查找主屏幕源（通过 display_id 或名称匹配）
-  const primaryDisplay = screen.getPrimaryDisplay()
-  let primarySource = sources.find(
-    (source) => source.display_id === String(primaryDisplay.id)
-  )
-
-  // 如果找不到匹配的主屏幕，使用第一个源
-  if (!primarySource) {
-    primarySource = sources[0]
+  const source = sources.find((item) => item.display_id === String(display.id)) ?? sources[0]
+  const thumbnail = source.thumbnail
+  if (!source || thumbnail.isEmpty()) {
+    throw new Error('屏幕源为空')
   }
-
-  const thumbnail = primarySource.thumbnail
 
   return {
     dataUrl: thumbnail.toDataURL(),
     width: thumbnail.getSize().width,
     height: thumbnail.getSize().height,
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    displayId: String(display.id),
+    displayBounds: display.bounds as WindowBounds,
+    scaleFactor: display.scaleFactor
   }
+}
+
+// 全屏截图
+export async function captureFullScreen(): Promise<ScreenshotResult> {
+  return await captureDisplay(screen.getPrimaryDisplay())
+}
+
+// 加载截图覆盖层页面
+async function loadScreenshotCaptureOverlay(window: BrowserWindow): Promise<void> {
+  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+    const url = new URL(process.env['ELECTRON_RENDERER_URL'])
+    url.searchParams.set('mode', 'screenshot-capture-overlay')
+    await window.loadURL(url.toString())
+    return
+  }
+
+  await window.loadFile(join(__dirname, '../renderer/index.html'), {
+    query: { mode: 'screenshot-capture-overlay' }
+  })
+}
+
+// 校验截图结果
+function isValidScreenshotResult(value: unknown): value is ScreenshotResult {
+  if (!value || typeof value !== 'object') return false
+  const result = value as ScreenshotResult
+  return (
+    typeof result.dataUrl === 'string' &&
+    result.dataUrl.startsWith('data:image/png') &&
+    typeof result.width === 'number' &&
+    result.width > 0 &&
+    typeof result.height === 'number' &&
+    result.height > 0 &&
+    typeof result.createdAt === 'string'
+  )
+}
+
+// 启动系统级截图
+export async function startScreenshotCapture(ownerWindow?: BrowserWindow | null): Promise<ScreenshotCaptureResponse> {
+  if (activeScreenshotWindow && !activeScreenshotWindow.isDestroyed()) {
+    activeScreenshotWindow.focus()
+    return {
+      status: 'busy',
+      message: '截图窗口已经打开'
+    }
+  }
+
+  const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
+  const bounds = display.bounds
+  const shouldRestoreOwner = Boolean(ownerWindow && !ownerWindow.isDestroyed() && ownerWindow.isVisible())
+
+  if (ownerWindow && !ownerWindow.isDestroyed()) {
+    ownerWindow.hide()
+  }
+
+  await delay(120)
+
+  let screenshot: ScreenshotResult
+  try {
+    screenshot = await captureDisplay(display)
+  } catch (error) {
+    if (shouldRestoreOwner && ownerWindow && !ownerWindow.isDestroyed()) {
+      ownerWindow.show()
+      ownerWindow.focus()
+    }
+    console.error('截图失败:', error)
+    return {
+      status: 'no-source',
+      message: '没有找到可用的屏幕截图源'
+    }
+  }
+
+  const payload: ScreenshotCapturePayload = {
+    screenshot,
+    displayBounds: bounds as WindowBounds,
+    scaleFactor: display.scaleFactor
+  }
+
+  const overlayWindow = new BrowserWindow({
+    x: bounds.x,
+    y: bounds.y,
+    width: bounds.width,
+    height: bounds.height,
+    show: false,
+    frame: false,
+    resizable: false,
+    movable: false,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    skipTaskbar: true,
+    alwaysOnTop: true,
+    backgroundColor: '#000000',
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.cjs'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false
+    }
+  })
+
+  activeScreenshotWindow = overlayWindow
+  overlayWindow.setAlwaysOnTop(true, 'screen-saver')
+  overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+
+  return await new Promise<ScreenshotCaptureResponse>((resolve) => {
+    let completed = false
+    let dataSent = false
+
+    const restoreOwnerWindow = (): void => {
+      if (shouldRestoreOwner && ownerWindow && !ownerWindow.isDestroyed()) {
+        ownerWindow.show()
+        ownerWindow.focus()
+      }
+    }
+
+    const cleanup = (response: ScreenshotCaptureResponse): void => {
+      if (completed) return
+      completed = true
+      clearTimeout(loadTimer)
+      ipcMain.removeListener(IPC_CHANNELS.SCREENSHOT_CAPTURE_READY, handleReady)
+      ipcMain.removeListener(IPC_CHANNELS.SCREENSHOT_CAPTURE_FINISH, handleFinish)
+      ipcMain.removeListener(IPC_CHANNELS.SCREENSHOT_CAPTURE_CANCEL, handleCancel)
+      if (activeScreenshotWindow === overlayWindow) {
+        activeScreenshotWindow = null
+      }
+      if (!overlayWindow.isDestroyed()) {
+        overlayWindow.close()
+      }
+      restoreOwnerWindow()
+      resolve(response)
+    }
+
+    const isOverlaySender = (event: IpcMainEvent): boolean => {
+      return event.sender === overlayWindow.webContents
+    }
+
+    const sendCaptureData = (): void => {
+      if (overlayWindow.isDestroyed()) return
+      dataSent = true
+      overlayWindow.webContents.send(IPC_CHANNELS.SCREENSHOT_CAPTURE_DATA, payload)
+    }
+
+    const handleReady = (event: IpcMainEvent): void => {
+      if (!isOverlaySender(event)) return
+      sendCaptureData()
+    }
+
+    const handleFinish = (event: IpcMainEvent, result: unknown): void => {
+      if (!isOverlaySender(event)) return
+      cleanup(isValidScreenshotResult(result)
+        ? { status: 'captured', message: '截图完成', result }
+        : { status: 'error', message: '截图结果无效' })
+    }
+
+    const handleCancel = (event: IpcMainEvent): void => {
+      if (!isOverlaySender(event)) return
+      cleanup({ status: 'cancelled', message: '已取消截图' })
+    }
+
+    ipcMain.on(IPC_CHANNELS.SCREENSHOT_CAPTURE_READY, handleReady)
+    ipcMain.on(IPC_CHANNELS.SCREENSHOT_CAPTURE_FINISH, handleFinish)
+    ipcMain.on(IPC_CHANNELS.SCREENSHOT_CAPTURE_CANCEL, handleCancel)
+
+    const loadTimer = setTimeout(() => {
+      cleanup({ status: 'timeout', message: dataSent ? '等待截图操作超时' : '截图窗口加载超时' })
+    }, 300000)
+
+    overlayWindow.webContents.once('did-finish-load', () => {
+      if (!overlayWindow.isDestroyed()) {
+        overlayWindow.show()
+        overlayWindow.focus()
+        setTimeout(sendCaptureData, 80)
+      }
+    })
+
+    overlayWindow.webContents.once('did-fail-load', () => {
+      cleanup({ status: 'load-failed', message: '截图窗口加载失败' })
+    })
+
+    overlayWindow.once('ready-to-show', () => {
+      overlayWindow.show()
+      overlayWindow.focus()
+    })
+
+    overlayWindow.once('closed', () => {
+      cleanup({ status: 'cancelled', message: '已取消截图' })
+    })
+
+    void loadScreenshotCaptureOverlay(overlayWindow).catch(() => {
+      cleanup({ status: 'load-failed', message: '截图窗口加载失败' })
+    })
+  })
 }
 
 // 复制图片到剪贴板
@@ -73,7 +264,7 @@ export function copyImageToClipboard(dataUrl: string): boolean {
 }
 
 // 保存图片到本地
-export async function saveImage(dataUrl: string): Promise<{ success: boolean; path?: string }> {
+export async function saveImage(dataUrl: string): Promise<ImageSaveResult> {
   try {
     const window = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
     const options = {
@@ -86,17 +277,17 @@ export async function saveImage(dataUrl: string): Promise<{ success: boolean; pa
       : await dialog.showSaveDialog(options)
 
     if (result.canceled || !result.filePath) {
-      return { success: false }
+      return { success: false, status: 'cancelled', message: '保存已取消' }
     }
 
     const image = nativeImage.createFromDataURL(dataUrl)
     const buffer = image.toPNG()
     await writeFile(result.filePath, buffer)
 
-    return { success: true, path: result.filePath }
+    return { success: true, status: 'saved', path: result.filePath, message: '保存成功' }
   } catch (error) {
     console.error('保存图片失败:', error)
-    return { success: false }
+    return { success: false, status: 'error', message: '保存失败' }
   }
 }
 
