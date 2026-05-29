@@ -12,14 +12,68 @@ export interface ToolMeta {
 // 应用主题
 export type AppTheme = 'light' | 'dark'
 
-// 剪贴板项
-export interface ClipboardItem {
+// 剪贴板基础项
+export interface ClipboardBaseItem {
   id: string
-  type: 'text'
+  type: 'text' | 'image' | 'file' | 'richText'
   content: string
   favorite: boolean
   createdAt: string
   updatedAt: string
+  signature?: string
+  formats?: string[]
+}
+
+// 文本剪贴板项
+export interface ClipboardTextItem extends ClipboardBaseItem {
+  type: 'text'
+}
+
+// 图片剪贴板项
+export interface ClipboardImageItem extends ClipboardBaseItem {
+  type: 'image'
+  imagePath: string
+  thumbnailDataUrl: string
+  width: number
+  height: number
+  size: number
+  originalSize?: number
+  originalTooLarge?: boolean
+}
+
+// 文件剪贴板项
+export interface ClipboardFileEntry {
+  path: string
+  name: string
+  exists: boolean
+}
+
+// 文件剪贴板项
+export interface ClipboardFileItem extends ClipboardBaseItem {
+  type: 'file'
+  files: ClipboardFileEntry[]
+}
+
+// 富文本剪贴板项
+export interface ClipboardRichTextItem extends ClipboardBaseItem {
+  type: 'richText'
+  html?: string
+  rtf?: string
+}
+
+// 剪贴板项
+export type ClipboardItem =
+  | ClipboardTextItem
+  | ClipboardImageItem
+  | ClipboardFileItem
+  | ClipboardRichTextItem
+
+// 剪贴板复制结果
+export interface ClipboardCopyResult {
+  success: boolean
+  history: ClipboardItem[]
+  fallback?: boolean
+  message?: string
 }
 
 // 剪贴板存储结构
@@ -49,6 +103,9 @@ export interface ColorRecord {
   rgb: RGB
   hsl: HSL
   createdAt: string
+  name?: string
+  tags?: string[]
+  source?: 'manual' | 'screen' | 'recent' | 'favorite'
 }
 
 // 管理配置
@@ -90,6 +147,48 @@ export interface ScreenshotResult {
   width: number
   height: number
   createdAt: string
+}
+
+// 屏幕取色图片源
+export interface ScreenColorPickerSource {
+  displayId: string
+  dataUrl: string
+  bounds: WindowBounds
+  scaleFactor: number
+  width: number
+  height: number
+}
+
+// 屏幕取色覆盖层数据
+export interface ScreenColorPickerPayload {
+  sources: ScreenColorPickerSource[]
+  virtualBounds: WindowBounds
+}
+
+// 屏幕取色结果
+export interface ScreenColorPickResult {
+  hex: string
+  rgb: RGB
+  point: { x: number; y: number }
+  displayId: string
+  createdAt: string
+}
+
+// 屏幕取色状态
+export type ScreenColorPickStatus =
+  | 'picked'
+  | 'cancelled'
+  | 'no-source'
+  | 'load-failed'
+  | 'timeout'
+  | 'busy'
+  | 'error'
+
+// 屏幕取色响应
+export interface ScreenColorPickResponse {
+  status: ScreenColorPickStatus
+  message: string
+  result?: ScreenColorPickResult
 }
 
 // 快捷键标识
@@ -137,6 +236,8 @@ export interface ElectronAPI {
   app: {
     showWindow: () => Promise<void>
     hideWindow: () => Promise<void>
+    minimizeWindow: () => Promise<void>
+    toggleMaximizeWindow: () => Promise<void>
     toggleWindow: () => Promise<void>
     quit: () => Promise<void>
   }
@@ -153,12 +254,18 @@ export interface ElectronAPI {
     clearHistory: (keepFavorites?: boolean) => Promise<ClipboardItem[]>
     removeItem: (id: string) => Promise<ClipboardItem[]>
     toggleFavorite: (id: string) => Promise<ClipboardItem[]>
+    copyItem: (id: string) => Promise<ClipboardCopyResult>
     onHistoryChanged: (callback: (history: ClipboardItem[]) => void) => () => void
   }
   screenshot: {
     captureFullScreen: () => Promise<ScreenshotResult>
     copyImageToClipboard: (dataUrl: string) => Promise<boolean>
     saveImage: (dataUrl: string) => Promise<{ success: boolean; path?: string }>
+    pickScreenColor: () => Promise<ScreenColorPickResponse>
+    colorPickerReady: () => void
+    finishColorPick: (result: ScreenColorPickResult) => void
+    cancelColorPick: () => void
+    onColorPickerData: (callback: (payload: ScreenColorPickerPayload) => void) => () => void
   }
   shortcut: {
     getStatus: () => Promise<ShortcutStatusItem[]>

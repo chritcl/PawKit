@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { useAppStore } from './stores/app-store'
 import { ToolId } from '../../shared/constants'
 import { AppShell } from './components/layout/app-shell'
+import { ColorPickerOverlay } from './pages/tools/color-picker/color-picker-overlay'
 
 // 页面名称到工具 ID 的映射
 const pageToToolId: Record<string, ToolId> = {
@@ -10,7 +11,7 @@ const pageToToolId: Record<string, ToolId> = {
   'color-picker': 'color-picker'
 }
 
-function App(): JSX.Element {
+function MainApp(): JSX.Element {
   const theme = useAppStore((state) => state.theme)
   const initSettings = useAppStore((state) => state.initSettings)
   const setActiveTool = useAppStore((state) => state.setActiveTool)
@@ -47,6 +48,17 @@ function App(): JSX.Element {
       <AppShell />
     </div>
   )
+}
+
+function App(): JSX.Element {
+  const searchParams = new URLSearchParams(window.location.search)
+  const mode = searchParams.get('mode')
+
+  if (mode === 'color-picker-overlay') {
+    return <ColorPickerOverlay />
+  }
+
+  return <MainApp />
 }
 
 export default App

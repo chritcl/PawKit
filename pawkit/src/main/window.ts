@@ -49,6 +49,9 @@ export function createMainWindow(): BrowserWindow {
 
   // 窗口移动或调整大小时保存尺寸
   const saveBounds = (): void => {
+    if (mainWindow.isMinimized() || mainWindow.isMaximized() || mainWindow.isFullScreen()) {
+      return
+    }
     const bounds = mainWindow.getBounds() as WindowBounds
     setWindowBounds(bounds)
   }
@@ -92,6 +95,9 @@ export function createMainWindow(): BrowserWindow {
 
 // 显示窗口
 export function showWindow(window: BrowserWindow): void {
+  if (window.isMinimized()) {
+    window.restore()
+  }
   window.show()
   window.focus()
 }
@@ -101,11 +107,25 @@ export function hideWindow(window: BrowserWindow): void {
   window.hide()
 }
 
+// 最小化窗口
+export function minimizeWindow(window: BrowserWindow): void {
+  window.minimize()
+}
+
+// 最大化或还原窗口
+export function toggleMaximizeWindow(window: BrowserWindow): void {
+  if (window.isMaximized()) {
+    window.unmaximize()
+  } else {
+    window.maximize()
+  }
+}
+
 // 切换窗口显示/隐藏
 export function toggleWindow(window: BrowserWindow): void {
-  if (window.isVisible()) {
-    hideWindow(window)
-  } else {
+  if (window.isMinimized() || !window.isVisible()) {
     showWindow(window)
+  } else {
+    hideWindow(window)
   }
 }

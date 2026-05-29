@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC_CHANNELS } from '../shared/ipc-channels'
-import type { ClipboardItem } from '../shared/types'
+import type { ClipboardItem, ScreenColorPickResult, ScreenColorPickerPayload } from '../shared/types'
 
 // 使用 any 避免 preload 环境下的类型导入问题
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -10,6 +10,10 @@ const electronAPI: any = {
     showWindow: () => ipcRenderer.invoke(IPC_CHANNELS.APP_SHOW_WINDOW),
     // 隐藏窗口
     hideWindow: () => ipcRenderer.invoke(IPC_CHANNELS.APP_HIDE_WINDOW),
+    // 最小化窗口
+    minimizeWindow: () => ipcRenderer.invoke(IPC_CHANNELS.APP_MINIMIZE_WINDOW),
+    // 最大化或还原窗口
+    toggleMaximizeWindow: () => ipcRenderer.invoke(IPC_CHANNELS.APP_TOGGLE_MAXIMIZE_WINDOW),
     // 切换窗口显示/隐藏
     toggleWindow: () => ipcRenderer.invoke(IPC_CHANNELS.APP_TOGGLE_WINDOW),
     // 退出应用
@@ -38,6 +42,8 @@ const electronAPI: any = {
     removeItem: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.CLIPBOARD_REMOVE_ITEM, { id }),
     // 切换收藏状态
     toggleFavorite: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.CLIPBOARD_TOGGLE_FAVORITE, { id }),
+    // 复制历史项到系统剪贴板
+    copyItem: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.CLIPBOARD_COPY_ITEM, { id }),
     // 监听历史记录变化
     onHistoryChanged: (callback: (history: ClipboardItem[]) => void) => {
       const listener = (_event: Electron.IpcRendererEvent, history: ClipboardItem[]) => {
@@ -55,7 +61,25 @@ const electronAPI: any = {
     // 复制图片到剪贴板
     copyImageToClipboard: (dataUrl: string) => ipcRenderer.invoke(IPC_CHANNELS.SCREENSHOT_COPY_IMAGE_TO_CLIPBOARD, dataUrl),
     // 保存图片到本地
-    saveImage: (dataUrl: string) => ipcRenderer.invoke(IPC_CHANNELS.SCREENSHOT_SAVE_IMAGE, dataUrl)
+    saveImage: (dataUrl: string) => ipcRenderer.invoke(IPC_CHANNELS.SCREENSHOT_SAVE_IMAGE, dataUrl),
+    // 启动全屏滴管取色
+    pickScreenColor: () => ipcRenderer.invoke(IPC_CHANNELS.SCREENSHOT_PICK_SCREEN_COLOR),
+    // 通知主进程覆盖层已准备
+    colorPickerReady: () => ipcRenderer.send(IPC_CHANNELS.SCREENSHOT_COLOR_PICKER_READY),
+    // 完成屏幕取色
+    finishColorPick: (result: ScreenColorPickResult) => ipcRenderer.send(IPC_CHANNELS.SCREENSHOT_COLOR_PICKER_FINISH, result),
+    // 取消屏幕取色
+    cancelColorPick: () => ipcRenderer.send(IPC_CHANNELS.SCREENSHOT_COLOR_PICKER_CANCEL),
+    // 接收覆盖层取色数据
+    onColorPickerData: (callback: (payload: ScreenColorPickerPayload) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, payload: ScreenColorPickerPayload) => {
+        callback(payload)
+      }
+      ipcRenderer.on(IPC_CHANNELS.SCREENSHOT_COLOR_PICKER_DATA, listener)
+      return () => {
+        ipcRenderer.removeListener(IPC_CHANNELS.SCREENSHOT_COLOR_PICKER_DATA, listener)
+      }
+    }
   },
   shortcut: {
     // 获取快捷键状态

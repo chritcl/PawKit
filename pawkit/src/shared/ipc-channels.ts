@@ -3,6 +3,8 @@ export const IPC_CHANNELS = {
   // 应用相关
   APP_SHOW_WINDOW: 'app:show-window',
   APP_HIDE_WINDOW: 'app:hide-window',
+  APP_MINIMIZE_WINDOW: 'app:minimize-window',
+  APP_TOGGLE_MAXIMIZE_WINDOW: 'app:toggle-maximize-window',
   APP_TOGGLE_WINDOW: 'app:toggle-window',
   APP_QUIT: 'app:quit',
 
@@ -19,12 +21,18 @@ export const IPC_CHANNELS = {
   CLIPBOARD_CLEAR_HISTORY: 'clipboard:clear-history',
   CLIPBOARD_REMOVE_ITEM: 'clipboard:remove-item',
   CLIPBOARD_TOGGLE_FAVORITE: 'clipboard:toggle-favorite',
+  CLIPBOARD_COPY_ITEM: 'clipboard:copy-item',
   CLIPBOARD_HISTORY_CHANGED: 'clipboard:history-changed',
 
   // 截图相关
   SCREENSHOT_CAPTURE_FULL_SCREEN: 'screenshot:capture-full-screen',
   SCREENSHOT_COPY_IMAGE_TO_CLIPBOARD: 'screenshot:copy-image-to-clipboard',
   SCREENSHOT_SAVE_IMAGE: 'screenshot:save-image',
+  SCREENSHOT_PICK_SCREEN_COLOR: 'screenshot:pick-screen-color',
+  SCREENSHOT_COLOR_PICKER_READY: 'screenshot:color-picker-ready',
+  SCREENSHOT_COLOR_PICKER_DATA: 'screenshot:color-picker-data',
+  SCREENSHOT_COLOR_PICKER_FINISH: 'screenshot:color-picker-finish',
+  SCREENSHOT_COLOR_PICKER_CANCEL: 'screenshot:color-picker-cancel',
 
   // 快捷键相关
   SHORTCUT_GET_STATUS: 'shortcut:get-status',

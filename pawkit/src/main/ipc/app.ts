@@ -1,5 +1,11 @@
 import { BrowserWindow, ipcMain, app } from 'electron'
-import { showWindow, hideWindow, toggleWindow } from '../window'
+import {
+  showWindow,
+  hideWindow,
+  minimizeWindow,
+  toggleMaximizeWindow,
+  toggleWindow
+} from '../window'
 import { setIsQuitting } from '../index'
 import { IPC_CHANNELS } from '../../shared/ipc-channels'
 import { validateSender } from './validate-sender'
@@ -16,6 +22,18 @@ export function registerAppIpcHandlers(mainWindow: BrowserWindow): void {
   ipcMain.handle(IPC_CHANNELS.APP_HIDE_WINDOW, (event) => {
     if (!validateSender(event)) return
     hideWindow(mainWindow)
+  })
+
+  // 最小化窗口
+  ipcMain.handle(IPC_CHANNELS.APP_MINIMIZE_WINDOW, (event) => {
+    if (!validateSender(event)) return
+    minimizeWindow(mainWindow)
+  })
+
+  // 最大化或还原窗口
+  ipcMain.handle(IPC_CHANNELS.APP_TOGGLE_MAXIMIZE_WINDOW, (event) => {
+    if (!validateSender(event)) return
+    toggleMaximizeWindow(mainWindow)
   })
 
   // 切换窗口显示/隐藏

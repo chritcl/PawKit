@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron'
 import { IPC_CHANNELS } from '../../shared/ipc-channels'
-import { captureFullScreen, copyImageToClipboard, saveImage } from '../screenshot-service'
+import { captureFullScreen, copyImageToClipboard, pickScreenColor, saveImage } from '../screenshot-service'
 import { validateSender } from './validate-sender'
 
 // 注册截图相关 IPC 处理器
@@ -26,5 +26,18 @@ export function registerScreenshotIpcHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.SCREENSHOT_SAVE_IMAGE, async (event, dataUrl: string) => {
     if (!validateSender(event)) return { success: false }
     return await saveImage(dataUrl)
+  })
+
+  // 全屏滴管取色
+  ipcMain.handle(IPC_CHANNELS.SCREENSHOT_PICK_SCREEN_COLOR, async (event) => {
+    if (!validateSender(event)) {
+      return { status: 'error', message: 'IPC 请求来源无效' }
+    }
+    try {
+      return await pickScreenColor()
+    } catch (error) {
+      console.error('屏幕取色失败:', error)
+      return { status: 'error', message: '屏幕取色失败' }
+    }
   })
 }

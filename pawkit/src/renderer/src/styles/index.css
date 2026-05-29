@@ -26,6 +26,16 @@ body,
   overflow: hidden;
 }
 
+/* 无边框窗口拖动区域 */
+.app-drag {
+  -webkit-app-region: drag;
+}
+
+/* 无边框窗口中的可点击区域 */
+.app-no-drag {
+  -webkit-app-region: no-drag;
+}
+
 /* 滚动条样式 */
 ::-webkit-scrollbar {
   width: 6px;

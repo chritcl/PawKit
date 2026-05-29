@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { ClipboardItem } from '../../../shared/types'
+import { ClipboardCopyResult, ClipboardItem } from '../../../shared/types'
 
 // 历史记录变化监听器的取消函数
 let unsubscribeHistoryChanged: (() => void) | null = null
@@ -7,6 +7,11 @@ let unsubscribeHistoryChanged: (() => void) | null = null
 // 校验返回值是否为有效数组
 function isValidList(value: unknown): value is ClipboardItem[] {
   return Array.isArray(value)
+}
+
+// 校验复制结果
+function isCopyResult(value: unknown): value is ClipboardCopyResult {
+  return Boolean(value) && typeof value === 'object' && Array.isArray((value as ClipboardCopyResult).history)
 }
 
 // 剪贴板状态接口
@@ -33,6 +38,8 @@ interface ClipboardState {
   toggleFavorite: (id: string) => void
   // 写入剪贴板
   writeText: (text: string) => void
+  // 复制历史项
+  copyItem: (id: string) => Promise<ClipboardCopyResult>
   // 初始化（获取历史 + 监听变化）
   init: () => () => void
   // 销毁（取消监听）
@@ -110,6 +117,24 @@ export const useClipboardStore = create<ClipboardState>((set, get) => ({
     }).catch((err) => {
       console.error('写入剪贴板失败:', err)
     })
+  },
+
+  // 复制历史项
+  copyItem: async (id) => {
+    try {
+      const result = await window.electronAPI?.clipboard?.copyItem(id)
+      if (isCopyResult(result)) {
+        set({ list: result.history })
+        return result
+      }
+    } catch (err) {
+      console.error('复制剪贴板记录失败:', err)
+    }
+    return {
+      success: false,
+      history: get().list,
+      message: '复制剪贴板记录失败'
+    }
   },
 
   // 初始化（防止重复注册监听）

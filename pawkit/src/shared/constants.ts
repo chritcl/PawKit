@@ -15,7 +15,7 @@ export const DEFAULT_SHORTCUTS = {
   toggleWindow: 'Alt+Space',
   clipboard: 'Alt+V',
   screenshot: 'Alt+A',
-  color: 'Alt+C'
+  colorPicker: 'Alt+C'
 } as const
 
 // 工具 ID

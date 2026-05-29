@@ -6,6 +6,7 @@ export function QRCodeToolPage(): JSX.Element {
   const [input, setInput] = useState('')
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [message, setMessage] = useState<string | null>(null)
 
   // 生成二维码
   const handleGenerate = async (): Promise<void> => {
@@ -26,8 +27,10 @@ export function QRCodeToolPage(): JSX.Element {
       })
       setQrDataUrl(dataUrl)
       setError(null)
+      setMessage('二维码已生成')
     } catch {
       setError('生成二维码失败')
+      setMessage(null)
       setQrDataUrl(null)
     }
   }
@@ -36,9 +39,17 @@ export function QRCodeToolPage(): JSX.Element {
   const handleCopy = async (): Promise<void> => {
     if (!qrDataUrl) return
     try {
-      await window.electronAPI?.screenshot?.copyImageToClipboard(qrDataUrl)
-    } catch (error) {
-      console.error('复制失败:', error)
+      const success = await window.electronAPI?.screenshot?.copyImageToClipboard(qrDataUrl)
+      if (success) {
+        setMessage('二维码图片已复制到剪贴板')
+        setError(null)
+      } else {
+        setError('复制二维码图片失败')
+        setMessage(null)
+      }
+    } catch {
+      setError('复制二维码图片失败')
+      setMessage(null)
     }
   }
 
@@ -48,10 +59,14 @@ export function QRCodeToolPage(): JSX.Element {
     try {
       const result = await window.electronAPI?.screenshot?.saveImage(qrDataUrl)
       if (result?.success) {
+        setMessage(`二维码图片已保存到：${result.path}`)
         setError(null)
+      } else {
+        setMessage('保存已取消')
       }
-    } catch (error) {
-      console.error('保存失败:', error)
+    } catch {
+      setError('保存二维码图片失败')
+      setMessage(null)
     }
   }
 
@@ -60,6 +75,7 @@ export function QRCodeToolPage(): JSX.Element {
     setInput('')
     setQrDataUrl(null)
     setError(null)
+    setMessage(null)
   }
 
   return (
@@ -96,6 +112,11 @@ export function QRCodeToolPage(): JSX.Element {
         {error && (
           <div className="mt-3 rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-400">
             {error}
+          </div>
+        )}
+        {message && (
+          <div className="mt-3 rounded-lg border border-white/10 bg-white/5 p-3 text-sm text-gray-400">
+            {message}
           </div>
         )}
       </div>

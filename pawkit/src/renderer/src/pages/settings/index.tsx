@@ -10,7 +10,7 @@ export function SettingsPage(): JSX.Element {
     <div className="space-y-6">
       <div className="rounded-lg border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
         <h2 className="text-lg font-semibold">设置</h2>
-        <p className="mt-2 text-gray-400">当前阶段：Phase 2 - 本地配置与管理中心基础</p>
+        <p className="mt-2 text-gray-400">管理主题、快捷键入口和窗口行为说明</p>
       </div>
 
       {/* 主题设置 */}
@@ -41,10 +41,10 @@ export function SettingsPage(): JSX.Element {
         </div>
       </div>
 
-      {/* 快捷键设置（占位） */}
+      {/* 快捷键设置 */}
       <div className="rounded-lg border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
         <h3 className="font-medium">快捷键设置</h3>
-        <p className="mt-1 text-sm text-gray-400">自定义全局快捷键（远期功能）</p>
+        <p className="mt-1 text-sm text-gray-400">全局快捷键可在管理中心的快捷键标签页中修改</p>
         <div className="mt-4 space-y-2 text-sm text-gray-500">
           <p>切换窗口：Alt + Space</p>
           <p>剪贴板：Alt + V</p>
@@ -53,12 +53,12 @@ export function SettingsPage(): JSX.Element {
         </div>
       </div>
 
-      {/* 窗口行为设置（占位） */}
+      {/* 窗口行为设置 */}
       <div className="rounded-lg border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
         <h3 className="font-medium">窗口行为</h3>
-        <p className="mt-1 text-sm text-gray-400">配置窗口行为（远期功能）</p>
+        <p className="mt-1 text-sm text-gray-400">PawKit 会常驻托盘，方便随时唤起</p>
         <div className="mt-4 text-sm text-gray-500">
-          <p>关闭窗口时隐藏到托盘</p>
+          <p>关闭窗口时隐藏到托盘，最小化会进入任务栏</p>
         </div>
       </div>
     </div>

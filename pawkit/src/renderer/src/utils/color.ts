@@ -1,11 +1,35 @@
 import { RGB, HSL } from '../../../shared/types'
 
+export interface ColorScaleItem {
+  label: string
+  hex: string
+  rgb: RGB
+  hsl: HSL
+}
+
+export interface ColorHarmonyItem {
+  label: string
+  hex: string
+  rgb: RGB
+  hsl: HSL
+}
+
+export type ContrastLevel = 'AAA' | 'AA' | '不足'
+
+function normalizeHue(h: number): number {
+  return ((h % 360) + 360) % 360
+}
+
+function normalizeHex(hex: string): string | null {
+  const rgb = hexToRgb(hex)
+  if (!rgb) return null
+  return rgbToHex(rgb.r, rgb.g, rgb.b)
+}
+
 // HEX 转 RGB
 export function hexToRgb(hex: string): RGB | null {
-  // 去除 # 前缀
   const cleanHex = hex.replace(/^#/, '')
 
-  // 支持 3 位和 6 位 HEX
   let fullHex = cleanHex
   if (cleanHex.length === 3) {
     fullHex = cleanHex[0] + cleanHex[0] + cleanHex[1] + cleanHex[1] + cleanHex[2] + cleanHex[2]
@@ -66,7 +90,7 @@ export function rgbToHsl(r: number, g: number, b: number): HSL {
 
 // HSL 转 RGB
 export function hslToRgb(h: number, s: number, l: number): RGB {
-  const hn = h / 360
+  const hn = normalizeHue(h) / 360
   const sn = s / 100
   const ln = l / 100
 
@@ -117,10 +141,139 @@ export function isValidRgb(r: number, g: number, b: number): boolean {
 
 // 校验 HSL 值
 export function isValidHsl(h: number, s: number, l: number): boolean {
-  return h >= 0 && h <= 360 && s >= 0 && s <= 100 && l >= 0 && l <= 100
+  return Number.isInteger(h) && Number.isInteger(s) && Number.isInteger(l) && h >= 0 && h <= 360 && s >= 0 && s <= 100 && l >= 0 && l <= 100
+}
+
+// 计算相对亮度
+export function getRelativeLuminance(rgb: RGB): number {
+  const normalize = (value: number): number => {
+    const channel = value / 255
+    return channel <= 0.03928
+      ? channel / 12.92
+      : Math.pow((channel + 0.055) / 1.055, 2.4)
+  }
+
+  return 0.2126 * normalize(rgb.r) + 0.7152 * normalize(rgb.g) + 0.0722 * normalize(rgb.b)
+}
+
+// 计算对比度
+export function getContrastRatio(foreground: RGB, background: RGB): number {
+  const foregroundLuminance = getRelativeLuminance(foreground)
+  const backgroundLuminance = getRelativeLuminance(background)
+  const light = Math.max(foregroundLuminance, backgroundLuminance)
+  const dark = Math.min(foregroundLuminance, backgroundLuminance)
+
+  return Number(((light + 0.05) / (dark + 0.05)).toFixed(2))
+}
+
+// 获取可读性等级
+export function getContrastLevel(ratio: number): ContrastLevel {
+  if (ratio >= 7) return 'AAA'
+  if (ratio >= 4.5) return 'AA'
+  return '不足'
+}
+
+// 推荐黑白文字色
+export function getReadableTextColor(background: RGB): '#000000' | '#ffffff' {
+  const blackRatio = getContrastRatio({ r: 0, g: 0, b: 0 }, background)
+  const whiteRatio = getContrastRatio({ r: 255, g: 255, b: 255 }, background)
+  return blackRatio >= whiteRatio ? '#000000' : '#ffffff'
 }
 
 // 生成 CSS 变量
-export function generateCssVar(hex: string, rgb: RGB): string {
-  return `--color-primary: ${hex};\n--color-primary-rgb: ${rgb.r}, ${rgb.g}, ${rgb.b};`
+export function generateCssVar(hex: string, rgb: RGB, hsl?: HSL): string {
+  const hslValue = hsl ? `${hsl.h} ${hsl.s}% ${hsl.l}%` : ''
+  return [
+    `--color-primary: ${hex};`,
+    `--color-primary-rgb: ${rgb.r}, ${rgb.g}, ${rgb.b};`,
+    hslValue ? `--color-primary-hsl: ${hslValue};` : ''
+  ].filter(Boolean).join('\n')
+}
+
+// 生成色阶
+export function generateColorScale(hex: string): ColorScaleItem[] {
+  const normalized = normalizeHex(hex)
+  const rgb = normalized ? hexToRgb(normalized) : null
+  if (!rgb) return []
+
+  const baseHsl = rgbToHsl(rgb.r, rgb.g, rgb.b)
+  const levels = [
+    ['50', 96],
+    ['100', 91],
+    ['200', 84],
+    ['300', 74],
+    ['400', 63],
+    ['500', baseHsl.l],
+    ['600', 43],
+    ['700', 34],
+    ['800', 26],
+    ['900', 18]
+  ] as const
+
+  return levels.map(([label, lightness]) => {
+    const hsl = { h: baseHsl.h, s: baseHsl.s, l: lightness }
+    const nextRgb = hslToRgb(hsl.h, hsl.s, hsl.l)
+    return {
+      label,
+      hex: rgbToHex(nextRgb.r, nextRgb.g, nextRgb.b),
+      rgb: nextRgb,
+      hsl
+    }
+  })
+}
+
+// 生成配色建议
+export function generateColorHarmony(hex: string): ColorHarmonyItem[] {
+  const normalized = normalizeHex(hex)
+  const rgb = normalized ? hexToRgb(normalized) : null
+  if (!rgb) return []
+
+  const baseHsl = rgbToHsl(rgb.r, rgb.g, rgb.b)
+  const items = [
+    { label: '当前色', offset: 0 },
+    { label: '互补色', offset: 180 },
+    { label: '类似色 A', offset: -30 },
+    { label: '类似色 B', offset: 30 },
+    { label: '三角色 A', offset: 120 },
+    { label: '三角色 B', offset: -120 }
+  ]
+
+  return items.map((item) => {
+    const hsl = { ...baseHsl, h: normalizeHue(baseHsl.h + item.offset) }
+    const nextRgb = hslToRgb(hsl.h, hsl.s, hsl.l)
+    return {
+      label: item.label,
+      hex: rgbToHex(nextRgb.r, nextRgb.g, nextRgb.b),
+      rgb: nextRgb,
+      hsl
+    }
+  })
+}
+
+// 生成 Tailwind 色板片段
+export function generateTailwindSnippet(hex: string): string {
+  const scale = generateColorScale(hex)
+  const lines = scale.map((item) => `      ${item.label}: '${item.hex}'`)
+  return `theme: {
+  extend: {
+    colors: {
+      primary: {
+${lines.join(',\n')}
+      }
+    }
+  }
+}`
+}
+
+// 生成 JSON token
+export function generateJsonToken(hex: string, rgb: RGB, hsl: HSL): string {
+  return JSON.stringify({
+    color: {
+      primary: {
+        value: hex,
+        rgb: `${rgb.r}, ${rgb.g}, ${rgb.b}`,
+        hsl: `${hsl.h} ${hsl.s}% ${hsl.l}%`
+      }
+    }
+  }, null, 2)
 }

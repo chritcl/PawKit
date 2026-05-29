@@ -5,7 +5,8 @@ import {
   writeClipboardText,
   removeClipboardItem,
   clearClipboardHistory,
-  toggleClipboardFavorite
+  toggleClipboardFavorite,
+  copyClipboardItem
 } from '../services/clipboard-service'
 import { validateSender } from './validate-sender'
 
@@ -18,12 +19,12 @@ export function registerClipboardIpcHandlers(): void {
   })
 
   // 写入文本到系统剪贴板
-  ipcMain.handle(IPC_CHANNELS.CLIPBOARD_WRITE_TEXT, (event, payload: { text: string }) => {
+  ipcMain.handle(IPC_CHANNELS.CLIPBOARD_WRITE_TEXT, async (event, payload: { text: string }) => {
     if (!validateSender(event)) return []
     if (!payload || typeof payload.text !== 'string') {
       throw new Error('参数错误')
     }
-    return writeClipboardText(payload.text)
+    return await writeClipboardText(payload.text)
   })
 
   // 获取剪贴板历史
@@ -56,5 +57,14 @@ export function registerClipboardIpcHandlers(): void {
       throw new Error('参数错误')
     }
     return toggleClipboardFavorite(payload.id)
+  })
+
+  // 复制历史项到系统剪贴板
+  ipcMain.handle(IPC_CHANNELS.CLIPBOARD_COPY_ITEM, async (event, payload: { id: string }) => {
+    if (!validateSender(event)) return []
+    if (!payload || typeof payload.id !== 'string') {
+      throw new Error('参数错误')
+    }
+    return await copyClipboardItem(payload.id)
   })
 }
