@@ -57,7 +57,7 @@ export function ContentArea(): JSX.Element {
       </div>
 
       {/* 页面内容 */}
-      <div className="content-scroll">{renderPage()}</div>
+      <div key={activeTool} className="content-scroll">{renderPage()}</div>
     </main>
   )
 }

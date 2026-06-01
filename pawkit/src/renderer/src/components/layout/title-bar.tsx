@@ -28,7 +28,7 @@ export function TitleBar(): JSX.Element {
           <Maximize2 className="h-4 w-4" />
         </button>
         <button
-          className="icon-button app-no-drag h-7 min-h-7 w-7 min-w-7 text-[color:var(--color-danger)] hover:bg-[var(--color-danger-soft)]"
+          className="icon-button icon-button-danger app-no-drag h-7 min-h-7 w-7 min-w-7 tone-danger"
           onClick={() => window.electronAPI?.app?.hideWindow?.()}
           title="关闭（隐藏到托盘）"
         >

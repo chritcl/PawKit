@@ -118,47 +118,49 @@ export function Base64ToolPage(): JSX.Element {
 
   return (
     <div className="tool-page">
-      <div className="toolbar-surface tool-toolbar">
-        <div className="segmented-control segmented-scroll">
-          {modeItems.map((item) => {
-            const Icon = item.icon
-            return (
-              <button
-                key={item.mode}
-                className={`segmented-item ${mode === item.mode ? 'segmented-item-active' : ''}`}
-                onClick={() => setMode(item.mode)}
-                title={item.label}
-              >
-                <Icon className="h-4 w-4" />
-                {item.label}
+      <div className="toolbar-surface tab-toolbar">
+        <div className="tab-toolbar-main">
+          <div className="segmented-control segmented-scroll">
+            {modeItems.map((item) => {
+              const Icon = item.icon
+              return (
+                <button
+                  key={item.mode}
+                  className={`segmented-item ${mode === item.mode ? 'segmented-item-active' : ''}`}
+                  onClick={() => setMode(item.mode)}
+                  title={item.label}
+                >
+                  <Icon className="h-4 w-4" />
+                  {item.label}
+                </button>
+              )
+            })}
+          </div>
+
+          {(mode === 'base64' || mode === 'url') && (
+            <div className="segmented-control segmented-scroll">
+              <button className={`segmented-item ${operation === 'encode' ? 'segmented-item-active' : ''}`} onClick={() => setOperation('encode')}>
+                编码
               </button>
-            )
-          })}
+              <button className={`segmented-item ${operation === 'decode' ? 'segmented-item-active' : ''}`} onClick={() => setOperation('decode')}>
+                解码
+              </button>
+            </div>
+          )}
+
+          {mode === 'base64' && (
+            <div className="segmented-control segmented-scroll">
+              <button className={`segmented-item ${variant === 'standard' ? 'segmented-item-active' : ''}`} onClick={() => setVariant('standard')}>
+                标准
+              </button>
+              <button className={`segmented-item ${variant === 'url-safe' ? 'segmented-item-active' : ''}`} onClick={() => setVariant('url-safe')}>
+                URL-safe
+              </button>
+            </div>
+          )}
         </div>
 
-        {(mode === 'base64' || mode === 'url') && (
-          <div className="segmented-control segmented-scroll">
-            <button className={`segmented-item ${operation === 'encode' ? 'segmented-item-active' : ''}`} onClick={() => setOperation('encode')}>
-              编码
-            </button>
-            <button className={`segmented-item ${operation === 'decode' ? 'segmented-item-active' : ''}`} onClick={() => setOperation('decode')}>
-              解码
-            </button>
-          </div>
-        )}
-
-        {mode === 'base64' && (
-          <div className="segmented-control segmented-scroll">
-            <button className={`segmented-item ${variant === 'standard' ? 'segmented-item-active' : ''}`} onClick={() => setVariant('standard')}>
-              标准
-            </button>
-            <button className={`segmented-item ${variant === 'url-safe' ? 'segmented-item-active' : ''}`} onClick={() => setVariant('url-safe')}>
-              URL-safe
-            </button>
-          </div>
-        )}
-
-        <div className="toolbar-group toolbar-push">
+        <div className="panel-actions">
           <button className="toolbar-button" onClick={pasteInput} title="粘贴">
             <Clipboard className="h-4 w-4" />
             粘贴
@@ -207,15 +209,15 @@ export function Base64ToolPage(): JSX.Element {
 
       {computed.type === 'jwt' && computed.result.success && (
         <div className="data-grid">
-          <button className="glass-card p-3 text-left" onClick={() => void copyText(computed.result.headerJson ?? '', 'Header 已复制')}>
+          <button className="glass-card action-card text-left" onClick={() => void copyText(computed.result.headerJson ?? '', 'Header 已复制')}>
             <div className="text-xs text-[color:var(--text-muted)]">Header</div>
             <div className="mt-1 truncate font-mono text-sm text-[color:var(--text-secondary)]">{computed.result.headerJson}</div>
           </button>
-          <button className="glass-card p-3 text-left" onClick={() => void copyText(computed.result.payloadJson ?? '', 'Payload 已复制')}>
+          <button className="glass-card action-card text-left" onClick={() => void copyText(computed.result.payloadJson ?? '', 'Payload 已复制')}>
             <div className="text-xs text-[color:var(--text-muted)]">Payload</div>
             <div className="mt-1 truncate font-mono text-sm text-[color:var(--text-secondary)]">{computed.result.payloadJson}</div>
           </button>
-          <button className="glass-card p-3 text-left" onClick={() => void copyText(computed.result.signature ?? '', 'Signature 已复制')}>
+          <button className="glass-card action-card text-left" onClick={() => void copyText(computed.result.signature ?? '', 'Signature 已复制')}>
             <div className="text-xs text-[color:var(--text-muted)]">Signature</div>
             <div className="mt-1 truncate font-mono text-sm text-[color:var(--text-secondary)]">{computed.result.signature || '无'}</div>
           </button>
@@ -232,7 +234,7 @@ export function Base64ToolPage(): JSX.Element {
             <div className="text-xs text-[color:var(--text-muted)]">编码方式</div>
             <div className="mt-1 font-mono text-[color:var(--text-secondary)]">{computed.result.isBase64 ? 'Base64' : 'URL 编码'}</div>
           </div>
-          <button className="glass-card p-3 text-left" onClick={() => void copyText(computed.result.data ?? '', 'Data URL 内容已复制')}>
+          <button className="glass-card action-card text-left" onClick={() => void copyText(computed.result.data ?? '', 'Data URL 内容已复制')}>
             <div className="text-xs text-[color:var(--text-muted)]">数据片段</div>
             <div className="mt-1 truncate font-mono text-[color:var(--text-secondary)]">{computed.result.data}</div>
           </button>
@@ -240,9 +242,9 @@ export function Base64ToolPage(): JSX.Element {
       )}
 
       <div className="status-strip flex items-center gap-3 text-xs">
-        <span className={statusText === '转换成功' ? 'text-emerald-300' : 'text-[color:var(--text-muted)]'}>{message}</span>
+        <span className={statusText === '转换成功' ? 'tone-success' : 'text-[color:var(--text-muted)]'}>{message}</span>
         <span className="text-[color:var(--text-muted)]">|</span>
-        <span className={statusText === '转换成功' ? 'text-emerald-300' : statusText === '等待输入' ? 'text-[color:var(--text-muted)]' : 'text-red-300'}>
+        <span className={statusText === '转换成功' ? 'tone-success' : statusText === '等待输入' ? 'text-[color:var(--text-muted)]' : 'tone-danger'}>
           {statusText}
         </span>
         <span className="text-[color:var(--text-muted)]">|</span>

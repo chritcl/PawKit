@@ -661,7 +661,7 @@ export function ScreenshotCaptureOverlay(): JSX.Element {
         {selectionRect && (
           <>
             <div
-              className="pointer-events-none absolute border-2 border-[#1677ff] bg-[#1677ff]/10 shadow-[0_0_0_9999px_rgba(0,0,0,0.42)]"
+              className="pointer-events-none absolute border-2 border-[rgb(var(--color-primary-rgb))] bg-[var(--color-primary-soft)] shadow-[0_0_0_9999px_rgba(0,0,0,0.42)]"
               style={{
                 left: selectionRect.x,
                 top: selectionRect.y,
@@ -705,7 +705,7 @@ export function ScreenshotCaptureOverlay(): JSX.Element {
                 key={item.tool}
                 className={`flex h-10 items-center justify-center gap-2 rounded-md border text-sm transition ${
                   tool === item.tool
-                    ? 'border-[rgba(var(--color-primary-rgb),0.55)] bg-[var(--color-primary-soft)] text-[color:var(--text-primary)]'
+                    ? 'selected-surface text-[color:var(--text-primary)]'
                     : 'border-[var(--glass-border)] bg-[var(--input-surface)] text-[color:var(--text-secondary)] hover:bg-[var(--glass-surface-hover)]'
                 }`}
                 onClick={() => setTool(item.tool)}

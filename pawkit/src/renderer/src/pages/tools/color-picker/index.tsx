@@ -233,11 +233,11 @@ export function ColorPickerPage(): JSX.Element {
 
   return (
     <div className="page-stack">
-      <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+      <div className="color-summary-grid">
         <div className="glass-panel">
-          <div className="flex flex-wrap items-center gap-4">
+          <div className="color-hero">
             <div
-              className="h-24 w-24 rounded-[14px] border border-[var(--glass-border)] shadow-[inset_0_1px_0_rgba(255,255,255,0.25)]"
+              className="color-swatch-main"
               style={{ backgroundColor: hex }}
             />
             <div className="min-w-0 flex-1">
@@ -245,10 +245,10 @@ export function ColorPickerPage(): JSX.Element {
               <div className="mt-1 text-sm text-[color:var(--text-muted)]">
                 {formatRgb(rgb)} · {formatHsl(hsl)}
               </div>
-              <div className="mt-3 flex flex-wrap gap-2">
+              <div className="panel-actions panel-actions-left mt-4">
                 <button
                   className={`toolbar-button ${
-                    isFavorite ? 'border-yellow-400/25 bg-yellow-500/20 text-yellow-400' : ''
+                    isFavorite ? 'tone-surface-warning' : ''
                   }`}
                   onClick={handleFavorite}
                 >
@@ -276,46 +276,48 @@ export function ColorPickerPage(): JSX.Element {
         </div>
 
         <div className="glass-panel">
-          <div className="flex items-center justify-between gap-3">
-            <div>
+          <div className="readability-layout">
+            <div className="min-w-0">
               <div className="text-sm text-[color:var(--text-muted)]">可读性</div>
               <div className="mt-2 text-2xl font-semibold">Aa {readableRatio}:1</div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <div className="compact-row">
+                  <div className="text-xs text-[color:var(--text-muted)]">推荐文字</div>
+                  <div className="mt-1 font-mono text-sm">{readableText}</div>
+                </div>
+                <div className="compact-row">
+                  <div className="text-xs text-[color:var(--text-muted)]">等级</div>
+                  <div className="mt-1 text-sm">{getContrastLevel(readableRatio)}</div>
+                </div>
+              </div>
             </div>
             <div
-              className="flex h-20 w-28 items-center justify-center rounded-[10px] border border-[var(--glass-border)] text-2xl font-semibold"
+              className="readability-preview"
               style={{ backgroundColor: hex, color: readableText }}
             >
               Aa
             </div>
           </div>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <div className="compact-row">
-              <div className="text-xs text-[color:var(--text-muted)]">推荐文字</div>
-              <div className="mt-1 font-mono text-sm">{readableText}</div>
-            </div>
-            <div className="compact-row">
-              <div className="text-xs text-[color:var(--text-muted)]">等级</div>
-              <div className="mt-1 text-sm">{getContrastLevel(readableRatio)}</div>
-            </div>
-          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div className="glass-card p-4">
-          <label className="text-sm text-[color:var(--text-muted)]">HEX</label>
+      <div className="form-grid">
+        <div className="form-card">
+          <label className="form-field text-sm text-[color:var(--text-muted)]">
+            <span>HEX</span>
           <input
             type="text"
             value={hexInput}
             onChange={(event) => updateFromHex(event.target.value)}
-            className="field-input mt-2 font-mono text-sm"
+              className="field-input font-mono text-sm"
           />
-          {hexError && <div className="mt-1 text-xs text-red-400">{hexError}</div>}
+          </label>
+          {hexError && <div className="mt-1 text-xs tone-danger">{hexError}</div>}
         </div>
 
-        <div className="glass-card p-4">
+        <div className="form-card">
           <label className="text-sm text-[color:var(--text-muted)]">RGB</label>
-          <div className="mt-2 flex gap-2">
+          <div className="inline-input-grid">
             <input
               type="number"
               value={rgbR}
@@ -338,12 +340,12 @@ export function ColorPickerPage(): JSX.Element {
               placeholder="B"
             />
           </div>
-          {rgbError && <div className="mt-1 text-xs text-red-400">{rgbError}</div>}
+          {rgbError && <div className="mt-1 text-xs tone-danger">{rgbError}</div>}
         </div>
 
-        <div className="glass-card p-4">
+        <div className="form-card">
           <label className="text-sm text-[color:var(--text-muted)]">HSL</label>
-          <div className="mt-2 flex gap-2">
+          <div className="inline-input-grid">
             <input
               type="number"
               value={hslH}
@@ -366,7 +368,7 @@ export function ColorPickerPage(): JSX.Element {
               placeholder="L"
             />
           </div>
-          {hslError && <div className="mt-1 text-xs text-red-400">{hslError}</div>}
+          {hslError && <div className="mt-1 text-xs tone-danger">{hslError}</div>}
         </div>
       </div>
 

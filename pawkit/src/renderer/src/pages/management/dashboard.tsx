@@ -41,20 +41,22 @@ export function Dashboard(): JSX.Element {
   ]
 
   return (
-    <div className="page-stack">
-      <section className="glass-panel">
-        <h3 className="font-medium">应用概览</h3>
-        <p className="mt-1 text-sm text-[color:var(--text-muted)]">本地配置、工具状态和数据统计</p>
-
-        <div className="data-grid mt-4">
-          {stats.map((stat) => (
-            <div key={stat.label} className="stat-card">
-              <div className="text-sm text-[color:var(--text-muted)]">{stat.label}</div>
-              <div className="mt-2 truncate text-lg font-medium">{stat.value}</div>
-            </div>
-          ))}
+    <section className="glass-panel">
+      <div className="panel-heading">
+        <div className="panel-heading-text">
+          <h3 className="font-medium">应用概览</h3>
+          <p className="mt-1 text-sm text-[color:var(--text-muted)]">本地配置、工具状态和数据统计</p>
         </div>
-      </section>
-    </div>
+      </div>
+
+      <div className="data-grid mt-5">
+        {stats.map((stat) => (
+          <div key={stat.label} className="stat-card">
+            <div className="text-sm text-[color:var(--text-muted)]">{stat.label}</div>
+            <div className="truncate text-lg font-medium">{stat.value}</div>
+          </div>
+        ))}
+      </div>
+    </section>
   )
 }

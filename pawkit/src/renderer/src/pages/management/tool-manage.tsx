@@ -50,85 +50,86 @@ export function ToolManage(): JSX.Element {
   }
 
   return (
-    <div className="page-stack">
-      <section className="glass-panel">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h3 className="font-medium">工具管理</h3>
-            <p className="mt-1 text-sm text-[color:var(--text-muted)]">启用状态、侧边栏顺序和首页常用工具</p>
-          </div>
-          <div className="text-sm text-[color:var(--text-muted)]">
-            {enabledTools.length} 个启用 · {favoriteTools.length} 个常用
-          </div>
+    <section className="glass-panel">
+      <div className="panel-heading">
+        <div className="panel-heading-text">
+          <h3 className="font-medium">工具管理</h3>
+          <p className="mt-1 text-sm text-[color:var(--text-muted)]">启用状态、侧边栏顺序和首页常用工具</p>
         </div>
+        <div className="panel-actions text-sm text-[color:var(--text-muted)]">
+          {enabledTools.length} 个启用 · {favoriteTools.length} 个常用
+        </div>
+      </div>
 
-        <div className="mt-4 space-y-2">
-          {orderedTools.map((tool, index) => {
-            const isEnabled = enabledTools.includes(tool.id)
-            const isFavorite = favoriteTools.includes(tool.id)
-            const IconComponent = tool.icon
-            return (
-              <div
-                key={tool.id}
-                className={`glass-card flex items-center gap-3 p-4 ${isEnabled ? '' : 'opacity-60'}`}
-              >
+      <div className="list-stack mt-5">
+        {orderedTools.map((tool, index) => {
+          const isEnabled = enabledTools.includes(tool.id)
+          const isFavorite = favoriteTools.includes(tool.id)
+          const IconComponent = tool.icon
+          return (
+            <div
+              key={tool.id}
+              className={`glass-card work-row ${isEnabled ? '' : 'opacity-60'}`}
+            >
+              <div className="flex items-center gap-3">
                 <GripVertical className="h-4 w-4 shrink-0 text-[color:var(--text-muted)]" />
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-[var(--glass-muted)] text-[color:var(--text-secondary)]">
+                <span className="icon-tile">
                   <IconComponent className="h-5 w-5" />
                 </span>
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-medium">{tool.name}</span>
-                    <span className="chip">
-                      Phase {tool.phase}
-                    </span>
-                  </div>
-                  <div className="mt-1 truncate text-sm text-[color:var(--text-muted)]">{tool.description}</div>
-                </div>
-
-                <div className="flex shrink-0 items-center gap-1">
-                  <button
-                    className="icon-button"
-                    onClick={() => moveTool(tool.id, -1)}
-                    disabled={index === 0}
-                    title="上移"
-                  >
-                    <ArrowUp className="h-4 w-4" />
-                  </button>
-                  <button
-                    className="icon-button"
-                    onClick={() => moveTool(tool.id, 1)}
-                    disabled={index === orderedTools.length - 1}
-                    title="下移"
-                  >
-                    <ArrowDown className="h-4 w-4" />
-                  </button>
-                  <button
-                    className={`icon-button hover:text-yellow-400 ${
-                      isFavorite ? 'text-yellow-400' : 'text-[color:var(--text-muted)]'
-                    }`}
-                    onClick={() => toggleFavorite(tool.id)}
-                    disabled={!isEnabled}
-                    title={isFavorite ? '取消首页常用' : '设为首页常用'}
-                  >
-                    <Star className={`h-4 w-4 ${isFavorite ? 'fill-current' : ''}`} />
-                  </button>
-                  <button
-                    className={`toolbar-button min-h-8 px-3 py-1.5 ${
-                      isEnabled
-                        ? 'border-emerald-400/25 bg-emerald-500/15 text-emerald-300'
-                        : ''
-                    }`}
-                    onClick={() => toggleTool(tool.id)}
-                  >
-                    {isEnabled ? '已启用' : '已禁用'}
-                  </button>
-                </div>
               </div>
-            )
-          })}
-        </div>
-      </section>
-    </div>
+
+              <div className="work-row-main">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-medium">{tool.name}</span>
+                  <span className="chip">
+                    Phase {tool.phase}
+                  </span>
+                </div>
+                <div className="mt-1 truncate text-sm text-[color:var(--text-muted)]">{tool.description}</div>
+              </div>
+
+              <div className="work-row-actions">
+                <button
+                  className="icon-button"
+                  onClick={() => moveTool(tool.id, -1)}
+                  disabled={index === 0}
+                  title="上移"
+                >
+                  <ArrowUp className="h-4 w-4" />
+                </button>
+                <button
+                  className="icon-button"
+                  onClick={() => moveTool(tool.id, 1)}
+                  disabled={index === orderedTools.length - 1}
+                  title="下移"
+                >
+                  <ArrowDown className="h-4 w-4" />
+                </button>
+                <button
+                  className={`icon-button icon-button-warning ${
+                    isFavorite ? 'tone-warning' : 'text-[color:var(--text-muted)]'
+                  }`}
+                  onClick={() => toggleFavorite(tool.id)}
+                  disabled={!isEnabled}
+                  title={isFavorite ? '取消首页常用' : '设为首页常用'}
+                >
+                  <Star className={`h-4 w-4 ${isFavorite ? 'fill-current' : ''}`} />
+                </button>
+                <button
+                  className={`toolbar-button min-h-8 px-3 py-1.5 ${
+                    isEnabled
+                      ? 'tone-surface-success'
+                      : ''
+                  }`}
+                  onClick={() => toggleTool(tool.id)}
+                >
+                  {isEnabled ? '已启用' : '已禁用'}
+                </button>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </section>
   )
 }

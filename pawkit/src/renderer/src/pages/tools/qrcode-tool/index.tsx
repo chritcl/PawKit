@@ -245,22 +245,24 @@ export function QRCodeToolPage(): JSX.Element {
 
   return (
     <div className="tool-page">
-      <div className="toolbar-surface tool-toolbar-spread">
-        <div className="segmented-control segmented-scroll">
-          {templateOptions.map((option) => (
-            <button
-              key={option.id}
-              className={`segmented-item ${template === option.id ? 'segmented-item-active' : ''}`}
-              onClick={() => switchTemplate(option.id)}
-            >
-              {option.label}
-            </button>
-          ))}
+      <div className="toolbar-surface tab-toolbar">
+        <div className="tab-toolbar-main">
+          <div className="segmented-control segmented-scroll">
+            {templateOptions.map((option) => (
+              <button
+                key={option.id}
+                className={`segmented-item ${template === option.id ? 'segmented-item-active' : ''}`}
+                onClick={() => switchTemplate(option.id)}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
         </div>
 
-        <div className="action-cluster">
+        <div className="panel-actions">
           {message && <span className="text-sm text-[color:var(--text-muted)]">{message}</span>}
-          {error && <span className="text-sm text-red-400">{error}</span>}
+          {error && <span className="text-sm tone-danger">{error}</span>}
           <button
             className="toolbar-button"
             onClick={handleReset}
@@ -278,16 +280,24 @@ export function QRCodeToolPage(): JSX.Element {
         </div>
       </div>
 
-      <div className="tool-workspace xl:grid-cols-[minmax(330px,0.85fr)_minmax(0,1.15fr)]">
-        <div className="min-h-0 space-y-4 overflow-auto pr-1">
+      <div className="qrcode-layout">
+        <div className="qrcode-config-stack">
           <section className="glass-panel">
-            <h3 className="font-medium">{getTemplateLabel(template)}内容</h3>
-            <div className="mt-4">{renderTemplateFields(template, fields, setField)}</div>
+            <div className="panel-heading">
+              <div className="panel-heading-text">
+                <h3 className="font-medium">{getTemplateLabel(template)}内容</h3>
+              </div>
+            </div>
+            <div className="mt-5">{renderTemplateFields(template, fields, setField)}</div>
           </section>
 
           <section className="glass-panel">
-            <h3 className="font-medium">样式参数</h3>
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
+            <div className="panel-heading">
+              <div className="panel-heading-text">
+                <h3 className="font-medium">样式参数</h3>
+              </div>
+            </div>
+            <div className="mt-5 grid gap-4 md:grid-cols-2">
               <label className="text-sm text-[color:var(--text-secondary)]">
                 尺寸
                 <input
@@ -364,11 +374,13 @@ export function QRCodeToolPage(): JSX.Element {
           </section>
         </div>
 
-        <div className="grid min-h-0 gap-4 overflow-hidden xl:grid-cols-[minmax(250px,0.85fr)_minmax(280px,1fr)]">
-          <section className="glass-panel tool-panel">
-            <div className="flex items-center justify-between gap-3">
-              <h3 className="font-medium">预览</h3>
-              <div className="action-cluster-tight">
+        <div className="qrcode-result-stack">
+          <section className="glass-panel qrcode-preview-panel">
+            <div className="panel-heading">
+              <div className="panel-heading-text">
+                <h3 className="font-medium">预览</h3>
+              </div>
+              <div className="panel-actions">
                 <button
                   className="icon-button icon-button-success disabled:opacity-30"
                   onClick={handleCopy}
@@ -387,10 +399,10 @@ export function QRCodeToolPage(): JSX.Element {
                 </button>
               </div>
             </div>
-            <div className="content-block mt-4 flex min-h-56 flex-1 items-center justify-center border-dashed p-4">
+            <div className="qrcode-preview-box">
               {qrDataUrl ? (
-                <div className="rounded bg-white p-3">
-                  <img src={qrDataUrl} alt="二维码预览" className="h-64 w-64 object-contain" />
+                <div className="qrcode-image-frame">
+                  <img src={qrDataUrl} alt="二维码预览" className="h-full w-full object-contain" />
                 </div>
               ) : (
                 <div className="text-center text-sm text-[color:var(--text-muted)]">
@@ -399,7 +411,7 @@ export function QRCodeToolPage(): JSX.Element {
                 </div>
               )}
             </div>
-            <div className="content-block mt-4">
+            <div className="qrcode-payload-box">
               <div className="text-xs text-[color:var(--text-muted)]">Payload</div>
               <pre className="mt-2 max-h-28 overflow-auto whitespace-pre-wrap break-all font-mono text-xs text-[color:var(--text-secondary)]">
                 {payload || buildQrCodePayload(template, fields) || '等待输入'}
@@ -407,74 +419,74 @@ export function QRCodeToolPage(): JSX.Element {
             </div>
           </section>
 
-          <section className="glass-panel tool-panel">
-            <div className="flex items-center justify-between gap-3">
-              <div>
+          <section className="glass-panel qrcode-history-panel">
+            <div className="panel-heading">
+              <div className="panel-heading-text">
                 <h3 className="font-medium">最近记录</h3>
                 <div className="mt-1 text-xs text-[color:var(--text-muted)]">
                   {history.length} 条 · {favoriteCount} 收藏 · 上限 {qrcodeHistoryLimit}
                 </div>
               </div>
-              <button
-                className="icon-button icon-button-danger"
-                onClick={() => setShowClearConfirm(true)}
-                disabled={history.every((item) => item.favorite)}
-                title="清空非收藏"
-              >
-                <Eraser className="h-4 w-4" />
-              </button>
+              <div className="panel-actions">
+                <button
+                  className="icon-button icon-button-danger"
+                  onClick={() => setShowClearConfirm(true)}
+                  disabled={history.every((item) => item.favorite)}
+                  title="清空非收藏"
+                >
+                  <Eraser className="h-4 w-4" />
+                </button>
+              </div>
             </div>
 
-            <div className="mt-4 min-h-0 flex-1 overflow-auto pr-1">
+            <div className="qrcode-history-scroll">
               {history.length === 0 ? (
                 <div className="empty-state text-sm">
                   暂无二维码记录
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div className="qrcode-history-list">
                   {history.map((item) => (
                     <div
                       key={item.id}
-                      className="interactive-row p-3.5"
+                      className="interactive-row qrcode-history-row"
                     >
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2.5">
-                            <span className="chip">
-                              {getTemplateLabel(item.template)}
-                            </span>
-                            <span className="text-xs text-[color:var(--text-muted)]">{formatTime(item.updatedAt)}</span>
-                          </div>
-                          <div className="mt-2 truncate text-sm font-medium">{item.title}</div>
-                          <div className="mt-1 line-clamp-2 break-all text-xs text-[color:var(--text-muted)]">
-                            {shortPreview(item.payload)}
-                          </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2.5">
+                          <span className="chip">
+                            {getTemplateLabel(item.template)}
+                          </span>
+                          <span className="text-xs text-[color:var(--text-muted)]">{formatTime(item.updatedAt)}</span>
                         </div>
-                        <div className="action-cluster-tight shrink-0">
-                          <button
-                            className="icon-button icon-button-accent h-8 min-h-8 w-8 min-w-8"
-                            onClick={() => handleEditHistory(item)}
-                            title="重新编辑"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </button>
-                          <button
-                            className={`icon-button icon-button-warning h-8 min-h-8 w-8 min-w-8 ${
-                              item.favorite ? 'text-yellow-400' : ''
-                            }`}
-                            onClick={() => handleToggleFavorite(item.id)}
-                            title={item.favorite ? '取消收藏' : '收藏'}
-                          >
-                            <Star className={`h-4 w-4 ${item.favorite ? 'fill-current' : ''}`} />
-                          </button>
-                          <button
-                            className="icon-button icon-button-danger h-8 min-h-8 w-8 min-w-8"
-                            onClick={() => handleRemove(item.id)}
-                            title="删除"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
+                        <div className="mt-2 truncate text-sm font-medium">{item.title}</div>
+                        <div className="mt-1 line-clamp-2 break-all text-xs text-[color:var(--text-muted)]">
+                          {shortPreview(item.payload)}
                         </div>
+                      </div>
+                      <div className="work-row-actions shrink-0">
+                        <button
+                          className="icon-button icon-button-accent h-8 min-h-8 w-8 min-w-8"
+                          onClick={() => handleEditHistory(item)}
+                          title="重新编辑"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                        <button
+                          className={`icon-button icon-button-warning h-8 min-h-8 w-8 min-w-8 ${
+                            item.favorite ? 'tone-warning' : ''
+                          }`}
+                          onClick={() => handleToggleFavorite(item.id)}
+                          title={item.favorite ? '取消收藏' : '收藏'}
+                        >
+                          <Star className={`h-4 w-4 ${item.favorite ? 'fill-current' : ''}`} />
+                        </button>
+                        <button
+                          className="icon-button icon-button-danger h-8 min-h-8 w-8 min-w-8"
+                          onClick={() => handleRemove(item.id)}
+                          title="删除"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -486,8 +498,8 @@ export function QRCodeToolPage(): JSX.Element {
       </div>
 
       {showClearConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="modal-surface w-96 rounded-[14px] p-6">
+        <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="modal-surface w-full max-w-96 rounded-[8px] p-6">
             <h3 className="text-lg font-semibold">确认清空</h3>
             <p className="mt-2 text-sm text-[color:var(--text-muted)]">此操作会删除所有非收藏二维码记录，收藏记录会保留。</p>
             <div className="mt-6 flex justify-end gap-3">
@@ -567,7 +579,7 @@ function renderTemplateFields(
             type="checkbox"
             checked={fields.hidden === 'true'}
             onChange={(event) => setField('hidden', event.target.checked ? 'true' : 'false')}
-            className="h-4 w-4 accent-sky-500"
+            className="field-checkbox"
           />
           隐藏网络
         </label>

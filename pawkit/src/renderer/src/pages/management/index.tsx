@@ -33,22 +33,28 @@ export function ManagementPage(): JSX.Element {
   }
 
   return (
-    <div className="page-stack">
+    <div className="tab-page">
       {/* 标签页导航 */}
-      <div className="segmented-control segmented-scroll w-full">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            className={`segmented-item flex-1 ${activeTab === tab.id ? 'segmented-item-active' : ''}`}
-            onClick={() => setActiveTab(tab.id)}
-          >
-            {tab.label}
-          </button>
-        ))}
+      <div className="toolbar-surface tab-toolbar">
+        <div className="tab-toolbar-main">
+          <div className="segmented-control segmented-scroll w-full">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                className={`segmented-item flex-1 ${activeTab === tab.id ? 'segmented-item-active' : ''}`}
+                onClick={() => setActiveTab(tab.id)}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* 内容区 */}
-      {renderContent()}
+      <div className="tab-content">
+        {renderContent()}
+      </div>
     </div>
   )
 }

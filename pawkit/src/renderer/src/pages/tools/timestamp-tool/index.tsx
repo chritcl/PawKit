@@ -150,10 +150,10 @@ export function TimestampToolPage(): JSX.Element {
             ) : (
               <div className="space-y-3">
                 {results.map((result, index) => (
-                  <div key={`${result.source}-${index}`} className={`rounded-[10px] border p-3 ${result.valid ? 'border-[var(--glass-border)] bg-[var(--glass-muted)]' : 'border-red-500/20 bg-red-500/10'}`}>
+                  <div key={`${result.source}-${index}`} className={`content-block ${result.valid ? '' : 'tone-surface-danger'}`}>
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-2">
-                        {result.valid ? <Check className="h-4 w-4 text-emerald-300" /> : <Clock3 className="h-4 w-4 text-red-300" />}
+                        {result.valid ? <Check className="h-4 w-4 tone-success" /> : <Clock3 className="h-4 w-4 tone-danger" />}
                         <span className="font-mono text-sm text-[color:var(--text-primary)]">{result.source}</span>
                         <span className="chip">{kindLabel(result.kind)}</span>
                       </div>
@@ -193,7 +193,7 @@ export function TimestampToolPage(): JSX.Element {
                         </div>
                       </div>
                     ) : (
-                      <div className="mt-3 text-sm text-red-300">{result.error}</div>
+                      <div className="mt-3 text-sm tone-danger">{result.error}</div>
                     )}
                   </div>
                 ))}
@@ -204,7 +204,7 @@ export function TimestampToolPage(): JSX.Element {
       </div>
 
       <div className="status-strip flex items-center gap-3 text-xs">
-        <span className="text-emerald-300">{message}</span>
+        <span className="tone-success">{message}</span>
         <span className="text-[color:var(--text-muted)]">|</span>
         <span className="text-[color:var(--text-secondary)]">固定偏移：{offset.label}</span>
         <span className="text-[color:var(--text-muted)]">|</span>

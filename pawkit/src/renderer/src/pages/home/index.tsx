@@ -1,5 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Activity, Clock3, Keyboard, Star, TableProperties } from 'lucide-react'
+import {
+  Activity,
+  ArrowUpRight,
+  CheckCircle2,
+  Clock3,
+  Database,
+  Keyboard,
+  Layers3,
+  Star,
+  TableProperties
+} from 'lucide-react'
 import { APP_VERSION, TOOL_IDS, ToolId } from '../../../../shared/constants'
 import { AppSettings, ClipboardItem, QrCodeHistoryItem, ShortcutStatusItem } from '../../../../shared/types'
 import { useAppStore } from '../../stores/app-store'
@@ -65,93 +75,89 @@ export function HomePage(): JSX.Element {
   const recentClipboard = clipboardHistory.slice(0, 3)
   const recentQrCodes = qrcodeHistory.slice(0, 3)
 
+  const registeredCount = shortcuts.filter((item) => item.status === 'registered').length
   const dataStats = [
-    { label: '启用工具', value: `${enabledTools.length} 个` },
-    { label: '快捷键', value: getShortcutSummary(shortcuts) },
-    { label: '剪贴板历史', value: `${clipboardHistory.length} 条` },
-    { label: '二维码历史', value: `${qrcodeHistory.length} 条` }
+    { label: '启用工具', value: enabledTools.length, unit: '个', detail: '侧边栏可用' },
+    { label: '快捷键', value: shortcuts.length === 0 ? '未读' : registeredCount, unit: shortcuts.length === 0 ? '' : '个', detail: getShortcutSummary(shortcuts) },
+    { label: '剪贴板', value: clipboardHistory.length, unit: '条', detail: '本地历史' },
+    { label: '二维码', value: qrcodeHistory.length, unit: '条', detail: '历史记录' }
   ]
 
   return (
-    <div className="page-stack">
-      <section className="data-grid">
-        {dataStats.map((stat) => (
-          <div key={stat.label} className="stat-card">
-            <div className="text-sm text-[color:var(--text-muted)]">{stat.label}</div>
-            <div className="mt-2 text-lg font-semibold text-[color:var(--text-primary)]">{stat.value}</div>
+    <div className="home-workbench">
+      <div className="home-main-stack">
+        <section className="glass-panel home-command-panel">
+          <div className="home-command-copy">
+            <div className="home-command-kicker">
+              <CheckCircle2 className="h-4 w-4 tone-success" />
+              本地工具就绪
+            </div>
+            <h2 className="mt-3 text-2xl font-semibold tracking-normal">快捷启动工作台</h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-[color:var(--text-secondary)]">
+              常用工具、最近使用和本地内容集中在这里，打开 PawKit 后可以直接开始处理剪贴板、JSON、截图或二维码。
+            </p>
           </div>
-        ))}
-      </section>
 
-      <section className="glass-panel">
-        <div className="flex items-center gap-2">
-          <Star className="h-4 w-4 text-yellow-400" />
-          <h3 className="font-medium">常用工具</h3>
-        </div>
-        <div className="mt-4 grid gap-3 md:grid-cols-2 2xl:grid-cols-4">
-          {quickTools.map((tool) => {
-            const IconComponent = tool.icon
-            return (
-              <button
-                key={tool.id}
-                className="glass-card flex min-h-28 flex-col items-start justify-between p-4 text-left"
-                onClick={() => setActiveTool(tool.id as ToolId)}
-              >
-                <span className="flex h-10 w-10 items-center justify-center rounded-[10px] bg-[var(--color-primary-soft)] text-[rgb(var(--color-primary-rgb))]">
-                  <IconComponent className="h-5 w-5" />
-                </span>
-                <div>
-                  <div className="font-medium">{tool.name}</div>
-                  <div className="mt-1 line-clamp-2 text-sm text-[color:var(--text-muted)]">{tool.description}</div>
-                </div>
-              </button>
-            )
-          })}
-        </div>
-      </section>
-
-      <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
-        <section className="glass-panel">
-          <div className="flex items-center gap-2">
-            <Clock3 className="h-4 w-4 text-[color:var(--text-muted)]" />
-            <h3 className="font-medium">最近使用</h3>
-          </div>
-          <div className="mt-4 space-y-2">
-            {recentTools.length === 0 ? (
-              <div className="rounded-[12px] border border-dashed border-[var(--glass-border)] p-6 text-center text-sm text-[color:var(--text-muted)]">
-                暂无工具使用记录
-              </div>
-            ) : (
-              recentTools.map((item) => {
-                const tool = getToolMeta(item.toolId)
-                if (!tool) return null
-                const IconComponent = tool.icon
-                return (
-                  <button
-                    key={item.toolId}
-                    className="glass-card flex w-full items-center justify-between p-3 text-left"
-                    onClick={() => setActiveTool(item.toolId)}
-                  >
-                    <span className="flex min-w-0 items-center gap-3">
-                      <IconComponent className="h-4 w-4 shrink-0 text-[color:var(--text-muted)]" />
-                      <span className="truncate">{tool.name}</span>
-                    </span>
-                    <span className="shrink-0 text-xs text-[color:var(--text-muted)]">
-                      {item.count} 次 · {formatTime(item.lastUsedAt)}
-                    </span>
-                  </button>
-                )
-              })
-            )}
+          <div className="home-command-status">
+            <span className="chip">v{APP_VERSION}</span>
+            <span className="chip">{enabledTools.length} 个工具可用</span>
+            <span className="chip">{getShortcutSummary(shortcuts)}</span>
           </div>
         </section>
 
-        <section className="glass-panel">
-          <div className="flex items-center gap-2">
-            <TableProperties className="h-4 w-4 text-[color:var(--text-muted)]" />
-            <h3 className="font-medium">最近本地内容</h3>
+        <section className="glass-panel home-launch-panel">
+          <div className="panel-heading">
+            <div className="panel-heading-text">
+              <div className="flex items-center gap-2">
+                <Star className="h-4 w-4 tone-warning" />
+                <h3 className="font-medium">常用工具</h3>
+              </div>
+              <p className="mt-1 text-sm text-[color:var(--text-muted)]">来自管理中心的首页常用配置，禁用工具会自动隐藏。</p>
+            </div>
           </div>
-          <div className="mt-4 grid gap-3 md:grid-cols-2">
+
+          {quickTools.length === 0 ? (
+            <div className="empty-state mt-4 rounded-[8px] border border-dashed border-[var(--glass-border)] bg-[var(--glass-muted)] text-sm">
+              暂无可启动工具
+            </div>
+          ) : (
+            <div className="home-tool-grid mt-4">
+              {quickTools.map((tool) => {
+                const IconComponent = tool.icon
+                return (
+                  <button
+                    key={tool.id}
+                    className="home-tool-card glass-card text-left"
+                    onClick={() => setActiveTool(tool.id as ToolId)}
+                  >
+                    <span className="home-tool-icon">
+                      <IconComponent className="h-5 w-5" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block font-medium">{tool.name}</span>
+                      <span className="mt-1 line-clamp-2 block text-sm leading-5 text-[color:var(--text-muted)]">
+                        {tool.description}
+                      </span>
+                    </span>
+                    <ArrowUpRight className="h-4 w-4 shrink-0 text-[color:var(--text-muted)]" />
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </section>
+
+        <section className="glass-panel">
+          <div className="panel-heading">
+            <div className="panel-heading-text">
+              <div className="flex items-center gap-2">
+                <TableProperties className="h-4 w-4 text-[color:var(--text-muted)]" />
+                <h3 className="font-medium">最近本地内容</h3>
+              </div>
+              <p className="mt-1 text-sm text-[color:var(--text-muted)]">只展示本机记录，点击打开对应工具继续处理。</p>
+            </div>
+          </div>
+          <div className="home-recent-grid mt-4">
             <RecentList
               title="剪贴板"
               items={recentClipboard.map((item) => ({
@@ -166,7 +172,7 @@ export function HomePage(): JSX.Element {
               title="二维码"
               items={recentQrCodes.map((item: QrCodeHistoryItem) => ({
                 id: item.id,
-                label: item.title,
+                label: item.title || '未命名二维码',
                 meta: `${item.template} · ${formatTime(item.updatedAt)}`
               }))}
               emptyText="暂无二维码记录"
@@ -176,29 +182,88 @@ export function HomePage(): JSX.Element {
         </section>
       </div>
 
-      <section className="data-grid">
-        <button
-          className="glass-card p-5 text-left"
-          onClick={() => setActiveTool(TOOL_IDS.MANAGEMENT)}
-        >
-          <Activity className="h-5 w-5 text-emerald-300" />
-          <div className="mt-3 font-medium">管理中心</div>
-          <div className="mt-1 text-sm text-[color:var(--text-muted)]">工具启用、排序、常用入口和本地数据</div>
-        </button>
-        <button
-          className="glass-card p-5 text-left"
-          onClick={() => setActiveTool(TOOL_IDS.SETTINGS)}
-        >
-          <Keyboard className="h-5 w-5 text-sky-300" />
-          <div className="mt-3 font-medium">偏好设置</div>
-          <div className="mt-1 text-sm text-[color:var(--text-muted)]">主题、启动页、隐私和窗口行为</div>
-        </button>
-        <div className="glass-card p-5">
-          <div className="text-sm text-[color:var(--text-muted)]">PawKit</div>
-          <div className="mt-3 text-2xl font-semibold">v{APP_VERSION}</div>
-          <div className="mt-1 text-sm text-[color:var(--text-muted)]">本地优先，配置可导出</div>
-        </div>
-      </section>
+      <aside className="home-side-stack">
+        <section className="glass-panel home-side-panel">
+          <div className="flex items-center gap-2">
+            <Clock3 className="h-4 w-4 text-[color:var(--text-muted)]" />
+            <h3 className="font-medium">最近使用</h3>
+          </div>
+          <div className="mt-4 space-y-2">
+            {recentTools.length === 0 ? (
+              <div className="rounded-[8px] border border-dashed border-[var(--glass-border)] bg-[var(--glass-muted)] p-5 text-center text-sm text-[color:var(--text-muted)]">
+                暂无工具使用记录
+              </div>
+            ) : (
+              recentTools.map((item) => {
+                const tool = getToolMeta(item.toolId)
+                if (!tool) return null
+                const IconComponent = tool.icon
+                return (
+                  <button
+                    key={item.toolId}
+                    className="home-recent-tool glass-card"
+                    onClick={() => setActiveTool(item.toolId)}
+                  >
+                    <span className="flex min-w-0 items-center gap-3">
+                      <span className="icon-tile icon-tile-sm">
+                        <IconComponent className="h-4 w-4" />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-medium">{tool.name}</span>
+                        <span className="mt-0.5 block truncate text-xs text-[color:var(--text-muted)]">
+                          {formatTime(item.lastUsedAt)}
+                        </span>
+                      </span>
+                    </span>
+                    <span className="shrink-0 text-xs text-[color:var(--text-muted)]">{item.count} 次</span>
+                  </button>
+                )
+              })
+            )}
+          </div>
+        </section>
+
+        <section className="glass-panel home-side-panel">
+          <div className="flex items-center gap-2">
+            <Layers3 className="h-4 w-4 tone-info" />
+            <h3 className="font-medium">工作入口</h3>
+          </div>
+          <div className="mt-4 space-y-2">
+            <button className="home-entry-card glass-card" onClick={() => setActiveTool(TOOL_IDS.MANAGEMENT)}>
+              <Activity className="h-4 w-4 tone-success" />
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-medium">管理中心</span>
+                <span className="block truncate text-xs text-[color:var(--text-muted)]">工具启用、排序和本地数据</span>
+              </span>
+              <ArrowUpRight className="h-4 w-4 text-[color:var(--text-muted)]" />
+            </button>
+            <button className="home-entry-card glass-card" onClick={() => setActiveTool(TOOL_IDS.SETTINGS)}>
+              <Keyboard className="h-4 w-4 tone-info" />
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-medium">偏好设置</span>
+                <span className="block truncate text-xs text-[color:var(--text-muted)]">主题、启动页和隐私历史</span>
+              </span>
+              <ArrowUpRight className="h-4 w-4 text-[color:var(--text-muted)]" />
+            </button>
+          </div>
+        </section>
+
+        <section className="home-stat-grid">
+          {dataStats.map((stat) => (
+            <div key={stat.label} className="home-stat-card">
+              <div className="flex items-center gap-2 text-xs text-[color:var(--text-muted)]">
+                <Database className="h-3.5 w-3.5" />
+                {stat.label}
+              </div>
+              <div className="mt-2 flex items-baseline gap-1">
+                <span className="text-xl font-semibold">{stat.value}</span>
+                {stat.unit && <span className="text-xs text-[color:var(--text-muted)]">{stat.unit}</span>}
+              </div>
+              <div className="mt-1 truncate text-xs text-[color:var(--text-muted)]">{stat.detail}</div>
+            </div>
+          ))}
+        </section>
+      </aside>
     </div>
   )
 }
@@ -225,7 +290,7 @@ function RecentList({
           <div className="py-5 text-center text-sm text-[color:var(--text-muted)]">{emptyText}</div>
         ) : (
           items.map((item) => (
-            <div key={item.id} className="min-w-0 rounded-[9px] border border-[var(--glass-border)] bg-[var(--input-surface)] p-3">
+            <div key={item.id} className="content-block min-w-0">
               <div className="truncate text-sm text-[color:var(--text-secondary)]">{item.label}</div>
               <div className="mt-1 text-xs text-[color:var(--text-muted)]">{item.meta}</div>
             </div>

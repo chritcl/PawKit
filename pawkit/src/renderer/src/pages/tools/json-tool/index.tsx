@@ -66,23 +66,37 @@ interface TreeEditorProps {
 
 const editorTheme = EditorView.theme({
   '&': {
-    backgroundColor: 'rgba(255,255,255,0.03)',
-    color: '#e5e7eb',
-    height: '100%'
+    height: '100%',
+    backgroundColor: 'transparent',
+    color: 'var(--text-primary)'
+  },
+  '&.cm-focused': {
+    outline: 'none'
   },
   '.cm-scroller': {
-    fontFamily: 'JetBrains Mono, Consolas, monospace'
+    backgroundColor: 'transparent',
+    fontFamily: 'Consolas, "SFMono-Regular", "Microsoft YaHei UI", monospace'
+  },
+  '.cm-content': {
+    backgroundColor: 'transparent',
+    caretColor: 'var(--text-primary)'
+  },
+  '.cm-line': {
+    backgroundColor: 'transparent'
   },
   '.cm-gutters': {
-    backgroundColor: 'rgba(255,255,255,0.03)',
-    color: '#6b7280',
-    borderRight: '1px solid rgba(255,255,255,0.08)'
+    backgroundColor: 'var(--glass-muted)',
+    color: 'var(--text-muted)',
+    borderRight: '1px solid var(--glass-border)'
   },
   '.cm-activeLineGutter, .cm-activeLine': {
-    backgroundColor: 'rgba(22,119,255,0.12)'
+    backgroundColor: 'rgba(var(--color-primary-rgb), 0.08)'
   },
   '.cm-selectionBackground': {
-    backgroundColor: 'rgba(22,119,255,0.35) !important'
+    backgroundColor: 'rgba(var(--color-primary-rgb), 0.24) !important'
+  },
+  '.cm-placeholder': {
+    color: 'var(--text-muted)'
   }
 })
 
@@ -163,11 +177,11 @@ function TreeEditor({
   return (
     <div>
       <div
-        className="grid min-w-[640px] grid-cols-[24px_minmax(120px,1fr)_96px_minmax(140px,1.1fr)_140px] items-center gap-2 border-b border-[var(--glass-border)] px-3 py-2 text-sm hover:bg-[var(--glass-surface-hover)]"
+        className="grid min-w-[640px] grid-cols-[24px_minmax(120px,1fr)_96px_minmax(140px,1.1fr)_140px] items-center gap-2 border-b border-[var(--glass-border)] px-4 py-2.5 text-sm hover:bg-[var(--glass-surface-hover)]"
         style={{ paddingLeft: 12 + node.depth * 18 }}
       >
         <button
-          className="flex h-6 w-6 items-center justify-center rounded text-[color:var(--text-muted)] hover:bg-[var(--glass-surface-hover)] hover:text-[color:var(--text-primary)] disabled:opacity-20"
+          className="flex h-6 w-6 items-center justify-center rounded-[6px] text-[color:var(--text-muted)] hover:bg-[var(--glass-surface-hover)] hover:text-[color:var(--text-primary)] disabled:opacity-20"
           disabled={!node.expandable}
           onClick={() => onToggle(node.id)}
           title={isExpanded ? '收起节点' : '展开节点'}
@@ -233,22 +247,22 @@ function TreeEditor({
         <div className="action-cluster-tight justify-end">
           {(node.kind === 'object' || node.kind === 'array') && (
             <>
-              <button className="rounded px-2 py-1 text-xs text-[color:var(--text-muted)] hover:bg-[var(--glass-surface-hover)] hover:text-[color:var(--text-primary)]" onClick={() => addChild('string')} title="添加字符串">
+              <button className="rounded-[6px] px-2 py-1 text-xs text-[color:var(--text-muted)] hover:bg-[var(--glass-surface-hover)] hover:text-[color:var(--text-primary)]" onClick={() => addChild('string')} title="添加字符串">
                 <Plus className="h-3.5 w-3.5" />
               </button>
-              <button className="rounded px-2 py-1 text-xs text-[color:var(--text-muted)] hover:bg-[var(--glass-surface-hover)] hover:text-[color:var(--text-primary)]" onClick={() => addChild('object')} title="添加对象">
+              <button className="rounded-[6px] px-2 py-1 text-xs text-[color:var(--text-muted)] hover:bg-[var(--glass-surface-hover)] hover:text-[color:var(--text-primary)]" onClick={() => addChild('object')} title="添加对象">
                 <Braces className="h-3.5 w-3.5" />
               </button>
             </>
           )}
-          <button className="rounded px-2 py-1 text-xs text-[color:var(--text-muted)] hover:bg-[var(--glass-surface-hover)] hover:text-[color:var(--text-primary)]" onClick={() => onCopy(node.pathText, '路径已复制')} title="复制路径">
+          <button className="rounded-[6px] px-2 py-1 text-xs text-[color:var(--text-muted)] hover:bg-[var(--glass-surface-hover)] hover:text-[color:var(--text-primary)]" onClick={() => onCopy(node.pathText, '路径已复制')} title="复制路径">
             路径
           </button>
-          <button className="rounded px-2 py-1 text-xs text-[color:var(--text-muted)] hover:bg-[var(--glass-surface-hover)] hover:text-[color:var(--text-primary)]" onClick={() => onCopy(getNodeValueText(rootValue, node.path), '节点值已复制')} title="复制值">
+          <button className="rounded-[6px] px-2 py-1 text-xs text-[color:var(--text-muted)] hover:bg-[var(--glass-surface-hover)] hover:text-[color:var(--text-primary)]" onClick={() => onCopy(getNodeValueText(rootValue, node.path), '节点值已复制')} title="复制值">
             值
           </button>
           {!isRoot && (
-            <button className="rounded px-2 py-1 text-xs text-red-300 hover:bg-red-500/10" onClick={removeNode} title="删除节点">
+            <button className="rounded-[6px] px-2 py-1 text-xs tone-danger hover:bg-[var(--tone-danger-soft)]" onClick={removeNode} title="删除节点">
               <Trash2 className="h-3.5 w-3.5" />
             </button>
           )}
@@ -425,15 +439,15 @@ export function JsonToolPage(): JSX.Element {
   }
 
   const statusClassName = status.type === 'success'
-    ? 'text-emerald-300'
+    ? 'tone-success'
     : status.type === 'error'
-      ? 'text-red-300'
+      ? 'tone-danger'
       : 'text-[color:var(--text-muted)]'
   const inputBytes = new Blob([input]).size
 
   return (
     <div className="tool-page">
-      <div className="toolbar-surface tool-toolbar">
+      <div className="toolbar-surface tab-toolbar">
         <div className="segmented-control segmented-scroll">
           <button className={`segmented-item ${mode === 'strict' ? 'segmented-item-active' : ''}`} onClick={() => handleModeChange('strict')}>
             严格 JSON
@@ -443,24 +457,23 @@ export function JsonToolPage(): JSX.Element {
           </button>
         </div>
 
-        <button className="toolbar-button-primary" onClick={() => runAction('format')} title="格式化并回写">
-          <AlignLeft className="h-4 w-4" />
-          格式化
-        </button>
-        <button className="toolbar-button" onClick={() => runAction('compress')} title="压缩并回写">
-          <Minimize2 className="h-4 w-4" />
-          压缩
-        </button>
-        <button className="toolbar-button" onClick={() => runAction('sort')} title="递归排序并回写">
-          <ArrowDownAZ className="h-4 w-4" />
-          排序
-        </button>
-        <button className="toolbar-button" onClick={() => runAction('validate')} title="校验">
-          <Check className="h-4 w-4" />
-          校验
-        </button>
-
-        <div className="toolbar-group toolbar-push">
+        <div className="panel-actions">
+          <button className="toolbar-button-primary" onClick={() => runAction('format')} title="格式化并回写">
+            <AlignLeft className="h-4 w-4" />
+            格式化
+          </button>
+          <button className="toolbar-button" onClick={() => runAction('compress')} title="压缩并回写">
+            <Minimize2 className="h-4 w-4" />
+            压缩
+          </button>
+          <button className="toolbar-button" onClick={() => runAction('sort')} title="递归排序并回写">
+            <ArrowDownAZ className="h-4 w-4" />
+            排序
+          </button>
+          <button className="toolbar-button" onClick={() => runAction('validate')} title="校验">
+            <Check className="h-4 w-4" />
+            校验
+          </button>
           <button className="toolbar-button" onClick={handlePaste} title="从剪贴板粘贴">
             <Clipboard className="h-4 w-4" />
             粘贴
@@ -490,7 +503,7 @@ export function JsonToolPage(): JSX.Element {
             <CodeMirror
               value={input}
               height="100%"
-              theme="dark"
+              className="code-editor-light"
               extensions={inputExtensions}
               onChange={(value) => {
                 setInput(value)
@@ -550,7 +563,7 @@ export function JsonToolPage(): JSX.Element {
         {diagnostic && (
           <>
             <span className="text-[color:var(--text-muted)]">|</span>
-            <button className="inline-flex items-center gap-1 rounded px-2 py-1 text-red-300 hover:bg-[rgba(248,113,113,0.12)] hover:text-red-200" onClick={() => focusDiagnostic(diagnostic)}>
+            <button className="inline-flex items-center gap-1 rounded px-2 py-1 tone-danger hover:bg-[var(--tone-danger-soft)]" onClick={() => focusDiagnostic(diagnostic)}>
               <RotateCcw className="h-3.5 w-3.5" />
               定位错误
             </button>

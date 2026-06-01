@@ -17,22 +17,23 @@ import { useClipboardStore } from '../../../stores/clipboard-store'
 
 type ClipboardFilter = 'all' | 'text' | 'image' | 'file' | 'richText' | 'favorite'
 type ClipboardKind = 'url' | 'json' | 'command' | 'code' | 'long' | 'text'
+type BadgeTone = 'neutral' | 'blue' | 'green' | 'purple' | 'cyan' | 'amber' | 'pink' | 'lime'
 
 const commandPattern = /^(pnpm|npm|npx|yarn|git|docker|kubectl|curl|ssh|cd|ls|dir|cmd|powershell)\b/i
 
-const kindMeta: Record<ClipboardKind, { label: string; className: string }> = {
-  url: { label: '链接', className: 'border-sky-400/30 bg-sky-500/10 text-sky-300' },
-  json: { label: 'JSON', className: 'border-emerald-400/30 bg-emerald-500/10 text-emerald-300' },
-  command: { label: '命令', className: 'border-violet-400/30 bg-violet-500/10 text-violet-300' },
-  code: { label: '代码', className: 'border-blue-400/30 bg-blue-500/10 text-blue-300' },
-  long: { label: '长文本', className: 'border-amber-400/30 bg-amber-500/10 text-amber-300' },
-  text: { label: '文本', className: 'border-[var(--glass-border)] bg-[var(--glass-muted)] text-[color:var(--text-secondary)]' }
+const kindMeta: Record<ClipboardKind, { label: string; tone: BadgeTone }> = {
+  url: { label: '链接', tone: 'blue' },
+  json: { label: 'JSON', tone: 'green' },
+  command: { label: '命令', tone: 'purple' },
+  code: { label: '代码', tone: 'cyan' },
+  long: { label: '长文本', tone: 'amber' },
+  text: { label: '文本', tone: 'neutral' }
 }
 
 const typeMeta = {
-  image: { label: '图片', className: 'border-fuchsia-400/30 bg-fuchsia-500/10 text-fuchsia-200' },
-  file: { label: '文件', className: 'border-cyan-400/30 bg-cyan-500/10 text-cyan-200' },
-  richText: { label: '富文本', className: 'border-lime-400/30 bg-lime-500/10 text-lime-200' }
+  image: { label: '图片', tone: 'pink' as BadgeTone },
+  file: { label: '文件', tone: 'cyan' as BadgeTone },
+  richText: { label: '富文本', tone: 'lime' as BadgeTone }
 }
 
 const filterOptions: Array<{ key: ClipboardFilter; label: string }> = [
@@ -100,7 +101,7 @@ function getPreviewText(content: string): string {
 }
 
 // 获取历史项标签
-function getItemMeta(item: ClipboardItem): { label: string; className: string } {
+function getItemMeta(item: ClipboardItem): { label: string; tone: BadgeTone } {
   if (item.type === 'image') return typeMeta.image
   if (item.type === 'file') return typeMeta.file
   if (item.type === 'richText') return typeMeta.richText
@@ -123,20 +124,20 @@ function getItemStats(item: ClipboardItem): string {
 
 // 渲染类型图标
 function TypeIcon({ item }: { item: ClipboardItem }): JSX.Element | null {
-  if (item.type === 'image') return <ImageIcon className="h-4 w-4 text-fuchsia-300" aria-hidden="true" />
-  if (item.type === 'file') return <Files className="h-4 w-4 text-cyan-300" aria-hidden="true" />
-  if (item.type === 'richText') return <FileText className="h-4 w-4 text-lime-300" aria-hidden="true" />
+  if (item.type === 'image') return <ImageIcon className="h-4 w-4 tone-danger" aria-hidden="true" />
+  if (item.type === 'file') return <Files className="h-4 w-4 tone-info" aria-hidden="true" />
+  if (item.type === 'richText') return <FileText className="h-4 w-4 tone-success" aria-hidden="true" />
 
   const kind = getClipboardKind(item.content)
-  if (kind === 'json') return <FileJson className="h-4 w-4 text-emerald-400" aria-hidden="true" />
-  if (kind === 'command') return <Terminal className="h-4 w-4 text-violet-400" aria-hidden="true" />
+  if (kind === 'json') return <FileJson className="h-4 w-4 tone-success" aria-hidden="true" />
+  if (kind === 'command') return <Terminal className="h-4 w-4 tone-accent" aria-hidden="true" />
   return null
 }
 
 // 图片预览
 function ImagePreview({ item }: { item: ClipboardImageItem }): JSX.Element {
   return (
-    <div className="content-block mt-4 overflow-hidden p-2">
+    <div className="content-block overflow-hidden p-2">
       <img
         src={item.thumbnailDataUrl}
         alt="剪贴板图片"
@@ -153,12 +154,12 @@ function FilePreview({ item }: { item: ClipboardFileItem }): JSX.Element {
   const hiddenCount = Math.max(item.files.length - visibleFiles.length, 0)
 
   return (
-    <div className="content-block mt-4 space-y-2">
+    <div className="content-block space-y-2">
       {visibleFiles.map((file) => (
         <div key={file.path} className="flex min-w-0 items-center gap-2 text-xs text-[color:var(--text-secondary)]">
-          <FileText className="h-3.5 w-3.5 shrink-0 text-cyan-300" />
+          <FileText className="h-3.5 w-3.5 shrink-0 tone-info" />
           <span className="truncate" title={file.path}>{file.name || file.path}</span>
-          {!file.exists && <span className="shrink-0 text-amber-300">已失效</span>}
+          {!file.exists && <span className="shrink-0 tone-warning">已失效</span>}
         </div>
       ))}
       {hiddenCount > 0 && (
@@ -286,19 +287,18 @@ export function ClipboardPage(): JSX.Element {
       tabIndex={0}
       onKeyDown={handleKeyDown}
     >
-      <div className="toolbar-surface tool-toolbar-spread">
-        <div className="relative min-w-64 flex-1">
-          <ListFilter className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[color:var(--text-muted)]" />
-          <input
-            type="text"
-            placeholder="搜索剪贴板历史..."
-            value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
-            className="field-input pl-10 pr-4 text-sm"
-          />
-        </div>
-
-        <div className="action-cluster">
+      <div className="toolbar-surface tab-toolbar">
+        <div className="tab-toolbar-main">
+          <div className="relative min-w-64 flex-1">
+            <ListFilter className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[color:var(--text-muted)]" />
+            <input
+              type="text"
+              placeholder="搜索剪贴板历史..."
+              value={keyword}
+              onChange={(e) => setKeyword(e.target.value)}
+              className="field-input pl-10 pr-4 text-sm"
+            />
+          </div>
           <div className="segmented-control flex-wrap">
             {filterOptions.map((option) => (
               <button
@@ -312,13 +312,13 @@ export function ClipboardPage(): JSX.Element {
           </div>
         </div>
 
-        <div className="action-cluster">
+        <div className="panel-actions">
           <span className="chip whitespace-nowrap text-sm">
             {filteredList.length} / {list.length} 条
             {favoriteCount > 0 && ` · ${favoriteCount} 收藏`}
           </span>
           {copyMessage && (
-            <span className="chip whitespace-nowrap text-sm text-emerald-300">
+            <span className="chip whitespace-nowrap text-sm tone-success">
               {copyMessage}
             </span>
           )}
@@ -334,12 +334,12 @@ export function ClipboardPage(): JSX.Element {
 
       <div className="min-h-0 flex-1 overflow-auto pr-1">
         {filteredList.length === 0 ? (
-          <div className="empty-state flex-col gap-2 rounded-[10px] border border-dashed border-[var(--glass-border)] bg-[var(--glass-muted)] text-sm">
+          <div className="empty-state flex-col gap-2 rounded-[8px] border border-dashed border-[var(--glass-border)] bg-[var(--glass-muted)] text-sm">
             <div>{emptyText}</div>
             <div className="text-xs text-[color:var(--text-muted)]">复制文本、图片或文件后会自动出现在这里</div>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="clipboard-card-list">
             {filteredList.map((item: ClipboardItem) => {
               const meta = getItemMeta(item)
               const expanded = expandedIds.includes(item.id)
@@ -350,26 +350,26 @@ export function ClipboardPage(): JSX.Element {
               return (
                 <div
                   key={item.id}
-                  className={`interactive-row group p-4 ${
+                  className={`interactive-row clipboard-history-card group ${
                     selected
-                      ? 'border-[rgba(var(--color-primary-rgb),0.42)] bg-[var(--color-primary-soft)]'
+                      ? 'selected-surface'
                       : ''
                   }`}
                   onClick={() => setSelectedId(item.id)}
                 >
-                  <div className="flex items-start justify-between gap-5">
-                    <div className="min-w-0 flex-1 overflow-hidden">
-                      <div className="mb-3 flex flex-wrap items-center gap-2.5">
-                        <span className={`rounded-full border px-2 py-0.5 text-xs ${meta.className}`}>
+                  <div className="flex items-start justify-between gap-6">
+                    <div className="flex min-w-0 flex-1 flex-col gap-4 overflow-hidden">
+                      <div className="flex flex-wrap items-center gap-2.5">
+                        <span className={`meta-badge meta-badge-${meta.tone}`}>
                           {meta.label}
                         </span>
                         <span className="text-xs text-[color:var(--text-muted)]">{formatTime(item.updatedAt)}</span>
                         <span className="text-xs text-[color:var(--text-muted)]">{getItemStats(item)}</span>
                         {item.type === 'image' && item.originalTooLarge && (
-                          <span className="text-xs text-amber-300">已保存压缩版</span>
+                          <span className="text-xs tone-warning">已保存压缩版</span>
                         )}
                         {item.favorite && (
-                          <span className="inline-flex items-center gap-1 text-xs text-yellow-400">
+                          <span className="inline-flex items-center gap-1 text-xs tone-warning">
                             <Star className="h-3 w-3 fill-current" />
                             已收藏
                           </span>
@@ -384,12 +384,14 @@ export function ClipboardPage(): JSX.Element {
                         {getPreviewText(item.content)}
                       </div>
 
-                      {item.type === 'image' && <ImagePreview item={item} />}
-                      {item.type === 'file' && <FilePreview item={item} />}
+                      <div className="flex flex-col gap-3">
+                        {item.type === 'image' && <ImagePreview item={item} />}
+                        {item.type === 'file' && <FilePreview item={item} />}
+                      </div>
 
                       {canExpand && (
                         <button
-                          className="mt-2 rounded px-2 py-1 text-xs text-[color:var(--text-muted)] hover:bg-[var(--glass-surface-hover)] hover:text-[color:var(--text-primary)]"
+                          className="w-fit rounded-[6px] px-2 py-1 text-xs text-[color:var(--text-muted)] hover:bg-[var(--glass-surface-hover)] hover:text-[color:var(--text-primary)]"
                           onClick={(event) => {
                             event.stopPropagation()
                             toggleExpanded(item.id)
@@ -400,7 +402,7 @@ export function ClipboardPage(): JSX.Element {
                       )}
                     </div>
 
-                    <div className="action-cluster-tight shrink-0 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
+                    <div className="work-row-actions shrink-0 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
                       {textKind === 'url' && (
                         <button
                           className="icon-button icon-button-accent"
@@ -417,7 +419,7 @@ export function ClipboardPage(): JSX.Element {
                       <button
                         className={`icon-button icon-button-warning ${
                           item.favorite
-                            ? 'text-yellow-400'
+                            ? 'tone-warning'
                             : ''
                         }`}
                         onClick={(event) => {
@@ -431,7 +433,7 @@ export function ClipboardPage(): JSX.Element {
                       <button
                         className={`icon-button icon-button-success ${
                           copiedId === item.id
-                            ? 'text-green-400'
+                            ? 'tone-success'
                             : ''
                         }`}
                         onClick={(event) => {
@@ -462,8 +464,8 @@ export function ClipboardPage(): JSX.Element {
       </div>
 
       {showConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="modal-surface w-96 rounded-[14px] p-6">
+        <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="modal-surface w-full max-w-96 rounded-[8px] p-6">
             <h3 className="text-lg font-semibold">确认清空</h3>
             <p className="mt-2 text-sm text-[color:var(--text-muted)]">
               此操作将清空所有非收藏剪贴板历史，收藏内容会保留。

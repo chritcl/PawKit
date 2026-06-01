@@ -38,7 +38,7 @@ export function Sidebar(): JSX.Element {
         key={tool.id}
         className={`app-no-drag flex w-full items-center gap-2.5 rounded-[8px] border px-2.5 py-2 text-left text-sm transition-all ${
           active
-            ? 'border-[rgba(var(--color-primary-rgb),0.28)] bg-[var(--color-primary-soft)] text-[color:var(--text-primary)] shadow-[inset_0_1px_0_rgba(255,255,255,0.18)]'
+            ? 'selected-surface text-[color:var(--text-primary)]'
             : 'border-transparent text-[color:var(--text-secondary)] hover:bg-[var(--glass-surface-hover)] hover:text-[color:var(--text-primary)]'
         }`}
         onClick={() => setActiveTool(tool.id as ToolId)}
@@ -46,7 +46,7 @@ export function Sidebar(): JSX.Element {
         <span
           className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-[7px] ${
             active
-              ? 'bg-[rgba(var(--color-primary-rgb),0.18)] text-[rgb(var(--color-primary-rgb))]'
+              ? 'bg-[var(--color-primary-soft)] text-[rgb(var(--color-primary-rgb))]'
               : 'bg-[var(--glass-muted)] text-[color:var(--text-muted)]'
           }`}
         >
