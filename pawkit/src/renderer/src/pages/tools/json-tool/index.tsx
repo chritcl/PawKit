@@ -313,6 +313,7 @@ export function JsonToolPage(): JSX.Element {
       json(),
       diagnosticLinter,
       keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap]),
+      EditorView.lineWrapping,
       editorTheme
     ]
   }, [diagnostic, input.length])
@@ -499,11 +500,12 @@ export function JsonToolPage(): JSX.Element {
             <span>文本编辑</span>
             <span className="text-xs text-[color:var(--text-muted)]">{inputBytes} bytes</span>
           </div>
-          <div className="panel-body">
+          <div className="panel-body code-editor-panel-body">
             <CodeMirror
               value={input}
               height="100%"
               className="code-editor-light"
+              basicSetup={{ foldGutter: false }}
               extensions={inputExtensions}
               onChange={(value) => {
                 setInput(value)

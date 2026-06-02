@@ -3,7 +3,7 @@ import { IpcMainInvokeEvent, app } from 'electron'
 // 开发服务器允许的本地主机名
 const DEV_HOSTNAMES = ['localhost', '127.0.0.1', '::1']
 
-// 获取开发服务器端口（优先读环境变量，回退 5173）
+// 获取开发服务器端口（优先读环境变量，回退 5573）
 function getDevServerPort(): number {
   const url = process.env.ELECTRON_RENDERER_URL
   if (url) {
