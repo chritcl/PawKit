@@ -54,13 +54,11 @@
     "dayjs": "^1.11.21",
     "electron-store": "^11.0.2",
     "jsonc-parser": "^3.3.1",
-    "konva": "^10.3.0",
     "lucide-react": "^0.468.0",
     "nanoid": "^5.1.11",
     "qrcode": "^1.5.4",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
-    "react-konva": "^19.2.4",
     "tailwind-merge": "^2.6.0",
     "tailwindcss": "^4.3.0",
     "zustand": "^5.0.2"

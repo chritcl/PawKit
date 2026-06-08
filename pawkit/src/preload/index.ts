@@ -4,9 +4,9 @@ import type {
   ClipboardItem,
   ScreenColorPickResult,
   ScreenColorPickerPayload,
-  ScreenshotCapturePayload,
-  ScreenshotCaptureResponse,
-  ScreenshotResult
+  ScreenCaptureActionRequest,
+  ScreenCaptureDisplayPayload,
+  ScreenCaptureSessionState
 } from '../shared/types'
 
 // 使用 any 避免 preload 环境下的类型导入问题
@@ -65,40 +65,10 @@ const electronAPI: any = {
     }
   },
   screenshot: {
-    // 全屏截图
-    captureFullScreen: () => ipcRenderer.invoke(IPC_CHANNELS.SCREENSHOT_CAPTURE_FULL_SCREEN),
-    // 启动系统级截图
-    startCapture: () => ipcRenderer.invoke(IPC_CHANNELS.SCREENSHOT_START_CAPTURE),
     // 复制图片到剪贴板
     copyImageToClipboard: (dataUrl: string) => ipcRenderer.invoke(IPC_CHANNELS.SCREENSHOT_COPY_IMAGE_TO_CLIPBOARD, dataUrl),
     // 保存图片到本地
     saveImage: (dataUrl: string) => ipcRenderer.invoke(IPC_CHANNELS.SCREENSHOT_SAVE_IMAGE, dataUrl),
-    // 通知主进程截图覆盖层已准备
-    captureOverlayReady: () => ipcRenderer.send(IPC_CHANNELS.SCREENSHOT_CAPTURE_READY),
-    // 完成系统级截图
-    finishCapture: (result: ScreenshotResult) => ipcRenderer.send(IPC_CHANNELS.SCREENSHOT_CAPTURE_FINISH, result),
-    // 取消系统级截图
-    cancelCapture: () => ipcRenderer.send(IPC_CHANNELS.SCREENSHOT_CAPTURE_CANCEL),
-    // 接收截图覆盖层数据
-    onCaptureData: (callback: (payload: ScreenshotCapturePayload) => void) => {
-      const listener = (_event: Electron.IpcRendererEvent, payload: ScreenshotCapturePayload) => {
-        callback(payload)
-      }
-      ipcRenderer.on(IPC_CHANNELS.SCREENSHOT_CAPTURE_DATA, listener)
-      return () => {
-        ipcRenderer.removeListener(IPC_CHANNELS.SCREENSHOT_CAPTURE_DATA, listener)
-      }
-    },
-    // 接收快捷键截图结果
-    onCaptureResult: (callback: (response: ScreenshotCaptureResponse) => void) => {
-      const listener = (_event: Electron.IpcRendererEvent, response: ScreenshotCaptureResponse) => {
-        callback(response)
-      }
-      ipcRenderer.on(IPC_CHANNELS.SCREENSHOT_CAPTURE_RESULT, listener)
-      return () => {
-        ipcRenderer.removeListener(IPC_CHANNELS.SCREENSHOT_CAPTURE_RESULT, listener)
-      }
-    },
     // 启动全屏滴管取色
     pickScreenColor: () => ipcRenderer.invoke(IPC_CHANNELS.SCREENSHOT_PICK_SCREEN_COLOR),
     // 通知主进程覆盖层已准备
@@ -115,6 +85,34 @@ const electronAPI: any = {
       ipcRenderer.on(IPC_CHANNELS.SCREENSHOT_COLOR_PICKER_DATA, listener)
       return () => {
         ipcRenderer.removeListener(IPC_CHANNELS.SCREENSHOT_COLOR_PICKER_DATA, listener)
+      }
+    }
+  },
+  screenCapture: {
+    // 启动全新截图会话
+    start: () => ipcRenderer.invoke(IPC_CHANNELS.SCREEN_CAPTURE_START),
+    // 通知主进程覆盖层已准备
+    overlayReady: () => ipcRenderer.send(IPC_CHANNELS.SCREEN_CAPTURE_OVERLAY_READY),
+    // 当前覆盖层认领截图会话
+    claim: () => ipcRenderer.send(IPC_CHANNELS.SCREEN_CAPTURE_CLAIM),
+    // 执行复制、完成或保存动作
+    performAction: (request: ScreenCaptureActionRequest) => ipcRenderer.invoke(IPC_CHANNELS.SCREEN_CAPTURE_ACTION, request),
+    // 取消整个截图会话
+    cancel: () => ipcRenderer.send(IPC_CHANNELS.SCREEN_CAPTURE_CANCEL),
+    // 接收当前显示器截图数据
+    onPayload: (callback: (payload: ScreenCaptureDisplayPayload) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, payload: ScreenCaptureDisplayPayload) => callback(payload)
+      ipcRenderer.on(IPC_CHANNELS.SCREEN_CAPTURE_PAYLOAD, listener)
+      return () => {
+        ipcRenderer.removeListener(IPC_CHANNELS.SCREEN_CAPTURE_PAYLOAD, listener)
+      }
+    },
+    // 接收截图会话状态
+    onSessionState: (callback: (state: ScreenCaptureSessionState) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, state: ScreenCaptureSessionState) => callback(state)
+      ipcRenderer.on(IPC_CHANNELS.SCREEN_CAPTURE_SESSION_STATE, listener)
+      return () => {
+        ipcRenderer.removeListener(IPC_CHANNELS.SCREEN_CAPTURE_SESSION_STATE, listener)
       }
     }
   },

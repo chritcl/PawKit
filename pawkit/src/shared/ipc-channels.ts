@@ -26,20 +26,22 @@ export const IPC_CHANNELS = {
   CLIPBOARD_HISTORY_CHANGED: 'clipboard:history-changed',
 
   // 截图相关
-  SCREENSHOT_CAPTURE_FULL_SCREEN: 'screenshot:capture-full-screen',
-  SCREENSHOT_START_CAPTURE: 'screenshot:start-capture',
   SCREENSHOT_COPY_IMAGE_TO_CLIPBOARD: 'screenshot:copy-image-to-clipboard',
   SCREENSHOT_SAVE_IMAGE: 'screenshot:save-image',
-  SCREENSHOT_CAPTURE_READY: 'screenshot:capture-ready',
-  SCREENSHOT_CAPTURE_DATA: 'screenshot:capture-data',
-  SCREENSHOT_CAPTURE_FINISH: 'screenshot:capture-finish',
-  SCREENSHOT_CAPTURE_CANCEL: 'screenshot:capture-cancel',
-  SCREENSHOT_CAPTURE_RESULT: 'screenshot:capture-result',
   SCREENSHOT_PICK_SCREEN_COLOR: 'screenshot:pick-screen-color',
   SCREENSHOT_COLOR_PICKER_READY: 'screenshot:color-picker-ready',
   SCREENSHOT_COLOR_PICKER_DATA: 'screenshot:color-picker-data',
   SCREENSHOT_COLOR_PICKER_FINISH: 'screenshot:color-picker-finish',
   SCREENSHOT_COLOR_PICKER_CANCEL: 'screenshot:color-picker-cancel',
+
+  // 全新截图会话相关
+  SCREEN_CAPTURE_START: 'screen-capture:start',
+  SCREEN_CAPTURE_OVERLAY_READY: 'screen-capture:overlay-ready',
+  SCREEN_CAPTURE_CLAIM: 'screen-capture:claim',
+  SCREEN_CAPTURE_ACTION: 'screen-capture:action',
+  SCREEN_CAPTURE_CANCEL: 'screen-capture:cancel',
+  SCREEN_CAPTURE_PAYLOAD: 'screen-capture:payload',
+  SCREEN_CAPTURE_SESSION_STATE: 'screen-capture:session-state',
 
   // 快捷键相关
   SHORTCUT_GET_STATUS: 'shortcut:get-status',

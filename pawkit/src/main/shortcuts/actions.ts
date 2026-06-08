@@ -2,7 +2,7 @@ import { BrowserWindow } from 'electron'
 import { ShortcutKey } from './types'
 import { showWindow, toggleWindow } from '../window'
 import { IPC_CHANNELS } from '../../shared/ipc-channels'
-import { startScreenshotCapture } from '../screenshot-service'
+import { startScreenCapture } from '../screen-capture/session-manager'
 
 // 主窗口引用
 let mainWindowRef: BrowserWindow | null = null
@@ -37,14 +37,7 @@ export function handleShortcutAction(key: ShortcutKey): void {
 
     case 'screenshot':
       if (mainWindowRef) {
-        void startScreenshotCapture(mainWindowRef).then((response) => {
-          if (!mainWindowRef || mainWindowRef.isDestroyed()) return
-          if (response.status === 'captured') {
-            showWindow(mainWindowRef)
-            sendNavigateToRenderer('screenshot')
-            mainWindowRef.webContents.send(IPC_CHANNELS.SCREENSHOT_CAPTURE_RESULT, response)
-          }
-        })
+        void startScreenCapture(mainWindowRef)
       }
       break
 

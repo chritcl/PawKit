@@ -21,6 +21,7 @@ const ALLOWED_KEYS = [
   'color.favorites',
   'color.recent',
   'qrcode.history',
+  'screenshot.preferences',
   'privacy.qrcodeHistoryLimit'
 ] as const
 
@@ -73,6 +74,12 @@ const defaultSettings: AppSettings = {
   },
   qrcode: {
     history: []
+  },
+  screenshot: {
+    preferences: {
+      annotationColor: '#ff4d4f',
+      strokeWidth: 4
+    }
   },
   privacy: {
     qrcodeHistoryLimit: 50

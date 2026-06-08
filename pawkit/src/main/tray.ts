@@ -3,6 +3,7 @@ import { join } from 'path'
 import { setIsQuitting } from './index'
 import { toggleWindow, showWindow } from './window'
 import { APP_NAME } from '../shared/constants'
+import { startScreenCapture } from './screen-capture/session-manager'
 
 // 托盘实例
 let tray: Tray | null = null
@@ -29,6 +30,12 @@ export function createTray(mainWindow: BrowserWindow): Tray {
       label: '显示 / 隐藏',
       click: () => {
         toggleWindow(mainWindow)
+      }
+    },
+    {
+      label: '截图',
+      click: () => {
+        void startScreenCapture(mainWindow)
       }
     },
     { type: 'separator' },

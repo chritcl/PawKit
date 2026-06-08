@@ -176,6 +176,9 @@ export interface AppSettings {
   qrcode: {
     history: QrCodeHistoryItem[]
   }
+  screenshot: {
+    preferences: ScreenshotPreferences
+  }
   privacy: {
     qrcodeHistoryLimit: number
   }
@@ -189,39 +192,60 @@ export interface WindowBounds {
   height: number
 }
 
-// 截图结果
-export interface ScreenshotResult {
+// 截图默认设置
+export interface ScreenshotPreferences {
+  annotationColor: string
+  strokeWidth: number
+}
+
+// 截图会话启动状态
+export type ScreenCaptureStartStatus =
+  | 'started'
+  | 'busy'
+  | 'no-source'
+  | 'error'
+
+// 截图会话启动响应
+export interface ScreenCaptureStartResponse {
+  status: ScreenCaptureStartStatus
+  message: string
+  sessionId?: string
+}
+
+// 单个显示器的截图覆盖层数据
+export interface ScreenCaptureDisplayPayload {
+  sessionId: string
+  displayId: string
+  dataUrl: string
+  bounds: WindowBounds
+  scaleFactor: number
+  width: number
+  height: number
+  preferences: ScreenshotPreferences
+}
+
+// 截图覆盖层会话状态
+export interface ScreenCaptureSessionState {
+  sessionId: string
+  displayId: string
+  status: 'idle' | 'active' | 'locked' | 'closed'
+  activeDisplayId: string | null
+}
+
+// 截图输出动作
+export interface ScreenCaptureActionRequest {
+  action: 'copy' | 'complete' | 'save'
   dataUrl: string
   width: number
   height: number
-  createdAt: string
-  displayId?: string
-  displayBounds?: WindowBounds
-  scaleFactor?: number
+  displayId: string
 }
 
-// 截图覆盖层数据
-export interface ScreenshotCapturePayload {
-  screenshot: ScreenshotResult
-  displayBounds: WindowBounds
-  scaleFactor: number
-}
-
-// 截图状态
-export type ScreenshotCaptureStatus =
-  | 'captured'
-  | 'cancelled'
-  | 'busy'
-  | 'no-source'
-  | 'load-failed'
-  | 'timeout'
-  | 'error'
-
-// 截图响应
-export interface ScreenshotCaptureResponse {
-  status: ScreenshotCaptureStatus
+// 截图输出动作响应
+export interface ScreenCaptureActionResponse {
+  status: 'copied' | 'saved' | 'cancelled' | 'error'
   message: string
-  result?: ScreenshotResult
+  path?: string
 }
 
 // 图片保存状态
@@ -345,20 +369,22 @@ export interface ElectronAPI {
     onHistoryChanged: (callback: (history: ClipboardItem[]) => void) => () => void
   }
   screenshot: {
-    captureFullScreen: () => Promise<ScreenshotResult>
-    startCapture: () => Promise<ScreenshotCaptureResponse>
     copyImageToClipboard: (dataUrl: string) => Promise<boolean>
     saveImage: (dataUrl: string) => Promise<ImageSaveResult>
-    captureOverlayReady: () => void
-    finishCapture: (result: ScreenshotResult) => void
-    cancelCapture: () => void
-    onCaptureData: (callback: (payload: ScreenshotCapturePayload) => void) => () => void
-    onCaptureResult: (callback: (response: ScreenshotCaptureResponse) => void) => () => void
     pickScreenColor: () => Promise<ScreenColorPickResponse>
     colorPickerReady: () => void
     finishColorPick: (result: ScreenColorPickResult) => void
     cancelColorPick: () => void
     onColorPickerData: (callback: (payload: ScreenColorPickerPayload) => void) => () => void
+  }
+  screenCapture: {
+    start: () => Promise<ScreenCaptureStartResponse>
+    overlayReady: () => void
+    claim: () => void
+    performAction: (request: ScreenCaptureActionRequest) => Promise<ScreenCaptureActionResponse>
+    cancel: () => void
+    onPayload: (callback: (payload: ScreenCaptureDisplayPayload) => void) => () => void
+    onSessionState: (callback: (state: ScreenCaptureSessionState) => void) => () => void
   }
   shortcut: {
     getStatus: () => Promise<ShortcutStatusItem[]>
