@@ -18,7 +18,6 @@
   "include": [
     "src/renderer/src/**/*",
     "src/renderer/src/env.d.ts",
-    "src/shared/**/*",
-    "src/preload/types.ts"
+    "src/shared/**/*"
   ]
 }

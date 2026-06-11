@@ -11,6 +11,7 @@ import {
   WindowBounds
 } from '../shared/types'
 import { IPC_CHANNELS } from '../shared/ipc-channels'
+import { logger } from './logger'
 
 // 当前取色覆盖层窗口
 let activeColorPickerWindow: BrowserWindow | null = null
@@ -22,7 +23,7 @@ export function copyImageToClipboard(dataUrl: string): boolean {
     clipboard.writeImage(image)
     return true
   } catch (error) {
-    console.error('复制图片到剪贴板失败:', error)
+    logger.error('复制图片到剪贴板失败:', error)
     return false
   }
 }
@@ -50,7 +51,7 @@ export async function saveImage(dataUrl: string): Promise<ImageSaveResult> {
 
     return { success: true, status: 'saved', path: result.filePath, message: '保存成功' }
   } catch (error) {
-    console.error('保存图片失败:', error)
+    logger.error('保存图片失败:', error)
     return { success: false, status: 'error', message: '保存失败' }
   }
 }

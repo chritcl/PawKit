@@ -1,5 +1,6 @@
 import { BrowserWindow, clipboard, dialog, nativeImage } from 'electron'
 import { writeFile } from 'fs/promises'
+import { logger } from '../logger'
 import type {
   ScreenCaptureActionRequest,
   ScreenCaptureActionResponse
@@ -21,7 +22,7 @@ export async function performScreenCaptureOutput(
       clipboard.writeImage(image)
       return { status: 'copied', message: '已复制到剪贴板' }
     } catch (error) {
-      console.error('复制新版截图失败:', error)
+      logger.error('复制新版截图失败:', error)
       return { status: 'error', message: '复制截图失败' }
     }
   }
@@ -49,7 +50,7 @@ export async function performScreenCaptureOutput(
       path: result.filePath
     }
   } catch (error) {
-    console.error('保存新版截图失败:', error)
+    logger.error('保存新版截图失败:', error)
     return { status: 'error', message: '保存截图失败' }
   }
 }

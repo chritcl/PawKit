@@ -29,6 +29,7 @@ export function registerScreenCaptureIpcHandlers(): void {
     }
   )
 
+  // 覆盖层通道通过 findOverlayBySender(event.sender) 校验发送方引用，不使用 validateSender
   ipcMain.on(IPC_CHANNELS.SCREEN_CAPTURE_OVERLAY_READY, handleScreenCaptureOverlayReady)
   ipcMain.on(IPC_CHANNELS.SCREEN_CAPTURE_CLAIM, handleScreenCaptureClaim)
   ipcMain.on(IPC_CHANNELS.SCREEN_CAPTURE_CANCEL, handleScreenCaptureCancel)

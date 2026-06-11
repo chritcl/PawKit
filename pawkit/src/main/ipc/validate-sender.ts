@@ -1,4 +1,5 @@
 import { IpcMainInvokeEvent, app } from 'electron'
+import { logger } from '../logger'
 
 // 开发服务器允许的本地主机名
 const DEV_HOSTNAMES = ['localhost', '127.0.0.1', '::1']
@@ -20,20 +21,20 @@ function getDevServerPort(): number {
 export function validateSender(event: IpcMainInvokeEvent): boolean {
   // 检查 sender 是否存在
   if (!event.sender) {
-    console.warn('IPC 请求被拒绝：sender 不存在')
+    logger.warn('IPC 请求被拒绝：sender 不存在')
     return false
   }
 
   // 检查 sender 是否已被销毁
   if (event.sender.isDestroyed()) {
-    console.warn('IPC 请求被拒绝：sender 已销毁')
+    logger.warn('IPC 请求被拒绝：sender 已销毁')
     return false
   }
 
   // 检查 sender 的 URL 是否来自应用
   const url = event.sender.getURL()
   if (!url) {
-    console.warn('IPC 请求被拒绝：sender URL 为空')
+    logger.warn('IPC 请求被拒绝：sender URL 为空')
     return false
   }
 
@@ -48,7 +49,7 @@ export function validateSender(event: IpcMainInvokeEvent): boolean {
     if (cleanUrlPath.startsWith(normalizedAppPath) || urlPath.includes('/out/renderer/')) {
       return true
     }
-    console.warn(`IPC 请求被拒绝：非应用本地文件 ${url}`)
+    logger.warn(`IPC 请求被拒绝：非应用本地文件 ${url}`)
     return false
   }
 
@@ -60,14 +61,14 @@ export function validateSender(event: IpcMainInvokeEvent): boolean {
       if (DEV_HOSTNAMES.includes(urlObj.hostname) && urlObj.port === String(port)) {
         return true
       }
-      console.warn(`IPC 请求被拒绝：非开发服务器 ${urlObj.hostname}:${urlObj.port}（期望端口 ${port}）`)
+      logger.warn(`IPC 请求被拒绝：非开发服务器 ${urlObj.hostname}:${urlObj.port}（期望端口 ${port}）`)
       return false
     } catch {
-      console.warn(`IPC 请求被拒绝：无效的 URL ${url}`)
+      logger.warn(`IPC 请求被拒绝：无效的 URL ${url}`)
       return false
     }
   }
 
-  console.warn(`IPC 请求被拒绝：未知来源 ${url}`)
+  logger.warn(`IPC 请求被拒绝：未知来源 ${url}`)
   return false
 }

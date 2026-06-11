@@ -87,5 +87,7 @@ export function captureEditorReducer(
       }
     case 'reset':
       return createInitialCaptureEditorState()
+    default:
+      return state
   }
 }

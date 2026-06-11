@@ -22,7 +22,7 @@ export function registerClipboardIpcHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.CLIPBOARD_WRITE_TEXT, async (event, payload: { text: string }) => {
     if (!validateSender(event)) return []
     if (!payload || typeof payload.text !== 'string') {
-      throw new Error('参数错误')
+      return []
     }
     return await writeClipboardText(payload.text)
   })
@@ -45,7 +45,7 @@ export function registerClipboardIpcHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.CLIPBOARD_REMOVE_ITEM, (event, payload: { id: string }) => {
     if (!validateSender(event)) return []
     if (!payload || typeof payload.id !== 'string') {
-      throw new Error('参数错误')
+      return []
     }
     return removeClipboardItem(payload.id)
   })
@@ -54,7 +54,7 @@ export function registerClipboardIpcHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.CLIPBOARD_TOGGLE_FAVORITE, (event, payload: { id: string }) => {
     if (!validateSender(event)) return []
     if (!payload || typeof payload.id !== 'string') {
-      throw new Error('参数错误')
+      return []
     }
     return toggleClipboardFavorite(payload.id)
   })
@@ -63,7 +63,7 @@ export function registerClipboardIpcHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.CLIPBOARD_COPY_ITEM, async (event, payload: { id: string }) => {
     if (!validateSender(event)) return []
     if (!payload || typeof payload.id !== 'string') {
-      throw new Error('参数错误')
+      return []
     }
     return await copyClipboardItem(payload.id)
   })

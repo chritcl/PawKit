@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import { IPC_CHANNELS } from '../shared/ipc-channels'
 import type {
   ClipboardItem,
+  ElectronAPI,
   ScreenColorPickResult,
   ScreenColorPickerPayload,
   ScreenCaptureActionRequest,
@@ -9,9 +10,7 @@ import type {
   ScreenCaptureSessionState
 } from '../shared/types'
 
-// 使用 any 避免 preload 环境下的类型导入问题
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const electronAPI: any = {
+const electronAPI: ElectronAPI = {
   app: {
     // 显示窗口
     showWindow: () => ipcRenderer.invoke(IPC_CHANNELS.APP_SHOW_WINDOW),

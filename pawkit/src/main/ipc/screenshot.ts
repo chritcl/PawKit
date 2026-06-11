@@ -2,6 +2,7 @@ import { ipcMain } from 'electron'
 import { IPC_CHANNELS } from '../../shared/ipc-channels'
 import { copyImageToClipboard, pickScreenColor, saveImage } from '../screenshot-service'
 import { validateSender } from './validate-sender'
+import { logger } from '../logger'
 
 // 注册截图相关 IPC 处理器
 export function registerScreenshotIpcHandlers(): void {
@@ -25,7 +26,7 @@ export function registerScreenshotIpcHandlers(): void {
     try {
       return await pickScreenColor()
     } catch (error) {
-      console.error('屏幕取色失败:', error)
+      logger.error('屏幕取色失败:', error)
       return { status: 'error', message: '屏幕取色失败' }
     }
   })

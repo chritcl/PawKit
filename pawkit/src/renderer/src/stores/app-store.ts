@@ -157,8 +157,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         qrcodeHistoryLimit: privacySettings.qrcodeHistoryLimit ?? 50,
         activeTool: resolveStartTool(startPage, lastActiveTool, enabledTools)
       })
-    } catch {
-      // 忽略初始化错误
+    } catch (error) {
+      console.warn('刷新设置失败:', error)
     }
   }
 }))

@@ -4,6 +4,7 @@ import { is } from '@electron-toolkit/utils'
 import { getIsQuitting } from './index'
 import { getWindowBounds, setWindowBounds } from './store'
 import { WindowBounds } from '../shared/types'
+import { logger } from './logger'
 
 // 默认窗口尺寸
 const DEFAULT_WIDTH = 960
@@ -80,7 +81,7 @@ export function createMainWindow(): BrowserWindow {
     }
     // 生产模式下阻止所有导航
     event.preventDefault()
-    console.warn(`导航被阻止：${navigationUrl}`)
+    logger.warn(`导航被阻止：${navigationUrl}`)
   })
 
   // 加载页面

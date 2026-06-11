@@ -3,6 +3,7 @@ import type { IpcMainEvent, IpcMainInvokeEvent, WebContents } from 'electron'
 import { randomUUID } from 'crypto'
 import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
+import { logger } from '../logger'
 import type {
   ScreenCaptureActionRequest,
   ScreenCaptureActionResponse,
@@ -57,7 +58,7 @@ export async function startScreenCapture(
     sources = await captureAllDisplays()
   } catch (error) {
     restoreOwner(ownerWindow ?? null, shouldRestoreOwner)
-    console.error('冻结显示器失败:', error)
+    logger.error('冻结显示器失败:', error)
     return { status: 'error', message: '冻结屏幕失败' }
   }
 
@@ -94,7 +95,7 @@ export async function startScreenCapture(
     session.overlays.push(entry)
     bindOverlayLifecycle(session, entry)
     void loadOverlay(window, source.displayId).catch((error) => {
-      console.error('加载新版截图覆盖层失败:', error)
+      logger.error('加载新版截图覆盖层失败:', error)
       closeScreenCaptureSession()
     })
   }

@@ -3,6 +3,7 @@ import { BrowserWindow, dialog } from 'electron'
 import { writeFile } from 'fs/promises'
 import { AppSettings, AppTheme, WindowBounds } from '../shared/types'
 import { TOOL_IDS } from '../shared/constants'
+import { logger } from './logger'
 
 // 允许的设置 key 白名单
 const ALLOWED_KEYS = [
@@ -104,7 +105,7 @@ function isAllowedKey(key: string): key is AllowedKey {
 // 获取配置值
 export function getSetting<T = unknown>(key: string): T | null {
   if (!isAllowedKey(key)) {
-    console.warn(`尝试读取非白名单设置: ${key}`)
+    logger.warn(`尝试读取非白名单设置: ${key}`)
     return null
   }
   return (settingsStore.get(key) as T) ?? null
@@ -113,13 +114,13 @@ export function getSetting<T = unknown>(key: string): T | null {
 // 设置配置值（带白名单校验）
 export function setSetting(key: string, value: unknown): boolean {
   if (!isAllowedKey(key)) {
-    console.warn(`尝试写入非白名单设置: ${key}`)
+    logger.warn(`尝试写入非白名单设置: ${key}`)
     return false
   }
 
   // 基本值校验
   if (value === undefined) {
-    console.warn(`尝试写入 undefined 值: ${key}`)
+    logger.warn(`尝试写入 undefined 值: ${key}`)
     return false
   }
 
@@ -156,8 +157,13 @@ export async function exportConfig(ownerWindow?: BrowserWindow | null): Promise<
     return { success: false, message: '导出已取消' }
   }
 
-  await writeFile(result.filePath, JSON.stringify(getAllSettings(), null, 2), 'utf8')
-  return { success: true, path: result.filePath, message: '配置已导出' }
+  try {
+    await writeFile(result.filePath, JSON.stringify(getAllSettings(), null, 2), 'utf8')
+    return { success: true, path: result.filePath, message: '配置已导出' }
+  } catch (error) {
+    logger.error('导出配置失败:', error)
+    return { success: false, message: `导出失败: ${error instanceof Error ? error.message : '未知错误'}` }
+  }
 }
 
 // 获取主题
