@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   clampRect,
+  constrainSquare,
   getResizeHandle,
   getToolbarPosition,
   moveRect,
@@ -65,5 +66,21 @@ describe('全新截图几何引擎', () => {
       { width: 960, height: 540 },
       { width: 1920, height: 1080 }
     )).toEqual({ x: 200, y: 100, width: 400, height: 200 })
+  })
+
+  it('Shift 约束为正方形（右下）', () => {
+    const rect = constrainSquare({ x: 100, y: 100 }, { x: 250, y: 180 })
+    expect(rect.width).toBe(150)
+    expect(rect.height).toBe(150)
+    expect(rect.x).toBe(100)
+    expect(rect.y).toBe(100)
+  })
+
+  it('Shift 约束为正方形（左上）', () => {
+    const rect = constrainSquare({ x: 200, y: 200 }, { x: 100, y: 150 })
+    expect(rect.width).toBe(100)
+    expect(rect.height).toBe(100)
+    expect(rect.x).toBe(100)
+    expect(rect.y).toBe(100)
   })
 })

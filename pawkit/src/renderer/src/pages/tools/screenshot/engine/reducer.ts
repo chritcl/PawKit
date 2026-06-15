@@ -3,7 +3,8 @@ import type {
   CaptureDraft,
   CaptureEditorState,
   CaptureRect,
-  CaptureTool
+  CaptureTool,
+  ToolStyleMap
 } from './types'
 
 export type CaptureEditorAction =
@@ -13,7 +14,11 @@ export type CaptureEditorAction =
   | { type: 'set-selected'; id: string | null }
   | { type: 'set-draft'; draft: CaptureDraft | null }
   | { type: 'preview-annotations'; annotations: CaptureAnnotation[] }
-  | { type: 'commit-annotations'; annotations: CaptureAnnotation[]; previous?: CaptureAnnotation[] }
+  | { type: 'commit-annotations'; annotations: CaptureAnnotation[]; previous?: CaptureAnnotation[]; selectedId?: string | null }
+  | { type: 'set-tool-style'; tool: keyof ToolStyleMap; patch: Partial<ToolStyleMap[keyof ToolStyleMap]> }
+  | { type: 'update-selected-style'; patch: Record<string, unknown> }
+  | { type: 'increment-step' }
+  | { type: 'reset-step-counter' }
   | { type: 'undo' }
   | { type: 'redo' }
   | { type: 'reset' }
@@ -27,7 +32,17 @@ export function createInitialCaptureEditorState(): CaptureEditorState {
     past: [],
     future: [],
     selectedId: null,
-    draft: null
+    draft: null,
+    toolStyles: {
+      rect: { color: '#ff4d4f', strokeWidth: 4, dashed: false, fillColor: null },
+      ellipse: { color: '#ff4d4f', strokeWidth: 4, dashed: false, fillColor: null },
+      arrow: { color: '#ff4d4f', strokeWidth: 4, arrowSize: 16 },
+      pen: { color: '#ff4d4f', strokeWidth: 4 },
+      text: { color: '#ff4d4f', fontSize: 20, bold: false, bgColor: null, align: 'left' },
+      mosaic: { brushSize: 20, strength: 10, mode: 'pixelate' },
+      step: { color: '#ffffff', bgColor: '#ff4d4f', size: 28 }
+    },
+    stepCounter: 1
   }
 }
 
@@ -63,10 +78,38 @@ export function captureEditorReducer(
         annotations: action.annotations,
         past: [...state.past, action.previous ?? state.annotations],
         future: [],
-        selectedId: null,
+        selectedId: action.selectedId !== undefined ? action.selectedId : null,
         draft: null,
         phase: 'editing'
       }
+    case 'set-tool-style': {
+      const current = state.toolStyles[action.tool]
+      return {
+        ...state,
+        toolStyles: {
+          ...state.toolStyles,
+          [action.tool]: { ...current, ...action.patch }
+        }
+      }
+    }
+    case 'update-selected-style': {
+      if (!state.selectedId) return state
+      const updated = state.annotations.map((annotation) =>
+        annotation.id === state.selectedId
+          ? { ...annotation, ...action.patch }
+          : annotation
+      )
+      return {
+        ...state,
+        annotations: updated,
+        past: [...state.past, state.annotations],
+        future: []
+      }
+    }
+    case 'increment-step':
+      return { ...state, stepCounter: state.stepCounter + 1 }
+    case 'reset-step-counter':
+      return { ...state, stepCounter: 1 }
     case 'undo':
       if (state.past.length === 0) return state
       return {

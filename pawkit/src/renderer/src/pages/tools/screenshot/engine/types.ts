@@ -33,10 +33,13 @@ export type CaptureTool =
   | 'pen'
   | 'text'
   | 'mosaic'
+  | 'step'
+
+export type AnnotationType = Exclude<CaptureTool, 'select'> | 'mosaic-paint'
 
 interface AnnotationBase {
   id: string
-  type: Exclude<CaptureTool, 'select'>
+  type: AnnotationType
 }
 
 export interface LineAnnotation extends AnnotationBase {
@@ -44,6 +47,7 @@ export interface LineAnnotation extends AnnotationBase {
   points: CapturePoint[]
   color: string
   strokeWidth: number
+  arrowSize?: number
 }
 
 export interface ShapeAnnotation extends AnnotationBase {
@@ -51,6 +55,8 @@ export interface ShapeAnnotation extends AnnotationBase {
   rect: CaptureRect
   color: string
   strokeWidth: number
+  dashed?: boolean
+  fillColor?: string | null
 }
 
 export interface TextAnnotation extends AnnotationBase {
@@ -59,6 +65,9 @@ export interface TextAnnotation extends AnnotationBase {
   text: string
   color: string
   fontSize: number
+  bold?: boolean
+  bgColor?: string | null
+  align?: 'left' | 'center' | 'right'
 }
 
 export interface MosaicAnnotation extends AnnotationBase {
@@ -66,16 +75,100 @@ export interface MosaicAnnotation extends AnnotationBase {
   rect: CaptureRect
 }
 
+export interface MosaicPaintAnnotation extends AnnotationBase {
+  type: 'mosaic-paint'
+  points: CapturePoint[]
+  brushSize: number
+  strength: number
+}
+
+export interface StepAnnotation extends AnnotationBase {
+  type: 'step'
+  point: CapturePoint
+  number: number
+  color: string
+  bgColor: string
+  size: number
+}
+
 export type CaptureAnnotation =
   | LineAnnotation
   | ShapeAnnotation
   | TextAnnotation
   | MosaicAnnotation
+  | MosaicPaintAnnotation
+  | StepAnnotation
 
 export type CaptureDraft =
   | LineAnnotation
   | ShapeAnnotation
   | MosaicAnnotation
+  | MosaicPaintAnnotation
+
+export interface RectStyle {
+  color: string
+  strokeWidth: number
+  dashed: boolean
+  fillColor: string | null
+}
+
+export interface EllipseStyle {
+  color: string
+  strokeWidth: number
+  dashed: boolean
+  fillColor: string | null
+}
+
+export interface ArrowStyle {
+  color: string
+  strokeWidth: number
+  arrowSize: number
+}
+
+export interface PenStyle {
+  color: string
+  strokeWidth: number
+}
+
+export interface TextStyle {
+  color: string
+  fontSize: number
+  bold: boolean
+  bgColor: string | null
+  align: 'left' | 'center' | 'right'
+}
+
+export interface MosaicStyle {
+  brushSize: number
+  strength: number
+  mode: 'pixelate' | 'blur'
+}
+
+export interface StepStyle {
+  color: string
+  bgColor: string
+  size: number
+}
+
+export interface ToolStyleMap {
+  rect: RectStyle
+  ellipse: EllipseStyle
+  arrow: ArrowStyle
+  pen: PenStyle
+  text: TextStyle
+  mosaic: MosaicStyle
+  step: StepStyle
+}
+
+export const DEFAULT_TOOL_STYLES: ToolStyleMap = {
+  rect: { color: '#ff4d4f', strokeWidth: 4, dashed: false, fillColor: null },
+  ellipse: { color: '#ff4d4f', strokeWidth: 4, dashed: false, fillColor: null },
+  arrow: { color: '#ff4d4f', strokeWidth: 4, arrowSize: 16 },
+  pen: { color: '#ff4d4f', strokeWidth: 4 },
+  text: { color: '#ff4d4f', fontSize: 20, bold: false, bgColor: null, align: 'left' },
+  mosaic: { brushSize: 20, strength: 10, mode: 'pixelate' },
+  step: { color: '#ffffff', bgColor: '#ff4d4f', size: 28 }
+}
 
 export interface CaptureEditorState {
   phase: 'idle' | 'selecting' | 'editing' | 'drawing' | 'typing'
@@ -86,4 +179,6 @@ export interface CaptureEditorState {
   future: CaptureAnnotation[][]
   selectedId: string | null
   draft: CaptureDraft | null
+  toolStyles: ToolStyleMap
+  stepCounter: number
 }

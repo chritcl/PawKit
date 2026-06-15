@@ -16,6 +16,18 @@ export function normalizeRect(start: CapturePoint, end: CapturePoint): CaptureRe
   }
 }
 
+export function constrainSquare(start: CapturePoint, end: CapturePoint): CaptureRect {
+  const dx = end.x - start.x
+  const dy = end.y - start.y
+  const size = Math.max(Math.abs(dx), Math.abs(dy))
+  return {
+    x: dx >= 0 ? start.x : start.x - size,
+    y: dy >= 0 ? start.y : start.y - size,
+    width: size,
+    height: size
+  }
+}
+
 export function isUsableRect(rect: CaptureRect, minSize = MIN_SELECTION_SIZE): boolean {
   return rect.width >= minSize && rect.height >= minSize
 }
