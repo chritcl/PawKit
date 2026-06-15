@@ -4,7 +4,12 @@ import {
   ScreenColorPickerSource,
   ScreenColorPickResult
 } from '../../../../../shared/types'
-import { rgbToHex } from '../../../utils/color'
+import {
+  getContrastRatio,
+  getReadableTextColor,
+  rgbToHex,
+  rgbToHsl
+} from '../../../utils/color'
 
 type CanvasMap = Map<string, HTMLCanvasElement>
 
@@ -40,6 +45,7 @@ export function ColorPickerOverlay(): JSX.Element {
   const [ready, setReady] = useState(false)
   const [cursor, setCursor] = useState({ x: 0, y: 0 })
   const [picked, setPicked] = useState<ScreenColorPickResult | null>(null)
+  const [showDetails, setShowDetails] = useState(false)
   const canvasesRef = useRef<CanvasMap>(new Map())
 
   useEffect(() => {
@@ -77,6 +83,10 @@ export function ColorPickerOverlay(): JSX.Element {
     const handleKeyDown = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') {
         window.electronAPI.screenshot.cancelColorPick()
+      }
+      if (event.key === 'Tab') {
+        event.preventDefault()
+        setShowDetails((current) => !current)
       }
     }
 
@@ -158,19 +168,54 @@ export function ColorPickerOverlay(): JSX.Element {
     const absoluteY = payload.virtualBounds.y + cursor.y
     const localX = absoluteX - activeSource.bounds.x
     const localY = absoluteY - activeSource.bounds.y
-    const zoom = 8
-    const size = 128
+    const zoom = 10
+    const size = 150
+    const gap = 18
+    const left = cursor.x + gap + size + 260 > window.innerWidth ? cursor.x - size - gap : cursor.x + gap
+    const top = cursor.y + gap + size + 150 > window.innerHeight ? cursor.y - size - gap : cursor.y + gap
 
     return {
-      left: cursor.x + 18,
-      top: cursor.y + 18,
+      left: clamp(left, 8, window.innerWidth - size - 8),
+      top: clamp(top, 8, window.innerHeight - size - 8),
       width: size,
       height: size,
       backgroundImage: `url(${activeSource.dataUrl})`,
       backgroundSize: `${activeSource.bounds.width * zoom}px ${activeSource.bounds.height * zoom}px`,
-      backgroundPosition: `${-(localX * zoom - size / 2)}px ${-(localY * zoom - size / 2)}px`
+      backgroundPosition: `${-(localX * zoom - size / 2)}px ${-(localY * zoom - size / 2)}px`,
+      imageRendering: 'pixelated' as const
     }
   }, [activeSource, cursor, payload])
+
+  const infoStyle = useMemo(() => {
+    const width = 248
+    const height = showDetails ? 154 : 132
+    const gap = 18
+    const magnifierSize = 150
+    const preferRight = cursor.x + gap + magnifierSize + width + 8 <= window.innerWidth
+    const left = preferRight ? cursor.x + gap + magnifierSize + 10 : cursor.x - magnifierSize - gap
+    const top = cursor.y + gap + magnifierSize + height + 8 <= window.innerHeight
+      ? cursor.y + gap + magnifierSize + 10
+      : cursor.y - height - gap
+    return {
+      left: clamp(left, 8, window.innerWidth - width - 8),
+      top: clamp(top, 8, window.innerHeight - height - 8),
+      width
+    }
+  }, [cursor, showDetails])
+
+  const readability = useMemo(() => {
+    if (!picked) return null
+    const blackRatio = getContrastRatio({ r: 0, g: 0, b: 0 }, picked.rgb)
+    const whiteRatio = getContrastRatio({ r: 255, g: 255, b: 255 }, picked.rgb)
+    const recommended = getReadableTextColor(picked.rgb)
+    return {
+      blackRatio,
+      whiteRatio,
+      recommended,
+      ratio: recommended === '#000000' ? blackRatio : whiteRatio,
+      hsl: rgbToHsl(picked.rgb.r, picked.rgb.g, picked.rgb.b)
+    }
+  }, [picked])
 
   if (!payload || !ready) {
     return (
@@ -214,28 +259,49 @@ export function ColorPickerOverlay(): JSX.Element {
 
       {magnifierStyle && (
         <div
-          className="pointer-events-none fixed z-20 overflow-hidden rounded-full border-2 border-white shadow-2xl shadow-black/60"
+          className="color-picker-magnifier pointer-events-none fixed z-20 overflow-hidden border-2 border-white shadow-2xl shadow-black/60"
           style={magnifierStyle}
         >
-          <div className="absolute left-1/2 top-0 h-full w-px -translate-x-1/2 bg-white/80" />
-          <div className="absolute left-0 top-1/2 h-px w-full -translate-y-1/2 bg-white/80" />
+          <div className="color-picker-pixel-grid" />
+          <div className="color-picker-center-pixel" />
         </div>
       )}
 
-      {picked && (
+      {picked && readability && (
         <div
-          className="pointer-events-none fixed z-30 rounded-lg border border-white/20 bg-black/80 px-3 py-2 shadow-xl backdrop-blur"
-          style={{ left: cursor.x + 22, top: cursor.y + 154 }}
+          className="color-picker-info pointer-events-none fixed z-30 rounded-lg border border-white/20 bg-black/85 px-3 py-2.5 shadow-xl backdrop-blur"
+          style={infoStyle}
         >
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 border-b border-white/10 pb-2">
             <span
-              className="h-5 w-5 rounded border border-white/30"
+              className="h-7 w-7 rounded border border-white/30"
               style={{ backgroundColor: picked.hex }}
             />
-            <span className="font-mono text-sm">{picked.hex}</span>
+            <div>
+              <div className="font-mono text-sm font-semibold">{picked.hex}</div>
+              <div className="font-mono text-[11px] text-white/55">
+                {picked.rgb.r}, {picked.rgb.g}, {picked.rgb.b}
+              </div>
+            </div>
+            <span className="ml-auto rounded border border-white/15 px-1.5 py-0.5 text-[10px] text-white/55">Tab 详情</span>
           </div>
-          <div className="mt-1 font-mono text-xs text-white/60">
-            {picked.rgb.r}, {picked.rgb.g}, {picked.rgb.b}
+          <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 font-mono text-[11px] text-white/65">
+            <span>坐标</span>
+            <span className="text-right text-white/90">{picked.point.x}, {picked.point.y}</span>
+            <span>推荐文字</span>
+            <span className="text-right text-white/90">
+              {readability.recommended === '#000000' ? '黑色' : '白色'} · {readability.ratio}:1
+            </span>
+            {showDetails && (
+              <>
+                <span>HSL</span>
+                <span className="text-right text-white/90">{readability.hsl.h}°, {readability.hsl.s}%, {readability.hsl.l}%</span>
+                <span>黑 / 白对比</span>
+                <span className="text-right text-white/90">{readability.blackRatio}:1 / {readability.whiteRatio}:1</span>
+                <span>透明度</span>
+                <span className="text-right text-white/90">100%</span>
+              </>
+            )}
           </div>
         </div>
       )}

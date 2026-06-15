@@ -1,19 +1,22 @@
-import { app, BrowserWindow, clipboard, nativeImage } from 'electron'
+import { app, BrowserWindow, clipboard, dialog, nativeImage, shell } from 'electron'
 import type { NativeImage } from 'electron'
 import { spawn } from 'child_process'
 import { createHash } from 'crypto'
 import { basename, join } from 'path'
 import { existsSync } from 'fs'
-import { mkdir, unlink, writeFile } from 'fs/promises'
+import { mkdir, readFile, unlink, writeFile } from 'fs/promises'
 import { nanoid } from 'nanoid'
 import {
   ClipboardCopyResult,
+  ClipboardActionResult,
   ClipboardFileEntry,
   ClipboardFileItem,
   ClipboardImageItem,
   ClipboardItem,
+  ClipboardRemoveResult,
   ClipboardRichTextItem,
-  ClipboardTextItem
+  ClipboardTextItem,
+  ImageSaveResult
 } from '../../shared/types'
 import { IPC_CHANNELS } from '../../shared/ipc-channels'
 import { getSetting, setSetting } from '../store'
@@ -72,6 +75,16 @@ let internalWritingExpireAt = 0
 
 // 存储路径
 const STORE_KEY = 'clipboard.history'
+const UNDO_EXPIRE_DURATION = 8000
+
+interface RemovedClipboardItem {
+  item: ClipboardItem
+  index: number
+  expiresAt: number
+}
+
+// 短期删除撤销记录
+const removedClipboardItems = new Map<string, RemovedClipboardItem>()
 
 // 获取剪贴板资源目录
 function getClipboardAssetDir(): string {
@@ -201,10 +214,16 @@ function limitClipboardHistory(history: ClipboardItem[]): ClipboardItem[] {
 }
 
 // 持久化并通知历史变化
-function persistClipboardHistory(previous: ClipboardItem[], next: ClipboardItem[]): ClipboardItem[] {
+function persistClipboardHistory(
+  previous: ClipboardItem[],
+  next: ClipboardItem[],
+  options = { cleanupAssets: true }
+): ClipboardItem[] {
   const limitedHistory = limitClipboardHistory(next)
   saveClipboardHistory(limitedHistory)
-  cleanupRemovedImageAssets(previous, limitedHistory)
+  if (options.cleanupAssets) {
+    cleanupRemovedImageAssets(previous, limitedHistory)
+  }
   notifyClipboardHistoryChanged(limitedHistory)
   return limitedHistory
 }
@@ -656,12 +675,182 @@ export async function copyClipboardItem(id: string): Promise<ClipboardCopyResult
   }
 }
 
-// 删除单条记录
-export function removeClipboardItem(id: string): ClipboardItem[] {
+// 以纯文本复制历史项
+export async function copyClipboardItemAsText(id: string): Promise<ClipboardCopyResult> {
   const history = getClipboardHistory()
-  const nextHistory = history.filter((item) => item.id !== id)
+  const item = history.find((entry) => entry.id === id)
+  if (!item) {
+    return {
+      success: false,
+      history,
+      message: '剪贴板记录不存在'
+    }
+  }
 
-  return persistClipboardHistory(history, nextHistory)
+  const text = item.type === 'file'
+    ? item.files.map((file) => file.path).join('\r\n')
+    : item.content
+
+  markInternalWrite(createSignature('text', [text]))
+  clipboard.writeText(text)
+
+  return {
+    success: true,
+    history: touchClipboardItem(id),
+    message: item.type === 'file' ? '文件路径已复制' : '纯文本已复制'
+  }
+}
+
+// 打开历史中的链接
+export async function openClipboardLink(id: string): Promise<ClipboardActionResult> {
+  const item = getClipboardHistory().find((entry) => entry.id === id)
+  if (!item || item.type !== 'text') {
+    return { success: false, message: '当前记录不是链接' }
+  }
+
+  try {
+    const url = new URL(item.content.trim())
+    if (!['http:', 'https:'].includes(url.protocol)) {
+      return { success: false, message: '仅支持打开 HTTP 或 HTTPS 链接' }
+    }
+    await shell.openExternal(url.toString())
+    return { success: true, message: '已用默认浏览器打开链接' }
+  } catch (error) {
+    logger.warn('打开剪贴板链接失败:', error)
+    return { success: false, message: '链接无效或无法打开' }
+  }
+}
+
+// 在资源管理器中定位历史文件
+export function showClipboardFile(id: string, path: string): ClipboardActionResult {
+  const item = getClipboardHistory().find((entry) => entry.id === id)
+  if (!item || item.type !== 'file') {
+    return { success: false, message: '当前记录不是文件' }
+  }
+
+  const file = item.files.find((entry) => entry.path === path)
+  if (!file || !existsSync(file.path)) {
+    return { success: false, message: '文件已失效或不存在' }
+  }
+
+  shell.showItemInFolder(file.path)
+  return { success: true, message: '已在资源管理器中定位文件' }
+}
+
+// 保存历史中的图片
+export async function saveClipboardImage(id: string): Promise<ImageSaveResult> {
+  const item = getClipboardHistory().find((entry) => entry.id === id)
+  if (!item || item.type !== 'image') {
+    return { success: false, status: 'error', message: '当前记录不是图片' }
+  }
+
+  try {
+    if (!existsSync(item.imagePath)) {
+      return { success: false, status: 'error', message: '图片文件已失效' }
+    }
+
+    const ownerWindow = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
+    const options = {
+      title: '保存剪贴板图片',
+      defaultPath: `clipboard-${Date.now()}.png`,
+      filters: [{ name: 'PNG 图片', extensions: ['png'] }]
+    }
+    const result = ownerWindow
+      ? await dialog.showSaveDialog(ownerWindow, options)
+      : await dialog.showSaveDialog(options)
+
+    if (result.canceled || !result.filePath) {
+      return { success: false, status: 'cancelled', message: '保存已取消' }
+    }
+
+    const buffer = await readFile(item.imagePath)
+    await writeFile(result.filePath, buffer)
+    return { success: true, status: 'saved', path: result.filePath, message: '图片保存成功' }
+  } catch (error) {
+    logger.error('保存剪贴板图片失败:', error)
+    return { success: false, status: 'error', message: '图片保存失败' }
+  }
+}
+
+// 读取历史图片用于详情预览
+export function getClipboardImageData(id: string): string | null {
+  const item = getClipboardHistory().find((entry) => entry.id === id)
+  if (!item || item.type !== 'image' || !existsSync(item.imagePath)) {
+    return null
+  }
+
+  const image = nativeImage.createFromPath(item.imagePath)
+  return image.isEmpty() ? null : image.toDataURL()
+}
+
+// 删除单条记录
+export function removeClipboardItem(id: string): ClipboardRemoveResult {
+  const history = getClipboardHistory()
+  const index = history.findIndex((item) => item.id === id)
+  if (index < 0) {
+    return {
+      success: false,
+      history,
+      message: '剪贴板记录不存在'
+    }
+  }
+
+  const item = history[index]
+  const nextHistory = history.filter((item) => item.id !== id)
+  const undoToken = nanoid()
+  removedClipboardItems.set(undoToken, {
+    item,
+    index,
+    expiresAt: Date.now() + UNDO_EXPIRE_DURATION
+  })
+
+  const persisted = persistClipboardHistory(history, nextHistory, { cleanupAssets: false })
+  setTimeout(() => {
+    const removed = removedClipboardItems.get(undoToken)
+    if (!removed) return
+    removedClipboardItems.delete(undoToken)
+    if (removed.item.type === 'image') {
+      void removeImageAsset(removed.item)
+    }
+  }, UNDO_EXPIRE_DURATION)
+
+  return {
+    success: true,
+    history: persisted,
+    undoToken,
+    message: '已删除剪贴板记录'
+  }
+}
+
+// 撤销删除单条记录
+export function restoreClipboardItem(undoToken: string): ClipboardRemoveResult {
+  const history = getClipboardHistory()
+  const removed = removedClipboardItems.get(undoToken)
+  if (!removed || removed.expiresAt < Date.now()) {
+    removedClipboardItems.delete(undoToken)
+    return {
+      success: false,
+      history,
+      message: '撤销时间已过'
+    }
+  }
+
+  removedClipboardItems.delete(undoToken)
+  if (history.some((item) => item.id === removed.item.id)) {
+    return {
+      success: false,
+      history,
+      message: '剪贴板记录已存在'
+    }
+  }
+
+  const nextHistory = [...history]
+  nextHistory.splice(Math.min(removed.index, nextHistory.length), 0, removed.item)
+  return {
+    success: true,
+    history: persistClipboardHistory(history, nextHistory),
+    message: '已撤销删除'
+  }
 }
 
 // 清空历史记录

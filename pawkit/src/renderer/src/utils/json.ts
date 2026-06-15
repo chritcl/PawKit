@@ -54,6 +54,29 @@ export interface JsonValidateResult {
   diagnostic?: JsonDiagnostic
 }
 
+// JSON 查询匹配项
+export interface JsonQueryMatch {
+  path: JsonPath
+  pathText: string
+  kind: JsonValueKind
+  value: unknown
+  preview: string
+}
+
+// JSON 语义差异类型
+export type JsonDiffKind = 'added' | 'removed' | 'modified' | 'type-changed'
+
+// JSON 语义差异项
+export interface JsonDiffEntry {
+  kind: JsonDiffKind
+  path: JsonPath
+  pathText: string
+  before?: unknown
+  after?: unknown
+  beforeKind?: JsonValueKind
+  afterKind?: JsonValueKind
+}
+
 interface ParseSuccess {
   success: true
   value: unknown
@@ -154,6 +177,17 @@ function createEditableValue(value: unknown): string {
   return String(value)
 }
 
+// 创建查询结果
+function createJsonQueryMatch(value: unknown, path: JsonPath): JsonQueryMatch {
+  return {
+    path,
+    pathText: jsonPathToText(path),
+    kind: getJsonValueKind(value),
+    value,
+    preview: createJsonValuePreview(value)
+  }
+}
+
 // 从 JSON 值生成树节点
 export function buildJsonTree(value: unknown, path: JsonPath = [], depth = 0): JsonTreeNode {
   const kind = getJsonValueKind(value)
@@ -181,6 +215,259 @@ export function buildJsonTree(value: unknown, path: JsonPath = [], depth = 0): J
     expandable: children.length > 0,
     children
   }
+}
+
+// 统计 JSON 节点数量
+export function countJsonNodes(value: unknown): number {
+  if (Array.isArray(value)) {
+    return 1 + value.reduce((total, item) => total + countJsonNodes(item), 0)
+  }
+  if (value && typeof value === 'object') {
+    return 1 + Object.values(value as Record<string, unknown>)
+      .reduce<number>((total, item) => total + countJsonNodes(item), 0)
+  }
+  return 1
+}
+
+// 按键名、路径和值搜索 JSON
+export function searchJsonValue(value: unknown, keyword: string, limit = 500): JsonQueryMatch[] {
+  const normalized = keyword.trim().toLocaleLowerCase()
+  if (!normalized) return []
+
+  const matches: JsonQueryMatch[] = []
+  const walk = (current: unknown, path: JsonPath): void => {
+    if (matches.length >= limit) return
+    const lastSegment = path[path.length - 1]
+    const searchableValue = typeof current === 'string'
+      ? current
+      : current === null || typeof current !== 'object'
+        ? String(current)
+        : ''
+    const searchableText = [
+      lastSegment === undefined ? '$' : String(lastSegment),
+      jsonPathToText(path),
+      searchableValue
+    ].join('\n').toLocaleLowerCase()
+
+    if (searchableText.includes(normalized)) {
+      matches.push(createJsonQueryMatch(current, path))
+    }
+
+    if (Array.isArray(current)) {
+      current.forEach((item, index) => walk(item, [...path, index]))
+    } else if (current && typeof current === 'object') {
+      Object.entries(current as Record<string, unknown>)
+        .forEach(([key, item]) => walk(item, [...path, key]))
+    }
+  }
+
+  walk(value, [])
+  return matches
+}
+
+interface JsonPathToken {
+  type: 'child' | 'recursive'
+  segment: string | number | '*'
+}
+
+// 解析 JSONPath 表达式
+function parseJsonPathExpression(expression: string): { success: true; tokens: JsonPathToken[] } | { success: false; error: string } {
+  const text = expression.trim()
+  if (!text.startsWith('$')) {
+    return { success: false, error: 'JSONPath 必须以 $ 开头' }
+  }
+
+  const tokens: JsonPathToken[] = []
+  let index = 1
+  while (index < text.length) {
+    let type: JsonPathToken['type'] = 'child'
+    if (text.startsWith('..', index)) {
+      type = 'recursive'
+      index += 2
+    } else if (text[index] === '.') {
+      index += 1
+    } else if (text[index] !== '[') {
+      return { success: false, error: `第 ${index + 1} 个字符附近缺少路径分隔符` }
+    }
+
+    if (text[index] === '[') {
+      const closeIndex = text.indexOf(']', index)
+      if (closeIndex < 0) return { success: false, error: 'JSONPath 缺少右方括号' }
+      const content = text.slice(index + 1, closeIndex).trim()
+      if (content === '*') {
+        tokens.push({ type, segment: '*' })
+      } else if (/^\d+$/.test(content)) {
+        tokens.push({ type, segment: Number(content) })
+      } else if (
+        (content.startsWith('"') && content.endsWith('"')) ||
+        (content.startsWith("'") && content.endsWith("'"))
+      ) {
+        tokens.push({ type, segment: content.slice(1, -1) })
+      } else {
+        return { success: false, error: `无法识别路径片段 [${content}]` }
+      }
+      index = closeIndex + 1
+      continue
+    }
+
+    const nameMatch = text.slice(index).match(/^(\*|[A-Za-z_$][\w$-]*)/)
+    if (!nameMatch) return { success: false, error: `第 ${index + 1} 个字符附近的属性名无效` }
+    tokens.push({ type, segment: nameMatch[1] })
+    index += nameMatch[1].length
+  }
+
+  return { success: true, tokens }
+}
+
+// 获取容器的直接子项
+function getJsonChildren(value: unknown, path: JsonPath): Array<{ value: unknown; path: JsonPath }> {
+  if (Array.isArray(value)) {
+    return value.map((item, index) => ({ value: item, path: [...path, index] }))
+  }
+  if (value && typeof value === 'object') {
+    return Object.entries(value as Record<string, unknown>)
+      .map(([key, item]) => ({ value: item, path: [...path, key] }))
+  }
+  return []
+}
+
+// 执行常用 JSONPath 查询
+export function queryJsonPath(
+  value: unknown,
+  expression: string,
+  limit = 500
+): { success: true; matches: JsonQueryMatch[] } | { success: false; error: string } {
+  const parsed = parseJsonPathExpression(expression)
+  if (!parsed.success) return parsed
+
+  let current = [{ value, path: [] as JsonPath }]
+  for (const token of parsed.tokens) {
+    const next: Array<{ value: unknown; path: JsonPath }> = []
+
+    const addDirectMatches = (candidate: { value: unknown; path: JsonPath }): void => {
+      const children = getJsonChildren(candidate.value, candidate.path)
+      children.forEach((child) => {
+        const segment = child.path[child.path.length - 1]
+        if (token.segment === '*' || segment === token.segment) next.push(child)
+      })
+    }
+
+    const addRecursiveMatches = (candidate: { value: unknown; path: JsonPath }): void => {
+      getJsonChildren(candidate.value, candidate.path).forEach((child) => {
+        const segment = child.path[child.path.length - 1]
+        if (token.segment === '*' || segment === token.segment) next.push(child)
+        if (next.length < limit) addRecursiveMatches(child)
+      })
+    }
+
+    current.forEach((candidate) => {
+      if (next.length >= limit) return
+      if (token.type === 'recursive') addRecursiveMatches(candidate)
+      else addDirectMatches(candidate)
+    })
+    current = next.slice(0, limit)
+  }
+
+  return {
+    success: true,
+    matches: current.map((item) => createJsonQueryMatch(item.value, item.path))
+  }
+}
+
+// 比较两份 JSON 的语义差异
+export function diffJsonValues(before: unknown, after: unknown): JsonDiffEntry[] {
+  const entries: JsonDiffEntry[] = []
+  const walk = (left: unknown, right: unknown, path: JsonPath): void => {
+    const leftKind = getJsonValueKind(left)
+    const rightKind = getJsonValueKind(right)
+    if (leftKind !== rightKind) {
+      entries.push({
+        kind: 'type-changed',
+        path,
+        pathText: jsonPathToText(path),
+        before: left,
+        after: right,
+        beforeKind: leftKind,
+        afterKind: rightKind
+      })
+      return
+    }
+
+    if (leftKind === 'object') {
+      const leftRecord = left as Record<string, unknown>
+      const rightRecord = right as Record<string, unknown>
+      const keys = [...new Set([...Object.keys(leftRecord), ...Object.keys(rightRecord)])].sort()
+      keys.forEach((key) => {
+        const hasLeft = Object.prototype.hasOwnProperty.call(leftRecord, key)
+        const hasRight = Object.prototype.hasOwnProperty.call(rightRecord, key)
+        const nextPath = [...path, key]
+        if (!hasLeft) {
+          entries.push({
+            kind: 'added',
+            path: nextPath,
+            pathText: jsonPathToText(nextPath),
+            after: rightRecord[key],
+            afterKind: getJsonValueKind(rightRecord[key])
+          })
+        } else if (!hasRight) {
+          entries.push({
+            kind: 'removed',
+            path: nextPath,
+            pathText: jsonPathToText(nextPath),
+            before: leftRecord[key],
+            beforeKind: getJsonValueKind(leftRecord[key])
+          })
+        } else {
+          walk(leftRecord[key], rightRecord[key], nextPath)
+        }
+      })
+      return
+    }
+
+    if (leftKind === 'array') {
+      const leftArray = left as unknown[]
+      const rightArray = right as unknown[]
+      const length = Math.max(leftArray.length, rightArray.length)
+      for (let index = 0; index < length; index += 1) {
+        const nextPath = [...path, index]
+        if (index >= leftArray.length) {
+          entries.push({
+            kind: 'added',
+            path: nextPath,
+            pathText: jsonPathToText(nextPath),
+            after: rightArray[index],
+            afterKind: getJsonValueKind(rightArray[index])
+          })
+        } else if (index >= rightArray.length) {
+          entries.push({
+            kind: 'removed',
+            path: nextPath,
+            pathText: jsonPathToText(nextPath),
+            before: leftArray[index],
+            beforeKind: getJsonValueKind(leftArray[index])
+          })
+        } else {
+          walk(leftArray[index], rightArray[index], nextPath)
+        }
+      }
+      return
+    }
+
+    if (!Object.is(left, right)) {
+      entries.push({
+        kind: 'modified',
+        path,
+        pathText: jsonPathToText(path),
+        before: left,
+        after: right,
+        beforeKind: leftKind,
+        afterKind: rightKind
+      })
+    }
+  }
+
+  walk(before, after, [])
+  return entries
 }
 
 // 收集默认展开节点

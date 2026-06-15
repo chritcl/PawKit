@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { ClipboardCopyResult, ClipboardItem } from '../../../shared/types'
+import { ClipboardCopyResult, ClipboardItem, ClipboardRemoveResult } from '../../../shared/types'
 
 // 历史记录变化监听器的取消函数
 let unsubscribeHistoryChanged: (() => void) | null = null
@@ -12,6 +12,11 @@ function isValidList(value: unknown): value is ClipboardItem[] {
 // 校验复制结果
 function isCopyResult(value: unknown): value is ClipboardCopyResult {
   return Boolean(value) && typeof value === 'object' && Array.isArray((value as ClipboardCopyResult).history)
+}
+
+// 校验删除结果
+function isRemoveResult(value: unknown): value is ClipboardRemoveResult {
+  return Boolean(value) && typeof value === 'object' && Array.isArray((value as ClipboardRemoveResult).history)
 }
 
 // 剪贴板状态接口
@@ -31,11 +36,13 @@ interface ClipboardState {
   // 获取过滤后的列表
   getFilteredList: () => ClipboardItem[]
   // 删除单条记录
-  removeItem: (id: string) => void
+  removeItem: (id: string) => Promise<ClipboardRemoveResult>
+  // 撤销删除单条记录
+  restoreItem: (undoToken: string) => Promise<ClipboardRemoveResult>
   // 清空列表
-  clearList: (keepFavorites?: boolean) => void
+  clearList: (keepFavorites?: boolean) => Promise<ClipboardItem[]>
   // 切换收藏状态
-  toggleFavorite: (id: string) => void
+  toggleFavorite: (id: string) => Promise<ClipboardItem[]>
   // 写入剪贴板
   writeText: (text: string) => void
   // 复制历史项
@@ -76,36 +83,67 @@ export const useClipboardStore = create<ClipboardState>((set, get) => ({
   },
 
   // 删除单条记录
-  removeItem: (id) => {
-    window.electronAPI?.clipboard?.removeItem(id).then((newList) => {
-      if (isValidList(newList)) {
-        set({ list: newList })
+  removeItem: async (id) => {
+    try {
+      const result = await window.electronAPI?.clipboard?.removeItem(id)
+      if (isRemoveResult(result)) {
+        set({ list: result.history })
+        return result
       }
-    }).catch((err) => {
+    } catch (err) {
       console.error('删除剪贴板记录失败:', err)
-    })
+    }
+    return {
+      success: false,
+      history: get().list,
+      message: '删除剪贴板记录失败'
+    }
+  },
+
+  // 撤销删除单条记录
+  restoreItem: async (undoToken) => {
+    try {
+      const result = await window.electronAPI?.clipboard?.restoreItem(undoToken)
+      if (isRemoveResult(result)) {
+        set({ list: result.history })
+        return result
+      }
+    } catch (err) {
+      console.error('撤销删除剪贴板记录失败:', err)
+    }
+    return {
+      success: false,
+      history: get().list,
+      message: '撤销删除失败'
+    }
   },
 
   // 清空列表
-  clearList: (keepFavorites = true) => {
-    window.electronAPI?.clipboard?.clearHistory(keepFavorites).then((newList) => {
+  clearList: async (keepFavorites = true) => {
+    try {
+      const newList = await window.electronAPI?.clipboard?.clearHistory(keepFavorites)
       if (isValidList(newList)) {
         set({ list: newList })
+        return newList
       }
-    }).catch((err) => {
+    } catch (err) {
       console.error('清空剪贴板历史失败:', err)
-    })
+    }
+    return get().list
   },
 
   // 切换收藏状态
-  toggleFavorite: (id) => {
-    window.electronAPI?.clipboard?.toggleFavorite(id).then((newList) => {
+  toggleFavorite: async (id) => {
+    try {
+      const newList = await window.electronAPI?.clipboard?.toggleFavorite(id)
       if (isValidList(newList)) {
         set({ list: newList })
+        return newList
       }
-    }).catch((err) => {
+    } catch (err) {
       console.error('切换收藏状态失败:', err)
-    })
+    }
+    return get().list
   },
 
   // 写入剪贴板

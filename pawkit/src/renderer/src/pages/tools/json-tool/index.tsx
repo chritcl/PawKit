@@ -1,9 +1,9 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import CodeMirror from '@uiw/react-codemirror'
 import { json } from '@codemirror/lang-json'
 import { Diagnostic, linter } from '@codemirror/lint'
+import { defaultKeymap, historyKeymap, undo } from '@codemirror/commands'
 import { searchKeymap } from '@codemirror/search'
-import { defaultKeymap, historyKeymap } from '@codemirror/commands'
 import { EditorView, ViewUpdate, keymap } from '@codemirror/view'
 import {
   AlignLeft,
@@ -13,55 +13,89 @@ import {
   ChevronDown,
   ChevronRight,
   Clipboard,
+  Code2,
   Copy,
   FileJson,
+  GitCompareArrows,
   ListCollapse,
   ListTree,
-  Minimize2,
+  MoreHorizontal,
+  Pencil,
   Plus,
+  RefreshCcw,
   RotateCcw,
-  Trash2
+  Search,
+  Trash2,
+  Undo2,
+  X
 } from 'lucide-react'
 import {
   JsonDiagnostic,
+  JsonDiffEntry,
+  JsonDiffKind,
   JsonMode,
   JsonPath,
+  JsonQueryMatch,
   JsonTreeNode,
   JsonValueKind,
   addJsonChildAtPath,
   buildJsonTree,
   collectExpandablePaths,
   compressJson,
+  countJsonNodes,
   createDefaultExpandedPaths,
   createJsonValueByKind,
+  diffJsonValues,
   exampleJson,
   exampleJsonc,
   formatJson,
   getJsonLineColumn,
   parseJsonEditableValue,
   parseJsonInput,
+  queryJsonPath,
   removeJsonValueAtPath,
   renameJsonKeyAtPath,
+  searchJsonValue,
   setJsonValueAtPath,
   sortJson,
   validateJson
 } from '../../../utils/json'
 
-type JsonAction = 'format' | 'compress' | 'sort' | 'validate'
+type WorkMode = 'browse' | 'query' | 'diff' | 'edit'
+type QueryMode = 'search' | 'jsonpath'
+type DiffView = 'semantic' | 'text'
 
 interface StatusState {
-  type: 'idle' | 'success' | 'error'
+  type: 'idle' | 'success' | 'error' | 'warning'
   message: string
 }
 
-interface TreeEditorProps {
+interface JsonSessionState {
+  input: string
+  mode: JsonMode
+  original: string
+}
+
+interface TreeViewProps {
   node: JsonTreeNode
   rootValue: unknown
   expanded: Set<string>
+  editable: boolean
+  selectedPath: string
   onToggle: (id: string) => void
   onChangeRoot: (value: unknown, message: string, expanded?: Set<string>) => void
   onStatus: (status: StatusState) => void
   onCopy: (text: string, message: string) => Promise<void>
+}
+
+const LARGE_JSON_BYTES = 5 * 1024 * 1024
+const valueKinds: JsonValueKind[] = ['string', 'number', 'boolean', 'null', 'object', 'array']
+
+// 页面卸载时保留当前会话，应用退出后自然清空
+let jsonSession: JsonSessionState = {
+  input: '',
+  mode: 'strict',
+  original: ''
 }
 
 const editorTheme = EditorView.theme({
@@ -75,14 +109,13 @@ const editorTheme = EditorView.theme({
   },
   '.cm-scroller': {
     backgroundColor: 'transparent',
-    fontFamily: 'Consolas, "SFMono-Regular", "Microsoft YaHei UI", monospace'
+    fontFamily: 'Consolas, "Cascadia Code", "Microsoft YaHei UI", monospace'
+  },
+  '.cm-content, .cm-line': {
+    backgroundColor: 'transparent'
   },
   '.cm-content': {
-    backgroundColor: 'transparent',
     caretColor: 'var(--text-primary)'
-  },
-  '.cm-line': {
-    backgroundColor: 'transparent'
   },
   '.cm-gutters': {
     backgroundColor: 'var(--glass-muted)',
@@ -100,34 +133,96 @@ const editorTheme = EditorView.theme({
   }
 })
 
-const valueKinds: JsonValueKind[] = ['string', 'number', 'boolean', 'null', 'object', 'array']
-
 function stringifyRoot(value: unknown, compressed = false): string {
   return JSON.stringify(value, null, compressed ? 0 : 2)
 }
 
-function getNodeValueText(rootValue: unknown, path: JsonPath): string {
-  const value = path.reduce<unknown>((current, segment) => {
+function getValueAtPath(rootValue: unknown, path: JsonPath): unknown {
+  return path.reduce<unknown>((current, segment) => {
     if (current && typeof current === 'object') {
       return (current as Record<string, unknown> | unknown[])[segment as never]
     }
     return undefined
   }, rootValue)
+}
+
+function getNodeValueText(rootValue: unknown, path: JsonPath): string {
+  const value = getValueAtPath(rootValue, path)
   return typeof value === 'string' ? value : JSON.stringify(value, null, 2)
 }
 
-function TreeEditor({
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / 1024 / 1024).toFixed(2)} MB`
+}
+
+function formatPreview(value: unknown): string {
+  const text = typeof value === 'string' ? value : JSON.stringify(value, null, 2)
+  if (text === undefined) return '未定义'
+  return text.length > 240 ? `${text.slice(0, 240)}…` : text
+}
+
+function formatFullValue(value: unknown): string {
+  if (value === undefined) return '未定义'
+  return typeof value === 'string' ? value : JSON.stringify(value, null, 2)
+}
+
+function createTextDiffRows(leftText: string, rightText: string): Array<{ left: string; right: string; changed: boolean }> {
+  const leftLines = leftText.split('\n')
+  const rightLines = rightText.split('\n')
+  return Array.from({ length: Math.max(leftLines.length, rightLines.length) }, (_, index) => ({
+    left: leftLines[index] ?? '',
+    right: rightLines[index] ?? '',
+    changed: leftLines[index] !== rightLines[index]
+  }))
+}
+
+function getDiffLabel(kind: JsonDiffKind): string {
+  if (kind === 'added') return '新增'
+  if (kind === 'removed') return '删除'
+  if (kind === 'type-changed') return '类型变化'
+  return '修改'
+}
+
+function getDiffClassName(kind: JsonDiffKind): string {
+  if (kind === 'added') return 'json-diff-added'
+  if (kind === 'removed') return 'json-diff-removed'
+  if (kind === 'type-changed') return 'json-diff-type'
+  return 'json-diff-modified'
+}
+
+function getTypeClassName(kind: JsonValueKind): string {
+  return `json-type-${kind}`
+}
+
+function findMatchOffset(text: string, match: JsonQueryMatch): number {
+  const lastSegment = match.path[match.path.length - 1]
+  const candidates = [
+    typeof lastSegment === 'string' ? JSON.stringify(lastSegment) : '',
+    typeof match.value === 'string' ? JSON.stringify(match.value) : JSON.stringify(match.value)
+  ].filter(Boolean)
+  for (const candidate of candidates) {
+    const offset = text.indexOf(candidate)
+    if (offset >= 0) return offset
+  }
+  return 0
+}
+
+function TreeView({
   node,
   rootValue,
   expanded,
+  editable,
+  selectedPath,
   onToggle,
   onChangeRoot,
   onStatus,
   onCopy
-}: TreeEditorProps): JSX.Element {
+}: TreeViewProps): JSX.Element {
   const isExpanded = expanded.has(node.id)
   const isRoot = node.path.length === 0
-  const canRename = !isRoot && typeof node.path[node.path.length - 1] === 'string'
+  const canRename = editable && !isRoot && typeof node.path[node.path.length - 1] === 'string'
   const isPrimitive = !node.expandable && node.kind !== 'object' && node.kind !== 'array'
 
   const updateNodeValue = (text: string, kind = node.kind): void => {
@@ -136,8 +231,7 @@ function TreeEditor({
       onStatus({ type: 'error', message: parsed.error })
       return
     }
-    const nextRoot = setJsonValueAtPath(rootValue, node.path, parsed.value)
-    onChangeRoot(nextRoot, '节点值已更新')
+    onChangeRoot(setJsonValueAtPath(rootValue, node.path, parsed.value), '节点值已更新')
   }
 
   const updateNodeKind = (kind: JsonValueKind): void => {
@@ -156,6 +250,7 @@ function TreeEditor({
   }
 
   const removeNode = (): void => {
+    if (!window.confirm(`确定删除 ${node.pathText} 吗？此操作可通过撤销恢复。`)) return
     const nextRoot = removeJsonValueAtPath(rootValue, node.path)
     onChangeRoot(nextRoot, '节点已删除', createDefaultExpandedPaths(nextRoot))
   }
@@ -177,11 +272,11 @@ function TreeEditor({
   return (
     <div>
       <div
-        className="grid min-w-[640px] grid-cols-[24px_minmax(120px,1fr)_96px_minmax(140px,1.1fr)_140px] items-center gap-2 border-b border-[var(--glass-border)] px-4 py-2.5 text-sm hover:bg-[var(--glass-surface-hover)]"
-        style={{ paddingLeft: 12 + node.depth * 18 }}
+        className={`json-tree-row ${selectedPath === node.pathText ? 'json-tree-row-selected' : ''}`}
+        style={{ paddingLeft: 10 + node.depth * 16 }}
       >
         <button
-          className="flex h-6 w-6 items-center justify-center rounded-[6px] text-[color:var(--text-muted)] hover:bg-[var(--glass-surface-hover)] hover:text-[color:var(--text-primary)] disabled:opacity-20"
+          className="json-tree-toggle"
           disabled={!node.expandable}
           onClick={() => onToggle(node.id)}
           title={isExpanded ? '收起节点' : '展开节点'}
@@ -196,7 +291,7 @@ function TreeEditor({
         {canRename ? (
           <input
             key={`${node.id}-key`}
-            className="field-input h-8 min-h-8 px-2 font-mono text-xs"
+            className="field-input json-tree-input"
             defaultValue={node.key}
             onBlur={(event) => renameNode(event.target.value)}
             onKeyDown={(event) => {
@@ -208,26 +303,32 @@ function TreeEditor({
             title="键名"
           />
         ) : (
-          <div className="truncate font-mono text-xs text-[color:var(--text-muted)]" title={node.pathText}>
+          <button
+            className="json-tree-key"
+            onClick={() => void onCopy(node.pathText, '路径已复制')}
+            title={`${node.pathText}，点击复制路径`}
+          >
             {isRoot ? '$' : node.key}
-          </div>
+          </button>
         )}
 
-        <select
-          className="field-select h-8 min-h-8 px-2 text-xs"
-          value={node.kind}
-          onChange={(event) => updateNodeKind(event.target.value as JsonValueKind)}
-          title="类型"
-        >
-          {valueKinds.map((kind) => (
-            <option key={kind} value={kind}>{kind}</option>
-          ))}
-        </select>
+        {editable ? (
+          <select
+            className="field-select json-tree-select"
+            value={node.kind}
+            onChange={(event) => updateNodeKind(event.target.value as JsonValueKind)}
+            title="类型"
+          >
+            {valueKinds.map((kind) => <option key={kind} value={kind}>{kind}</option>)}
+          </select>
+        ) : (
+          <span className={`json-type-badge ${getTypeClassName(node.kind)}`}>{node.kind}</span>
+        )}
 
-        {isPrimitive ? (
+        {editable && isPrimitive ? (
           <input
             key={`${node.id}-value-${node.kind}`}
-            className="field-input h-8 min-h-8 px-2 font-mono text-xs"
+            className="field-input json-tree-input"
             defaultValue={node.editableValue}
             onBlur={(event) => updateNodeValue(event.target.value)}
             onKeyDown={(event) => {
@@ -239,42 +340,36 @@ function TreeEditor({
             title="节点值"
           />
         ) : (
-          <div className="truncate font-mono text-xs text-[color:var(--text-muted)]" title={node.valuePreview}>
+          <button
+            className={`json-tree-preview ${getTypeClassName(node.kind)}`}
+            onClick={() => void onCopy(getNodeValueText(rootValue, node.path), '节点值已复制')}
+            title={`${node.valuePreview}，点击复制值`}
+          >
             {node.valuePreview}
-          </div>
+          </button>
         )}
 
-        <div className="action-cluster-tight justify-end">
-          {(node.kind === 'object' || node.kind === 'array') && (
-            <>
-              <button className="rounded-[6px] px-2 py-1 text-xs text-[color:var(--text-muted)] hover:bg-[var(--glass-surface-hover)] hover:text-[color:var(--text-primary)]" onClick={() => addChild('string')} title="添加字符串">
-                <Plus className="h-3.5 w-3.5" />
-              </button>
-              <button className="rounded-[6px] px-2 py-1 text-xs text-[color:var(--text-muted)] hover:bg-[var(--glass-surface-hover)] hover:text-[color:var(--text-primary)]" onClick={() => addChild('object')} title="添加对象">
-                <Braces className="h-3.5 w-3.5" />
-              </button>
-            </>
-          )}
-          <button className="rounded-[6px] px-2 py-1 text-xs text-[color:var(--text-muted)] hover:bg-[var(--glass-surface-hover)] hover:text-[color:var(--text-primary)]" onClick={() => onCopy(node.pathText, '路径已复制')} title="复制路径">
-            路径
-          </button>
-          <button className="rounded-[6px] px-2 py-1 text-xs text-[color:var(--text-muted)] hover:bg-[var(--glass-surface-hover)] hover:text-[color:var(--text-primary)]" onClick={() => onCopy(getNodeValueText(rootValue, node.path), '节点值已复制')} title="复制值">
-            值
-          </button>
-          {!isRoot && (
-            <button className="rounded-[6px] px-2 py-1 text-xs tone-danger hover:bg-[var(--tone-danger-soft)]" onClick={removeNode} title="删除节点">
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
-          )}
-        </div>
+        {editable && (
+          <div className="json-tree-actions">
+            {(node.kind === 'object' || node.kind === 'array') && (
+              <button onClick={() => addChild('string')} title="添加字符串节点"><Plus className="h-3.5 w-3.5" /></button>
+            )}
+            {(node.kind === 'object' || node.kind === 'array') && (
+              <button onClick={() => addChild('object')} title="添加对象节点"><Braces className="h-3.5 w-3.5" /></button>
+            )}
+            {!isRoot && <button className="tone-danger" onClick={removeNode} title="删除节点"><Trash2 className="h-3.5 w-3.5" /></button>}
+          </div>
+        )}
       </div>
 
       {node.expandable && isExpanded && node.children.map((child) => (
-        <TreeEditor
+        <TreeView
           key={child.id}
           node={child}
           rootValue={rootValue}
           expanded={expanded}
+          editable={editable}
+          selectedPath={selectedPath}
           onToggle={onToggle}
           onChangeRoot={onChangeRoot}
           onStatus={onStatus}
@@ -285,27 +380,80 @@ function TreeEditor({
   )
 }
 
-// JSON 工具组件
+// JSON 专业调试台
 export function JsonToolPage(): JSX.Element {
-  const [mode, setMode] = useState<JsonMode>('strict')
-  const [input, setInput] = useState('')
+  const [input, setInput] = useState(jsonSession.input)
+  const [mode, setMode] = useState<JsonMode>(jsonSession.mode)
+  const [original, setOriginal] = useState(jsonSession.original)
+  const [workMode, setWorkMode] = useState<WorkMode>('browse')
   const [status, setStatus] = useState<StatusState>({ type: 'idle', message: '等待输入' })
   const [diagnostic, setDiagnostic] = useState<JsonDiagnostic | null>(null)
   const [cursor, setCursor] = useState({ line: 1, column: 1 })
   const [expanded, setExpanded] = useState<Set<string>>(new Set(['$']))
+  const [selectedPath, setSelectedPath] = useState('')
+  const [undoStack, setUndoStack] = useState<string[]>([])
+  const [queryMode, setQueryMode] = useState<QueryMode>('search')
+  const [queryText, setQueryText] = useState('')
+  const [diffInput, setDiffInput] = useState('')
+  const [diffView, setDiffView] = useState<DiffView>('semantic')
+  const [selectedDiff, setSelectedDiff] = useState<JsonDiffEntry | null>(null)
+  const [pendingMatchOffset, setPendingMatchOffset] = useState<number | null>(null)
+  const [largeAnalysisEnabled, setLargeAnalysisEnabled] = useState(false)
+  const [analyzing, setAnalyzing] = useState(false)
   const inputViewRef = useRef<EditorView | null>(null)
+  const analysisTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const parsed = useMemo(() => parseJsonInput(input, mode), [input, mode])
-  const tree = useMemo(() => parsed.success ? buildJsonTree(parsed.value) : null, [parsed])
+  const inputBytes = useMemo(() => new Blob([input]).size, [input])
+  const diffBytes = useMemo(() => new Blob([diffInput]).size, [diffInput])
+  const hasLargeDocument = inputBytes > LARGE_JSON_BYTES || diffBytes > LARGE_JSON_BYTES
+  const lightweightMode = hasLargeDocument && !largeAnalysisEnabled
+  const parsed = useMemo(
+    () => lightweightMode ? null : parseJsonInput(input, mode),
+    [input, lightweightMode, mode]
+  )
+  const tree = useMemo(
+    () => parsed?.success ? buildJsonTree(parsed.value) : null,
+    [parsed]
+  )
+  const nodeCount = useMemo(
+    () => parsed?.success ? countJsonNodes(parsed.value) : 0,
+    [parsed]
+  )
+  const automaticDiagnostic = input && parsed && !parsed.success ? parsed.diagnostic : null
+  const activeDiagnostic = diagnostic ?? automaticDiagnostic
+
+  const queryResult = useMemo(() => {
+    if (!parsed?.success || !queryText.trim()) return { matches: [] as JsonQueryMatch[], error: '' }
+    if (queryMode === 'search') {
+      return { matches: searchJsonValue(parsed.value, queryText), error: '' }
+    }
+    const result = queryJsonPath(parsed.value, queryText)
+    return result.success
+      ? { matches: result.matches, error: '' }
+      : { matches: [] as JsonQueryMatch[], error: result.error }
+  }, [parsed, queryMode, queryText])
+
+  const parsedDiff = useMemo(
+    () => diffInput && !lightweightMode ? parseJsonInput(diffInput, mode) : null,
+    [diffInput, lightweightMode, mode]
+  )
+  const diffEntries = useMemo(
+    () => parsed?.success && parsedDiff?.success ? diffJsonValues(parsed.value, parsedDiff.value) : [],
+    [parsed, parsedDiff]
+  )
+  const diffSummary = useMemo(() => diffEntries.reduce<Record<JsonDiffKind, number>>((summary, entry) => {
+    summary[entry.kind] += 1
+    return summary
+  }, { added: 0, removed: 0, modified: 0, 'type-changed': 0 }), [diffEntries])
 
   const inputExtensions = useMemo(() => {
     const diagnosticLinter = linter((): Diagnostic[] => {
-      if (!diagnostic) return []
+      if (!activeDiagnostic) return []
       return [{
-        from: diagnostic.offset,
-        to: Math.min(input.length, diagnostic.offset + 1),
+        from: activeDiagnostic.offset,
+        to: Math.min(input.length, activeDiagnostic.offset + 1),
         severity: 'error',
-        message: diagnostic.message
+        message: activeDiagnostic.message
       }]
     })
 
@@ -316,7 +464,49 @@ export function JsonToolPage(): JSX.Element {
       EditorView.lineWrapping,
       editorTheme
     ]
-  }, [diagnostic, input.length])
+  }, [activeDiagnostic, input.length])
+
+  useEffect(() => {
+    jsonSession = { input, mode, original }
+  }, [input, mode, original])
+
+  useEffect(() => {
+    if (status.type !== 'success') return
+    const timer = window.setTimeout(() => setStatus({ type: 'idle', message: '就绪' }), 2600)
+    return () => window.clearTimeout(timer)
+  }, [status])
+
+  useEffect(() => {
+    const handleShortcut = (event: KeyboardEvent): void => {
+      if (!event.ctrlKey) return
+      if (event.key.toLowerCase() === 'f' && !lightweightMode) {
+        event.preventDefault()
+        setWorkMode('query')
+        setQueryMode('search')
+      } else if (event.shiftKey && event.key.toLowerCase() === 'q') {
+        event.preventDefault()
+        setWorkMode('query')
+        setQueryMode('jsonpath')
+      }
+    }
+    window.addEventListener('keydown', handleShortcut)
+    return () => window.removeEventListener('keydown', handleShortcut)
+  }, [lightweightMode])
+
+  useEffect(() => {
+    if (pendingMatchOffset === null || !inputViewRef.current) return
+    const view = inputViewRef.current
+    view.dispatch({
+      selection: { anchor: pendingMatchOffset },
+      effects: EditorView.scrollIntoView(pendingMatchOffset, { y: 'center' })
+    })
+    view.focus()
+    setPendingMatchOffset(null)
+  }, [pendingMatchOffset])
+
+  useEffect(() => () => {
+    if (analysisTimerRef.current) clearTimeout(analysisTimerRef.current)
+  }, [])
 
   const focusDiagnostic = (nextDiagnostic: JsonDiagnostic | null): void => {
     if (!nextDiagnostic || !inputViewRef.current) return
@@ -328,31 +518,50 @@ export function JsonToolPage(): JSX.Element {
     view.focus()
   }
 
-  const rewriteInput = (text: string, message: string, nextExpanded?: Set<string>): void => {
+  const recordSnapshot = (): void => {
+    setUndoStack((current) => [...current.slice(-19), input])
+  }
+
+  const rewriteInput = (
+    text: string,
+    message: string,
+    nextExpanded?: Set<string>,
+    preserveOriginal = true
+  ): void => {
+    recordSnapshot()
     setInput(text)
     setDiagnostic(null)
     setStatus({ type: 'success', message })
-    if (nextExpanded) {
-      setExpanded(nextExpanded)
-    }
+    if (!preserveOriginal || !original) setOriginal(text)
+    if (nextExpanded) setExpanded(nextExpanded)
+    if (new Blob([text]).size > LARGE_JSON_BYTES) setLargeAnalysisEnabled(false)
   }
 
   const rewriteRootValue = (value: unknown, message: string, nextExpanded?: Set<string>): void => {
     rewriteInput(stringifyRoot(value), message, nextExpanded)
   }
 
-  const runAction = (action: JsonAction): void => {
-    if (action === 'validate') {
-      const result = validateJson(input, mode)
-      setDiagnostic(result.diagnostic ?? null)
-      setStatus({
-        type: result.valid ? 'success' : 'error',
-        message: result.message
-      })
-      if (!result.valid) focusDiagnostic(result.diagnostic ?? null)
+  const handleUndo = (): void => {
+    if (undoStack.length > 0) {
+      const previous = undoStack[undoStack.length - 1]
+      setUndoStack((current) => current.slice(0, -1))
+      setInput(previous)
+      setDiagnostic(null)
+      setStatus({ type: 'success', message: '已撤销上一步操作' })
       return
     }
+    if (inputViewRef.current && undo(inputViewRef.current)) {
+      setStatus({ type: 'success', message: '已撤销编辑内容' })
+      return
+    }
+    setStatus({ type: 'idle', message: '没有可撤销的操作' })
+  }
 
+  const runTransform = (action: 'format' | 'compress' | 'sort'): void => {
+    if (lightweightMode) {
+      setStatus({ type: 'warning', message: '大型 JSON 需先执行完整分析' })
+      return
+    }
     const result = action === 'format'
       ? formatJson(input, mode)
       : action === 'compress'
@@ -363,25 +572,55 @@ export function JsonToolPage(): JSX.Element {
       const reparsed = parseJsonInput(result.result, 'strict')
       rewriteInput(
         result.result,
-        action === 'format' ? '已格式化并回写编辑器' : action === 'compress' ? '已压缩并回写编辑器' : '已排序并回写编辑器',
+        action === 'format' ? '已格式化，可随时撤销' : action === 'compress' ? '已压缩，可随时撤销' : '已按键名排序，可随时撤销',
         reparsed.success ? createDefaultExpandedPaths(reparsed.value) : undefined
       )
       setMode('strict')
       return
     }
-
     setDiagnostic(result.diagnostic ?? null)
     setStatus({ type: 'error', message: result.error ?? '处理失败' })
     focusDiagnostic(result.diagnostic ?? null)
   }
 
+  const handleValidate = (): void => {
+    if (lightweightMode) {
+      setStatus({ type: 'warning', message: '轻量模式未执行完整校验，请先执行完整分析' })
+      return
+    }
+    const result = validateJson(input, mode)
+    setDiagnostic(result.diagnostic ?? null)
+    setStatus({ type: result.valid ? 'success' : 'error', message: result.message })
+    if (!result.valid) focusDiagnostic(result.diagnostic ?? null)
+  }
+
   const handlePaste = async (): Promise<void> => {
     const text = await window.electronAPI.clipboard.readText()
+    const pastedBytes = new Blob([text]).size
+    recordSnapshot()
     setInput(text)
-    const pasted = parseJsonInput(text, mode)
-    setExpanded(pasted.success ? createDefaultExpandedPaths(pasted.value) : new Set(['$']))
+    setOriginal(text)
     setDiagnostic(null)
-    setStatus({ type: 'success', message: '已从剪贴板粘贴' })
+    setLargeAnalysisEnabled(pastedBytes <= LARGE_JSON_BYTES)
+    if (pastedBytes <= LARGE_JSON_BYTES) {
+      const pasted = parseJsonInput(text, mode)
+      setExpanded(pasted.success ? createDefaultExpandedPaths(pasted.value) : new Set(['$']))
+      setStatus({
+        type: pasted.success ? 'success' : 'error',
+        message: pasted.success ? '已粘贴并完成基础校验' : pasted.diagnostic.message
+      })
+    } else {
+      setExpanded(new Set(['$']))
+      setStatus({ type: 'warning', message: '已粘贴大型 JSON，自动进入轻量模式' })
+    }
+  }
+
+  const handlePasteDiff = async (): Promise<void> => {
+    const text = await window.electronAPI.clipboard.readText()
+    setDiffInput(text)
+    if (new Blob([text]).size > LARGE_JSON_BYTES) setLargeAnalysisEnabled(false)
+    setSelectedDiff(null)
+    setStatus({ type: 'success', message: '已粘贴临时对比文档 B' })
   }
 
   const handleCopy = async (text = input, message = 'JSON 已复制'): Promise<void> => {
@@ -391,28 +630,34 @@ export function JsonToolPage(): JSX.Element {
   }
 
   const handleClear = (): void => {
-    setInput('')
-    setDiagnostic(null)
-    setExpanded(new Set(['$']))
-    setStatus({ type: 'idle', message: '已清空' })
+    if (input && !window.confirm('确定清空当前 JSON 吗？此操作可通过撤销恢复。')) return
+    rewriteInput('', '已清空', new Set(['$']))
+    setSelectedPath('')
   }
 
   const handleExample = (): void => {
     const text = mode === 'jsonc' ? exampleJsonc : exampleJson
     const parsedExample = parseJsonInput(text, mode)
-    setInput(text)
-    setExpanded(parsedExample.success ? createDefaultExpandedPaths(parsedExample.value) : new Set(['$']))
-    setDiagnostic(null)
-    setStatus({ type: 'success', message: '已填充示例' })
+    rewriteInput(
+      text,
+      '已填充示例',
+      parsedExample.success ? createDefaultExpandedPaths(parsedExample.value) : new Set(['$']),
+      false
+    )
+  }
+
+  const handleRestoreOriginal = (): void => {
+    if (!original || original === input) {
+      setStatus({ type: 'idle', message: '当前内容已经是最初版本' })
+      return
+    }
+    rewriteInput(original, '已恢复最初内容')
   }
 
   const handleModeChange = (nextMode: JsonMode): void => {
     setMode(nextMode)
     setDiagnostic(null)
-    setStatus({
-      type: 'idle',
-      message: nextMode === 'jsonc' ? 'JSONC 模式已启用' : '严格 JSON 模式已启用'
-    })
+    setStatus({ type: 'idle', message: nextMode === 'jsonc' ? 'JSONC 模式已启用' : '严格 JSON 模式已启用' })
   }
 
   const handleInputUpdate = (update: ViewUpdate): void => {
@@ -421,156 +666,394 @@ export function JsonToolPage(): JSX.Element {
     setCursor({ line: location.line, column: location.column })
   }
 
+  const handleInputChange = (value: string): void => {
+    setInput(value)
+    if (!original && value) setOriginal(value)
+    setDiagnostic(null)
+    if (new Blob([value]).size > LARGE_JSON_BYTES) setLargeAnalysisEnabled(false)
+  }
+
   const handleToggle = (id: string): void => {
     setExpanded((current) => {
       const next = new Set(current)
-      if (next.has(id)) {
-        next.delete(id)
-      } else {
-        next.add(id)
-      }
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
       return next
     })
   }
 
-  const collapseToLevel = (level: number): void => {
-    if (!parsed.success) return
-    setExpanded(createDefaultExpandedPaths(parsed.value, level))
-    setStatus({ type: 'success', message: `已展开前 ${level} 层` })
+  const prepareMatchLocation = (match: JsonQueryMatch): number => {
+    setSelectedPath(match.pathText)
+    const nextExpanded = new Set(expanded)
+    let currentPath = '$'
+    nextExpanded.add('$')
+    match.path.forEach((segment) => {
+      currentPath += typeof segment === 'number' ? `[${segment}]` : /^[A-Za-z_$][\w$]*$/.test(segment) ? `.${segment}` : `[${JSON.stringify(segment)}]`
+      nextExpanded.add(currentPath)
+    })
+    setExpanded(nextExpanded)
+    return findMatchOffset(input, match)
+  }
+
+  const startFullAnalysis = (): void => {
+    if (analysisTimerRef.current) clearTimeout(analysisTimerRef.current)
+    setAnalyzing(true)
+    setStatus({ type: 'warning', message: '正在准备完整分析，可取消' })
+    analysisTimerRef.current = setTimeout(() => {
+      setLargeAnalysisEnabled(true)
+      setAnalyzing(false)
+      setStatus({ type: 'success', message: '完整分析已启用' })
+    }, 80)
+  }
+
+  const cancelAnalysis = (): void => {
+    if (analysisTimerRef.current) clearTimeout(analysisTimerRef.current)
+    setAnalyzing(false)
+    setStatus({ type: 'idle', message: '已取消完整分析' })
+  }
+
+  const closeDiffMode = (): void => {
+    setWorkMode('browse')
+    setDiffInput('')
+    setSelectedDiff(null)
   }
 
   const statusClassName = status.type === 'success'
     ? 'tone-success'
     : status.type === 'error'
       ? 'tone-danger'
-      : 'text-[color:var(--text-muted)]'
-  const inputBytes = new Blob([input]).size
+      : status.type === 'warning'
+        ? 'tone-warning'
+        : 'text-[color:var(--text-muted)]'
 
-  return (
-    <div className="tool-page">
-      <div className="toolbar-surface tab-toolbar">
-        <div className="segmented-control segmented-scroll">
-          <button className={`segmented-item ${mode === 'strict' ? 'segmented-item-active' : ''}`} onClick={() => handleModeChange('strict')}>
-            严格 JSON
-          </button>
-          <button className={`segmented-item ${mode === 'jsonc' ? 'segmented-item-active' : ''}`} onClick={() => handleModeChange('jsonc')}>
-            JSONC
-          </button>
+  const renderEditorPanel = (title = '主文档 A'): JSX.Element => (
+    <section className="editor-surface tool-panel json-main-editor">
+      <div className="panel-header">
+        <div className="json-panel-title">
+          <Code2 className="h-4 w-4" />
+          <span>{title}</span>
         </div>
+        <div className="json-panel-meta">
+          <span>{formatBytes(inputBytes)}</span>
+          {parsed?.success && <span>{nodeCount} 个节点</span>}
+          {lightweightMode && <span className="json-mode-badge json-mode-light">轻量模式</span>}
+        </div>
+      </div>
+      <div className="panel-body code-editor-panel-body">
+        <CodeMirror
+          value={input}
+          height="100%"
+          className="code-editor-light"
+          basicSetup={{ foldGutter: false }}
+          extensions={inputExtensions}
+          onChange={handleInputChange}
+          onUpdate={handleInputUpdate}
+          onCreateEditor={(view) => {
+            inputViewRef.current = view
+          }}
+          placeholder="粘贴接口响应或 JSON / JSONC 内容..."
+        />
+      </div>
+    </section>
+  )
 
-        <div className="panel-actions">
-          <button className="toolbar-button-primary" onClick={() => runAction('format')} title="格式化并回写">
-            <AlignLeft className="h-4 w-4" />
-            格式化
+  const renderTreePanel = (editable: boolean): JSX.Element => (
+    <section className="editor-surface tool-panel json-assistant-panel">
+      <div className="panel-header">
+        <div className="json-panel-title">
+          {editable ? <Pencil className="h-4 w-4" /> : <ListTree className="h-4 w-4" />}
+          <span>{editable ? '结构编辑' : '结构浏览'}</span>
+        </div>
+        <div className="action-cluster-tight">
+          <button className="icon-button json-compact-icon" disabled={!parsed?.success} onClick={() => parsed?.success && setExpanded(collectExpandablePaths(parsed.value))} title="展开全部">
+            <ListTree className="h-3.5 w-3.5" />
           </button>
-          <button className="toolbar-button" onClick={() => runAction('compress')} title="压缩并回写">
-            <Minimize2 className="h-4 w-4" />
-            压缩
-          </button>
-          <button className="toolbar-button" onClick={() => runAction('sort')} title="递归排序并回写">
-            <ArrowDownAZ className="h-4 w-4" />
-            排序
-          </button>
-          <button className="toolbar-button" onClick={() => runAction('validate')} title="校验">
-            <Check className="h-4 w-4" />
-            校验
-          </button>
-          <button className="toolbar-button" onClick={handlePaste} title="从剪贴板粘贴">
-            <Clipboard className="h-4 w-4" />
-            粘贴
-          </button>
-          <button className="toolbar-button disabled:opacity-40" onClick={() => void handleCopy()} disabled={!input} title="复制 JSON">
-            <Copy className="h-4 w-4" />
-            复制
-          </button>
-          <button className="toolbar-button" onClick={handleExample} title="填充示例">
-            <FileJson className="h-4 w-4" />
-            示例
-          </button>
-          <button className="toolbar-button" onClick={handleClear} title="清空">
-            <Trash2 className="h-4 w-4" />
-            清空
+          <button className="icon-button json-compact-icon" disabled={!parsed?.success} onClick={() => setExpanded(new Set(['$']))} title="收起全部">
+            <ListCollapse className="h-3.5 w-3.5" />
           </button>
         </div>
       </div>
-
-      <div className="tool-workspace tool-grid-editor">
-        <section className="editor-surface tool-panel">
-          <div className="panel-header">
-            <span>文本编辑</span>
-            <span className="text-xs text-[color:var(--text-muted)]">{inputBytes} bytes</span>
+      <div className="panel-body json-tree-body">
+        {lightweightMode ? (
+          <div className="json-empty-state">
+            <Braces className="h-9 w-9" />
+            <strong>大型 JSON 已暂停构建结构树</strong>
+            <span>当前仍可使用文本浏览、搜索与复制。</span>
+            <button className="toolbar-button-primary" onClick={startFullAnalysis}>完整分析</button>
           </div>
-          <div className="panel-body code-editor-panel-body">
-            <CodeMirror
-              value={input}
-              height="100%"
-              className="code-editor-light"
-              basicSetup={{ foldGutter: false }}
-              extensions={inputExtensions}
-              onChange={(value) => {
-                setInput(value)
-                setDiagnostic(null)
-              }}
-              onUpdate={handleInputUpdate}
-              onCreateEditor={(view) => {
-                inputViewRef.current = view
-              }}
-              placeholder="粘贴 JSON 或 JSONC 内容..."
-            />
+        ) : parsed?.success && tree ? (
+          <TreeView
+            node={tree}
+            rootValue={parsed.value}
+            expanded={expanded}
+            editable={editable}
+            selectedPath={selectedPath}
+            onToggle={handleToggle}
+            onChangeRoot={rewriteRootValue}
+            onStatus={setStatus}
+            onCopy={handleCopy}
+          />
+        ) : (
+          <div className="json-empty-state">
+            <Braces className="h-9 w-9" />
+            <strong>{input ? 'JSON 无法解析' : '等待 JSON 内容'}</strong>
+            <span>{input ? '修正错误后即可浏览结构。' : '粘贴响应后将在这里展示结构树。'}</span>
           </div>
-        </section>
+        )}
+      </div>
+    </section>
+  )
 
-        <section className="editor-surface tool-panel">
-          <div className="panel-header">
-            <span>结构编辑</span>
-            <div className="action-cluster-tight">
-              <button className="icon-button h-7 min-h-7 w-7 min-w-7 disabled:opacity-30" disabled={!parsed.success} onClick={() => parsed.success && setExpanded(collectExpandablePaths(parsed.value))} title="展开全部">
-                <ListTree className="h-3.5 w-3.5" />
+  const renderQueryPanel = (): JSX.Element => (
+    <section className="editor-surface tool-panel json-assistant-panel">
+      <div className="panel-header json-query-header">
+        <div className="segmented-control json-mini-tabs">
+          <button className={`segmented-item ${queryMode === 'search' ? 'segmented-item-active' : ''}`} onClick={() => setQueryMode('search')}>
+            普通搜索
+          </button>
+          <button className={`segmented-item ${queryMode === 'jsonpath' ? 'segmented-item-active' : ''}`} onClick={() => setQueryMode('jsonpath')}>
+            JSONPath
+          </button>
+        </div>
+        <span className="json-query-count">{queryResult.matches.length} 项结果</span>
+      </div>
+      <div className="json-query-input-wrap">
+        <Search className="h-4 w-4" />
+        <input
+          autoFocus
+          value={queryText}
+          onChange={(event) => setQueryText(event.target.value)}
+          placeholder={queryMode === 'search' ? '搜索键名、路径或值...' : '例如：$.users[*].name 或 $..id'}
+        />
+        {queryText && <button onClick={() => setQueryText('')} title="清空查询"><X className="h-4 w-4" /></button>}
+      </div>
+      {queryMode === 'jsonpath' && (
+        <div className="json-query-help">
+          支持属性、数组索引、<code>*</code> 通配符与 <code>..</code> 递归查找。
+        </div>
+      )}
+      <div className="panel-body json-result-list">
+        {lightweightMode ? (
+          <div className="json-empty-state">
+            <Search className="h-9 w-9" />
+            <strong>大型 JSON 已暂停结构查询</strong>
+            <span>文本编辑器仍可使用 Ctrl+F 搜索；完整分析后可使用 JSONPath。</span>
+            <button className="toolbar-button-primary" onClick={startFullAnalysis}>完整分析</button>
+          </div>
+        ) : queryResult.error ? (
+          <div className="alert-surface alert-danger">{queryResult.error}</div>
+        ) : queryText && queryResult.matches.length === 0 ? (
+          <div className="json-empty-state"><Search className="h-8 w-8" /><strong>没有匹配结果</strong></div>
+        ) : !queryText ? (
+          <div className="json-empty-state"><Search className="h-8 w-8" /><strong>输入查询条件开始定位字段</strong></div>
+        ) : (
+          queryResult.matches.map((match, index) => (
+            <div key={`${match.pathText}-${index}`} className="json-result-row">
+              <button
+                className="json-result-main"
+                onClick={() => {
+                  const offset = prepareMatchLocation(match)
+                  setPendingMatchOffset(offset)
+                }}
+              >
+                <span className="json-result-path">{match.pathText}</span>
+                <span className={`json-result-preview ${getTypeClassName(match.kind)}`}>{formatPreview(match.value)}</span>
               </button>
-              <button className="icon-button h-7 min-h-7 w-7 min-w-7 disabled:opacity-30" disabled={!parsed.success} onClick={() => setExpanded(new Set(['$']))} title="收起全部">
-                <ListCollapse className="h-3.5 w-3.5" />
-              </button>
-              <button className="toolbar-button min-h-7 px-2 py-1 text-xs disabled:opacity-30" disabled={!parsed.success} onClick={() => collapseToLevel(2)} title="展开前 2 层">
-                2层
-              </button>
+              <span className={`json-type-badge ${getTypeClassName(match.kind)}`}>{match.kind}</span>
+              <div className="json-result-actions">
+                <button onClick={() => void handleCopy(match.pathText, '路径已复制')}>路径</button>
+                <button onClick={() => void handleCopy(getNodeValueText(parsed?.success ? parsed.value : null, match.path), '值已复制')}>值</button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </section>
+  )
+
+  const renderDiffPanel = (): JSX.Element => (
+    <section className="editor-surface tool-panel json-diff-panel">
+      <div className="panel-header json-diff-header">
+        <div className="segmented-control json-mini-tabs">
+          <button className={`segmented-item ${diffView === 'semantic' ? 'segmented-item-active' : ''}`} onClick={() => setDiffView('semantic')}>语义差异</button>
+          <button className={`segmented-item ${diffView === 'text' ? 'segmented-item-active' : ''}`} onClick={() => setDiffView('text')}>左右文本</button>
+        </div>
+        <button className="icon-button json-compact-icon" onClick={closeDiffMode} title="退出并丢弃临时文档 B"><X className="h-4 w-4" /></button>
+      </div>
+
+      {!diffInput ? (
+        <div className="json-empty-state json-diff-empty">
+          <GitCompareArrows className="h-10 w-10" />
+          <strong>粘贴临时文档 B 开始对比</strong>
+          <span>退出对比模式后，临时文档 B 会被丢弃。</span>
+          <button className="toolbar-button-primary" onClick={() => void handlePasteDiff()}><Clipboard className="h-4 w-4" />粘贴文档 B</button>
+        </div>
+      ) : lightweightMode ? (
+        <div className="json-empty-state">
+          <GitCompareArrows className="h-9 w-9" />
+          <strong>大型 JSON 需先执行完整分析</strong>
+          <span>完整分析前不会解析主文档 A 或临时文档 B。</span>
+          <button className="toolbar-button-primary" onClick={startFullAnalysis}>完整分析</button>
+        </div>
+      ) : parsedDiff && !parsedDiff.success ? (
+        <div className="json-diff-invalid">
+          <div className="alert-surface alert-danger">文档 B 无法解析：{parsedDiff.diagnostic.message}</div>
+          <textarea className="field-textarea" value={diffInput} onChange={(event) => setDiffInput(event.target.value)} />
+        </div>
+      ) : diffView === 'text' ? (
+        <div className="json-text-diff">
+          <div>
+            <div className="json-text-diff-title">主文档 A</div>
+            <div className="json-text-diff-lines">
+              {createTextDiffRows(input, diffInput).map((row, index) => (
+                <div key={`left-${index}`} className={row.changed ? 'json-text-line-changed' : ''}>
+                  <span>{index + 1}</span><code>{row.left || ' '}</code>
+                </div>
+              ))}
             </div>
           </div>
-          <div className="panel-body overflow-auto">
-            {parsed.success && tree ? (
-              <TreeEditor
-                node={tree}
-                rootValue={parsed.value}
-                expanded={expanded}
-                onToggle={handleToggle}
-                onChangeRoot={rewriteRootValue}
-                onStatus={setStatus}
-                onCopy={handleCopy}
-              />
-            ) : (
-              <div className="empty-state flex-col gap-3 text-sm">
-                <Braces className="h-9 w-9" />
-                <span>{input ? 'JSON 无法解析，修正后可编辑结构树' : '输入 JSON 后显示结构树'}</span>
-              </div>
-            )}
+          <div>
+            <div className="json-text-diff-title">临时文档 B</div>
+            <div className="json-text-diff-lines">
+              {createTextDiffRows(input, diffInput).map((row, index) => (
+                <div key={`right-${index}`} className={row.changed ? 'json-text-line-changed' : ''}>
+                  <span>{index + 1}</span><code>{row.right || ' '}</code>
+                </div>
+              ))}
+            </div>
           </div>
-        </section>
+        </div>
+      ) : (
+        <>
+          <div className="json-diff-summary">
+            {(['added', 'removed', 'modified', 'type-changed'] as JsonDiffKind[]).map((kind) => (
+              <div key={kind} className={getDiffClassName(kind)}>
+                <span>{getDiffLabel(kind)}</span>
+                <strong>{diffSummary[kind]}</strong>
+              </div>
+            ))}
+            <button className="toolbar-button" onClick={() => void handlePasteDiff()}><RefreshCcw className="h-4 w-4" />重新粘贴 B</button>
+          </div>
+          <div className="json-diff-workspace">
+            <div className="json-diff-list">
+              {diffEntries.length === 0 ? (
+                <div className="json-empty-state"><Check className="h-9 w-9 tone-success" /><strong>两份 JSON 语义一致</strong></div>
+              ) : diffEntries.map((entry, index) => (
+                <button
+                  key={`${entry.kind}-${entry.pathText}-${index}`}
+                  className={`json-diff-row ${getDiffClassName(entry.kind)} ${selectedDiff === entry ? 'json-diff-row-selected' : ''}`}
+                  onClick={() => setSelectedDiff(entry)}
+                >
+                  <span>{getDiffLabel(entry.kind)}</span>
+                  <code>{entry.pathText}</code>
+                </button>
+              ))}
+            </div>
+            <div className="json-diff-detail">
+              {selectedDiff ? (
+                <>
+                  <div className="json-diff-detail-title">
+                    <span className={getDiffClassName(selectedDiff.kind)}>{getDiffLabel(selectedDiff.kind)}</span>
+                    <code>{selectedDiff.pathText}</code>
+                    <button onClick={() => void handleCopy(selectedDiff.pathText, '路径已复制')}><Copy className="h-3.5 w-3.5" /></button>
+                  </div>
+                  <div className="json-diff-values">
+                    <div><span>原值</span><pre>{formatFullValue(selectedDiff.before)}</pre></div>
+                    <div><span>新值</span><pre>{formatFullValue(selectedDiff.after)}</pre></div>
+                  </div>
+                </>
+              ) : (
+                <div className="json-empty-state"><GitCompareArrows className="h-8 w-8" /><strong>选择一项差异查看前后值</strong></div>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+    </section>
+  )
+
+  return (
+    <div className="tool-page json-tool-page">
+      <div className="toolbar-surface json-toolbar">
+        <div className="json-primary-actions">
+          <button className="toolbar-button-primary" onClick={() => void handlePaste()}><Clipboard className="h-4 w-4" />粘贴</button>
+          <button className="toolbar-button" disabled={!input || lightweightMode} onClick={() => runTransform('format')}><AlignLeft className="h-4 w-4" />格式化</button>
+          <button className="toolbar-button" disabled={!input} onClick={() => void handleCopy()}><Copy className="h-4 w-4" />复制</button>
+          <button className="toolbar-button" onClick={handleUndo}><Undo2 className="h-4 w-4" />撤销</button>
+        </div>
+
+        <div className="segmented-control json-work-tabs">
+          <button className={`segmented-item ${workMode === 'browse' ? 'segmented-item-active' : ''}`} onClick={() => setWorkMode('browse')}><ListTree className="h-4 w-4" />浏览</button>
+          <button className={`segmented-item ${workMode === 'query' ? 'segmented-item-active' : ''}`} onClick={() => setWorkMode('query')}><Search className="h-4 w-4" />查询</button>
+          <button className={`segmented-item ${workMode === 'diff' ? 'segmented-item-active' : ''}`} onClick={() => setWorkMode('diff')}><GitCompareArrows className="h-4 w-4" />对比</button>
+          <button className={`segmented-item ${workMode === 'edit' ? 'segmented-item-active' : ''}`} disabled={lightweightMode} onClick={() => setWorkMode('edit')}><Pencil className="h-4 w-4" />结构编辑</button>
+        </div>
+
+        <details
+          className="json-more-menu"
+          onClick={(event) => {
+            const target = event.target as HTMLElement
+            if (target.closest('.json-more-popover > button')) {
+              event.currentTarget.open = false
+            }
+          }}
+        >
+          <summary className="toolbar-button"><MoreHorizontal className="h-4 w-4" />更多</summary>
+          <div className="json-more-popover">
+            <div className="json-more-heading">解析模式</div>
+            <div className="segmented-control json-mode-switch">
+              <button className={`segmented-item ${mode === 'strict' ? 'segmented-item-active' : ''}`} onClick={() => handleModeChange('strict')}>严格 JSON</button>
+              <button className={`segmented-item ${mode === 'jsonc' ? 'segmented-item-active' : ''}`} onClick={() => handleModeChange('jsonc')}>JSONC</button>
+            </div>
+            <button disabled={!input || lightweightMode} onClick={() => runTransform('compress')}><Braces className="h-4 w-4" />压缩内容</button>
+            <button disabled={!input || lightweightMode} onClick={() => runTransform('sort')}><ArrowDownAZ className="h-4 w-4" />键名排序</button>
+            <button disabled={!input || lightweightMode} onClick={handleValidate}><Check className="h-4 w-4" />完整校验</button>
+            <button onClick={handleRestoreOriginal}><RotateCcw className="h-4 w-4" />恢复最初内容</button>
+            <button onClick={handleExample}><FileJson className="h-4 w-4" />填充示例</button>
+            <button className="tone-danger" onClick={handleClear}><Trash2 className="h-4 w-4" />清空内容</button>
+          </div>
+        </details>
       </div>
 
-      <div className="status-strip flex flex-wrap items-center gap-3 text-xs">
-        <span className={statusClassName}>{status.message}</span>
-        <span className="text-[color:var(--text-muted)]">|</span>
-        <span className="text-[color:var(--text-secondary)]">模式：{mode === 'jsonc' ? 'JSONC' : '严格 JSON'}</span>
-        <span className="text-[color:var(--text-muted)]">|</span>
-        <span className="text-[color:var(--text-secondary)]">光标：第 {cursor.line} 行，第 {cursor.column} 列</span>
-        {diagnostic && (
+      {hasLargeDocument && (
+        <div className="json-large-banner">
+          <div>
+            <strong>{lightweightMode ? '大型 JSON 轻量模式' : '大型 JSON 完整分析模式'}</strong>
+            <span>{lightweightMode ? '已暂停实时构树、结构编辑与 JSONPath，文本浏览和搜索仍然可用。' : '完整分析已启用，修改内容后会自动返回轻量模式。'}</span>
+          </div>
+          {analyzing ? (
+            <button className="toolbar-button" onClick={cancelAnalysis}>取消分析</button>
+          ) : lightweightMode ? (
+            <button className="toolbar-button-primary" onClick={startFullAnalysis}>完整分析</button>
+          ) : (
+            <button className="toolbar-button" onClick={() => setLargeAnalysisEnabled(false)}>返回轻量模式</button>
+          )}
+        </div>
+      )}
+
+      {activeDiagnostic && (
+        <button className="json-error-banner" onClick={() => focusDiagnostic(activeDiagnostic)}>
+          <span>第 {activeDiagnostic.line} 行，第 {activeDiagnostic.column} 列：{activeDiagnostic.message}</span>
+          <strong>定位错误</strong>
+        </button>
+      )}
+
+      <div className={`json-workbench json-workbench-${workMode}`}>
+        {workMode === 'diff' ? renderDiffPanel() : (
           <>
-            <span className="text-[color:var(--text-muted)]">|</span>
-            <button className="inline-flex items-center gap-1 rounded px-2 py-1 tone-danger hover:bg-[var(--tone-danger-soft)]" onClick={() => focusDiagnostic(diagnostic)}>
-              <RotateCcw className="h-3.5 w-3.5" />
-              定位错误
-            </button>
+            {renderEditorPanel()}
+            {workMode === 'query' ? renderQueryPanel() : renderTreePanel(workMode === 'edit')}
           </>
         )}
+      </div>
+
+      <div className="status-strip json-status-strip">
+        <span className={statusClassName}>{status.message}</span>
+        <span>{mode === 'jsonc' ? 'JSONC' : '严格 JSON'}</span>
+        <span>{input ? formatBytes(inputBytes) : '空文档'}</span>
+        {parsed?.success && <span>{nodeCount} 个节点</span>}
+        <span>第 {cursor.line} 行，第 {cursor.column} 列</span>
+        {activeDiagnostic && <button className="tone-danger" onClick={() => focusDiagnostic(activeDiagnostic)}>定位错误</button>}
       </div>
     </div>
   )

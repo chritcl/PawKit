@@ -21,8 +21,14 @@ export const IPC_CHANNELS = {
   CLIPBOARD_GET_HISTORY: 'clipboard:get-history',
   CLIPBOARD_CLEAR_HISTORY: 'clipboard:clear-history',
   CLIPBOARD_REMOVE_ITEM: 'clipboard:remove-item',
+  CLIPBOARD_RESTORE_ITEM: 'clipboard:restore-item',
   CLIPBOARD_TOGGLE_FAVORITE: 'clipboard:toggle-favorite',
   CLIPBOARD_COPY_ITEM: 'clipboard:copy-item',
+  CLIPBOARD_COPY_ITEM_TEXT: 'clipboard:copy-item-text',
+  CLIPBOARD_OPEN_LINK: 'clipboard:open-link',
+  CLIPBOARD_SHOW_FILE: 'clipboard:show-file',
+  CLIPBOARD_SAVE_IMAGE: 'clipboard:save-image',
+  CLIPBOARD_GET_IMAGE_DATA: 'clipboard:get-image-data',
   CLIPBOARD_HISTORY_CHANGED: 'clipboard:history-changed',
 
   // 截图相关

@@ -86,6 +86,20 @@ export interface ClipboardCopyResult {
   message?: string
 }
 
+// 剪贴板删除结果
+export interface ClipboardRemoveResult {
+  success: boolean
+  history: ClipboardItem[]
+  undoToken?: string
+  message: string
+}
+
+// 剪贴板安全动作结果
+export interface ClipboardActionResult {
+  success: boolean
+  message: string
+}
+
 // 剪贴板存储结构
 export interface ClipboardStoreSchema {
   clipboard: {
@@ -112,7 +126,9 @@ export interface ColorRecord {
   hex: string
   rgb: RGB
   hsl: HSL
+  alpha?: number
   createdAt: string
+  updatedAt?: string
   name?: string
   tags?: string[]
   source?: 'manual' | 'screen' | 'recent' | 'favorite'
@@ -363,9 +379,15 @@ export interface ElectronAPI {
     writeText: (text: string) => Promise<ClipboardItem[]>
     getHistory: () => Promise<ClipboardItem[]>
     clearHistory: (keepFavorites?: boolean) => Promise<ClipboardItem[]>
-    removeItem: (id: string) => Promise<ClipboardItem[]>
+    removeItem: (id: string) => Promise<ClipboardRemoveResult>
+    restoreItem: (undoToken: string) => Promise<ClipboardRemoveResult>
     toggleFavorite: (id: string) => Promise<ClipboardItem[]>
     copyItem: (id: string) => Promise<ClipboardCopyResult>
+    copyItemText: (id: string) => Promise<ClipboardCopyResult>
+    openLink: (id: string) => Promise<ClipboardActionResult>
+    showFile: (id: string, path: string) => Promise<ClipboardActionResult>
+    saveImage: (id: string) => Promise<ImageSaveResult>
+    getImageData: (id: string) => Promise<string | null>
     onHistoryChanged: (callback: (history: ClipboardItem[]) => void) => () => void
   }
   screenshot: {

@@ -18,6 +18,10 @@ pnpm-debug.log*
 
 # IDE 配置
 .vscode/
+.codex/
+.mimocode/
+.cursor/
+.claude/
 .idea/
 *.swp
 *.swo
@@ -34,3 +38,5 @@ desktop.ini
 
 # 本地 electron-store 数据
 *.json.bak
+
+

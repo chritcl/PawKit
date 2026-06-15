@@ -1,40 +1,33 @@
-import { KeyboardEvent, useEffect, useState } from 'react'
+import { KeyboardEvent, MouseEvent, useEffect, useRef, useState } from 'react'
 import {
+  AlignLeft,
   ClipboardCopy,
+  Copy,
   Eraser,
   ExternalLink,
   FileJson,
   Files,
   FileText,
+  FolderOpen,
   Image as ImageIcon,
   ListFilter,
+  MoreHorizontal,
+  Save,
   Star,
   Terminal,
-  Trash2
+  Trash2,
+  X
 } from 'lucide-react'
-import { ClipboardFileItem, ClipboardImageItem, ClipboardItem } from '../../../../../shared/types'
+import { ClipboardFileItem, ClipboardItem } from '../../../../../shared/types'
 import { useClipboardStore } from '../../../stores/clipboard-store'
-
-type ClipboardFilter = 'all' | 'text' | 'image' | 'file' | 'richText' | 'favorite'
-type ClipboardKind = 'url' | 'json' | 'command' | 'code' | 'long' | 'text'
-type BadgeTone = 'neutral' | 'blue' | 'green' | 'purple' | 'cyan' | 'amber' | 'pink' | 'lime'
-
-const commandPattern = /^(pnpm|npm|npx|yarn|git|docker|kubectl|curl|ssh|cd|ls|dir|cmd|powershell)\b/i
-
-const kindMeta: Record<ClipboardKind, { label: string; tone: BadgeTone }> = {
-  url: { label: '链接', tone: 'blue' },
-  json: { label: 'JSON', tone: 'green' },
-  command: { label: '命令', tone: 'purple' },
-  code: { label: '代码', tone: 'cyan' },
-  long: { label: '长文本', tone: 'amber' },
-  text: { label: '文本', tone: 'neutral' }
-}
-
-const typeMeta = {
-  image: { label: '图片', tone: 'pink' as BadgeTone },
-  file: { label: '文件', tone: 'cyan' as BadgeTone },
-  richText: { label: '富文本', tone: 'lime' as BadgeTone }
-}
+import {
+  ClipboardFilter,
+  filterClipboardItems,
+  formatClipboardTime,
+  getClipboardKind,
+  getClipboardMeta,
+  getClipboardStats
+} from '../../../utils/clipboard'
 
 const filterOptions: Array<{ key: ClipboardFilter; label: string }> = [
   { key: 'all', label: '全部' },
@@ -45,127 +38,264 @@ const filterOptions: Array<{ key: ClipboardFilter; label: string }> = [
   { key: 'favorite', label: '收藏' }
 ]
 
-// 判断文本内容类型，用于列表中的轻量提示
-function getClipboardKind(content: string): ClipboardKind {
-  const trimmed = content.trim()
-
-  if (/^https?:\/\//i.test(trimmed)) {
-    try {
-      new URL(trimmed)
-      return 'url'
-    } catch {
-      return 'text'
-    }
-  }
-
-  if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
-    try {
-      JSON.parse(trimmed)
-      return 'json'
-    } catch {
-      return 'code'
-    }
-  }
-
-  if (commandPattern.test(trimmed)) {
-    return 'command'
-  }
-
-  if (/(\b(import|export|const|let|function|class|interface|return)\b|=>|;\s*$)/m.test(content)) {
-    return 'code'
-  }
-
-  if (content.length > 500 || content.split(/\r?\n/).length > 8) {
-    return 'long'
-  }
-
-  return 'text'
+interface FeedbackState {
+  message: string
+  tone: 'success' | 'danger' | 'neutral'
+  undoToken?: string
 }
 
-// 格式化时间
-function formatTime(dateStr: string): string {
-  const date = new Date(dateStr)
-  return date.toLocaleString('zh-CN', {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit'
-  })
+interface ContextMenuState {
+  item: ClipboardItem
+  x: number
+  y: number
 }
 
-// 获取可见预览文本
 function getPreviewText(content: string): string {
   if (content.length === 0) return '空文本'
   if (content.trim().length === 0) return '空白文本'
   return content
 }
 
-// 获取历史项标签
-function getItemMeta(item: ClipboardItem): { label: string; tone: BadgeTone } {
-  if (item.type === 'image') return typeMeta.image
-  if (item.type === 'file') return typeMeta.file
-  if (item.type === 'richText') return typeMeta.richText
-  return kindMeta[getClipboardKind(item.content)]
-}
-
-// 获取历史项补充信息
-function getItemStats(item: ClipboardItem): string {
-  if (item.type === 'image') {
-    return `${item.width} × ${item.height} · ${(item.size / 1024).toFixed(1)} KB`
-  }
-  if (item.type === 'file') {
-    return `${item.files.length} 个文件`
-  }
-  if (item.type === 'richText') {
-    return `${item.content.length} 字符预览`
-  }
-  return `${item.content.length} 字符`
-}
-
-// 渲染类型图标
-function TypeIcon({ item }: { item: ClipboardItem }): JSX.Element | null {
-  if (item.type === 'image') return <ImageIcon className="h-4 w-4 tone-danger" aria-hidden="true" />
-  if (item.type === 'file') return <Files className="h-4 w-4 tone-info" aria-hidden="true" />
-  if (item.type === 'richText') return <FileText className="h-4 w-4 tone-success" aria-hidden="true" />
+function TypeIcon({ item }: { item: ClipboardItem }): JSX.Element {
+  if (item.type === 'image') return <ImageIcon className="h-4 w-4 tone-danger" />
+  if (item.type === 'file') return <Files className="h-4 w-4 tone-info" />
+  if (item.type === 'richText') return <FileText className="h-4 w-4 tone-success" />
 
   const kind = getClipboardKind(item.content)
-  if (kind === 'json') return <FileJson className="h-4 w-4 tone-success" aria-hidden="true" />
-  if (kind === 'command') return <Terminal className="h-4 w-4 tone-accent" aria-hidden="true" />
-  return null
+  if (kind === 'json') return <FileJson className="h-4 w-4 tone-success" />
+  if (kind === 'command') return <Terminal className="h-4 w-4 tone-accent" />
+  return <AlignLeft className="h-4 w-4 text-[color:var(--text-muted)]" />
 }
 
-// 图片预览
-function ImagePreview({ item }: { item: ClipboardImageItem }): JSX.Element {
+function ClipboardCard({
+  item,
+  selected,
+  onSelect,
+  onCopy,
+  onFavorite,
+  onContextMenu
+}: {
+  item: ClipboardItem
+  selected: boolean
+  onSelect: () => void
+  onCopy: () => void
+  onFavorite: () => void
+  onContextMenu: (event: MouseEvent<HTMLDivElement>) => void
+}): JSX.Element {
+  const meta = getClipboardMeta(item)
+
   return (
-    <div className="content-block overflow-hidden p-2">
-      <img
-        src={item.thumbnailDataUrl}
-        alt="剪贴板图片"
-        className="max-h-44 w-full object-contain"
-        draggable={false}
-      />
+    <div
+      className={`interactive-row clipboard-history-card ${selected ? 'selected-surface' : ''}`}
+      onClick={onSelect}
+      onDoubleClick={onCopy}
+      onContextMenu={onContextMenu}
+      role="option"
+      aria-selected={selected}
+    >
+      <div className="clipboard-card-heading">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="clipboard-type-icon"><TypeIcon item={item} /></span>
+          <span className={`meta-badge meta-badge-${meta.tone}`}>{meta.label}</span>
+          <span className="truncate text-xs text-[color:var(--text-muted)]">{getClipboardStats(item)}</span>
+        </div>
+        <button
+          className={`icon-button h-8 min-h-8 w-8 min-w-8 ${item.favorite ? 'tone-warning' : ''}`}
+          title={item.favorite ? '取消收藏' : '收藏'}
+          onClick={(event) => {
+            event.stopPropagation()
+            onFavorite()
+          }}
+        >
+          <Star className={`h-4 w-4 ${item.favorite ? 'fill-current' : ''}`} />
+        </button>
+      </div>
+
+      <div className="clipboard-card-preview">
+        {item.type === 'image' && (
+          <img src={item.thumbnailDataUrl} alt="剪贴板图片缩略图" draggable={false} />
+        )}
+        {item.type === 'file' ? (
+          <div className="space-y-1.5">
+            {item.files.slice(0, 2).map((file) => (
+              <div key={file.path} className="flex min-w-0 items-center gap-2">
+                <FileText className="h-3.5 w-3.5 shrink-0 tone-info" />
+                <span className="truncate">{file.name || file.path}</span>
+                {!file.exists && <span className="shrink-0 tone-warning">已失效</span>}
+              </div>
+            ))}
+            {item.files.length > 2 && <div className="text-xs muted">还有 {item.files.length - 2} 个文件</div>}
+          </div>
+        ) : item.type !== 'image' ? (
+          <div className="clipboard-card-text">{getPreviewText(item.content)}</div>
+        ) : null}
+      </div>
+
+      <div className="clipboard-card-footer">
+        <span>{formatClipboardTime(item.updatedAt)}</span>
+        <span className="flex items-center gap-1.5">
+          {item.favorite && <Star className="h-3 w-3 fill-current tone-warning" />}
+          双击复制
+        </span>
+      </div>
     </div>
   )
 }
 
-// 文件预览
-function FilePreview({ item }: { item: ClipboardFileItem }): JSX.Element {
-  const visibleFiles = item.files.slice(0, 4)
-  const hiddenCount = Math.max(item.files.length - visibleFiles.length, 0)
+function ClipboardDetail({
+  item,
+  onClose,
+  onCopy,
+  onCopyText,
+  onFavorite,
+  onDelete,
+  onOpenLink,
+  onSaveImage,
+  onShowFile
+}: {
+  item: ClipboardItem
+  onClose: () => void
+  onCopy: () => void
+  onCopyText: () => void
+  onFavorite: () => void
+  onDelete: () => void
+  onOpenLink: () => void
+  onSaveImage: () => void
+  onShowFile: (path: string) => void
+}): JSX.Element {
+  const [imageData, setImageData] = useState<string | null>(item.type === 'image' ? item.thumbnailDataUrl : null)
+  const [richMode, setRichMode] = useState<'preview' | 'plain'>('preview')
+  const meta = getClipboardMeta(item)
+  const kind = item.type === 'text' ? getClipboardKind(item.content) : null
+
+  useEffect(() => {
+    let active = true
+    if (item.type === 'image') {
+      window.electronAPI?.clipboard?.getImageData(item.id).then((value) => {
+        if (active) setImageData(value)
+      }).catch(() => {
+        if (active) setImageData(null)
+      })
+    }
+    return () => {
+      active = false
+    }
+  }, [item])
+
+  let domain = ''
+  if (kind === 'url') {
+    try {
+      domain = new URL(item.content.trim()).hostname
+    } catch {
+      domain = ''
+    }
+  }
 
   return (
-    <div className="content-block space-y-2">
-      {visibleFiles.map((file) => (
-        <div key={file.path} className="flex min-w-0 items-center gap-2 text-xs text-[color:var(--text-secondary)]">
-          <FileText className="h-3.5 w-3.5 shrink-0 tone-info" />
-          <span className="truncate" title={file.path}>{file.name || file.path}</span>
-          {!file.exists && <span className="shrink-0 tone-warning">已失效</span>}
+    <aside className="glass-panel clipboard-detail-panel">
+      <div className="clipboard-detail-heading">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className={`meta-badge meta-badge-${meta.tone}`}>{meta.label}</span>
+            <span className="text-xs muted">{getClipboardStats(item)}</span>
+          </div>
+          <h2 className="mt-3 truncate text-base font-semibold">
+            {domain || (item.type === 'file' ? `${item.files.length} 个文件` : meta.label)}
+          </h2>
         </div>
-      ))}
-      {hiddenCount > 0 && (
-        <div className="text-xs text-[color:var(--text-muted)]">还有 {hiddenCount} 个文件</div>
-      )}
-    </div>
+        <button className="icon-button clipboard-detail-close" title="关闭详情" onClick={onClose}>
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+
+      <div className="clipboard-detail-meta">
+        <div><span>创建时间</span><strong>{formatClipboardTime(item.createdAt, true)}</strong></div>
+        <div><span>最近使用</span><strong>{formatClipboardTime(item.updatedAt, true)}</strong></div>
+      </div>
+
+      <div className="clipboard-detail-actions">
+        <button className="toolbar-button-primary" onClick={onCopy}><ClipboardCopy className="h-4 w-4" />复制</button>
+        <button className="toolbar-button" onClick={onFavorite}>
+          <Star className={`h-4 w-4 ${item.favorite ? 'fill-current tone-warning' : ''}`} />
+          {item.favorite ? '取消收藏' : '收藏'}
+        </button>
+        {kind === 'url' && (
+          <button className="toolbar-button" onClick={onOpenLink}><ExternalLink className="h-4 w-4" />打开链接</button>
+        )}
+        {item.type === 'image' && (
+          <button className="toolbar-button" onClick={onSaveImage}><Save className="h-4 w-4" />保存图片</button>
+        )}
+        {(item.type === 'file' || item.type === 'richText') && (
+          <button className="toolbar-button" onClick={onCopyText}><Copy className="h-4 w-4" />复制纯文本</button>
+        )}
+        <button className="toolbar-button-danger" onClick={onDelete}><Trash2 className="h-4 w-4" />删除</button>
+      </div>
+
+      <div className="clipboard-detail-content">
+        {item.type === 'image' && (
+          <div className="clipboard-image-stage">
+            {imageData || item.thumbnailDataUrl ? (
+              <img src={imageData ?? item.thumbnailDataUrl} alt="剪贴板图片预览" draggable={false} />
+            ) : (
+              <div className="empty-state flex-col gap-2">
+                <ImageIcon className="h-8 w-8" />
+                <span>图片文件已失效</span>
+              </div>
+            )}
+            {item.originalTooLarge && <div className="alert-surface alert-warning">原图过大，当前历史保存并复制的是压缩版本。</div>}
+          </div>
+        )}
+
+        {item.type === 'file' && (
+          <div className="clipboard-file-detail-list">
+            {item.files.map((file) => (
+              <div key={file.path} className="clipboard-file-detail-row">
+                <FileText className="h-4 w-4 shrink-0 tone-info" />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-medium">{file.name || file.path}</div>
+                  <div className="mt-1 break-all text-xs muted">{file.path}</div>
+                </div>
+                <button
+                  className="icon-button"
+                  title={file.exists ? '在资源管理器中定位' : '文件已失效'}
+                  disabled={!file.exists}
+                  onClick={() => onShowFile(file.path)}
+                >
+                  <FolderOpen className="h-4 w-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {item.type === 'richText' && (
+          <>
+            <div className="segmented-control w-fit">
+              <button className={`segmented-item ${richMode === 'preview' ? 'segmented-item-active' : ''}`} onClick={() => setRichMode('preview')}>可读预览</button>
+              <button className={`segmented-item ${richMode === 'plain' ? 'segmented-item-active' : ''}`} onClick={() => setRichMode('plain')}>纯文本</button>
+            </div>
+            <div className={`clipboard-full-text ${richMode === 'preview' ? 'clipboard-rich-preview' : ''}`}>
+              {getPreviewText(item.content)}
+            </div>
+          </>
+        )}
+
+        {item.type === 'text' && (
+          <>
+            {kind === 'url' && domain && (
+              <div className="clipboard-link-summary">
+                <ExternalLink className="h-4 w-4 tone-info" />
+                <div className="min-w-0">
+                  <div className="text-sm font-medium">{domain}</div>
+                  <div className="mt-1 break-all text-xs muted">{item.content.trim()}</div>
+                </div>
+              </div>
+            )}
+            <div className="clipboard-full-text">{getPreviewText(item.content)}</div>
+          </>
+        )}
+      </div>
+    </aside>
   )
 }
 
@@ -175,131 +305,164 @@ export function ClipboardPage(): JSX.Element {
   const keyword = useClipboardStore((state) => state.keyword)
   const loading = useClipboardStore((state) => state.loading)
   const setKeyword = useClipboardStore((state) => state.setKeyword)
-  const getFilteredList = useClipboardStore((state) => state.getFilteredList)
   const removeItem = useClipboardStore((state) => state.removeItem)
+  const restoreItem = useClipboardStore((state) => state.restoreItem)
   const clearList = useClipboardStore((state) => state.clearList)
   const toggleFavorite = useClipboardStore((state) => state.toggleFavorite)
   const copyItem = useClipboardStore((state) => state.copyItem)
   const init = useClipboardStore((state) => state.init)
 
   const [showConfirm, setShowConfirm] = useState(false)
-  const [copiedId, setCopiedId] = useState<string | null>(null)
   const [filter, setFilter] = useState<ClipboardFilter>('all')
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [expandedIds, setExpandedIds] = useState<string[]>([])
-  const [copyMessage, setCopyMessage] = useState<string | null>(null)
+  const [detailDismissed, setDetailDismissed] = useState(false)
+  const [feedback, setFeedback] = useState<FeedbackState | null>(null)
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
+  const searchRef = useRef<HTMLInputElement>(null)
+  const feedbackTimerRef = useRef<number | null>(null)
 
-  // 进入页面时获取历史并监听变化
+  useEffect(() => init(), [init])
+
   useEffect(() => {
-    return init()
-  }, [init])
+    const closeMenu = (): void => setContextMenu(null)
+    window.addEventListener('click', closeMenu)
+    window.addEventListener('blur', closeMenu)
+    return () => {
+      window.removeEventListener('click', closeMenu)
+      window.removeEventListener('blur', closeMenu)
+      if (feedbackTimerRef.current) window.clearTimeout(feedbackTimerRef.current)
+    }
+  }, [])
 
-  const baseList = getFilteredList()
-  const filteredList = baseList.filter((item) => {
-    if (filter === 'all') return true
-    if (filter === 'favorite') return item.favorite
-    return item.type === filter
-  })
-  const activeSelectedId = filteredList.some((item) => item.id === selectedId)
-    ? selectedId
-    : filteredList[0]?.id ?? null
+  const filteredList = filterClipboardItems(list, keyword, filter)
+  const selectedItem = filteredList.find((item) => item.id === selectedId) ?? filteredList[0] ?? null
+  const favoriteCount = list.filter((item) => item.favorite).length
 
-  // 复制到剪贴板
+  const showFeedback = (next: FeedbackState, duration = 3500): void => {
+    if (feedbackTimerRef.current) window.clearTimeout(feedbackTimerRef.current)
+    setFeedback(next)
+    feedbackTimerRef.current = window.setTimeout(() => setFeedback(null), duration)
+  }
+
   const handleCopy = async (item: ClipboardItem): Promise<void> => {
     const result = await copyItem(item.id)
-    setCopyMessage(result.message ?? (result.success ? '已复制到剪贴板' : '复制失败'))
-    window.setTimeout(() => setCopyMessage(null), 2200)
-    if (!result.success) return
-    setSelectedId(item.id)
-    setCopiedId(item.id)
-    window.setTimeout(() => setCopiedId(null), 1500)
+    showFeedback({
+      message: result.message ?? (result.success ? '已复制到剪贴板' : '复制失败'),
+      tone: result.success ? 'success' : 'danger'
+    })
+    if (result.success) setSelectedId(item.id)
   }
 
-  // 清空确认
-  const handleClearConfirm = (): void => {
-    clearList(true)
+  const handleCopyText = async (item: ClipboardItem): Promise<void> => {
+    const result = await window.electronAPI.clipboard.copyItemText(item.id)
+    showFeedback({ message: result.message ?? '复制失败', tone: result.success ? 'success' : 'danger' })
+  }
+
+  const handleDelete = async (item: ClipboardItem): Promise<void> => {
+    const result = await removeItem(item.id)
+    showFeedback({
+      message: result.message,
+      tone: result.success ? 'neutral' : 'danger',
+      undoToken: result.undoToken
+    }, result.undoToken ? 7000 : 3500)
+  }
+
+  const handleUndo = async (): Promise<void> => {
+    if (!feedback?.undoToken) return
+    const result = await restoreItem(feedback.undoToken)
+    showFeedback({ message: result.message, tone: result.success ? 'success' : 'danger' })
+  }
+
+  const handleClearConfirm = async (): Promise<void> => {
+    const removedCount = list.filter((item) => !item.favorite).length
+    await clearList(true)
     setShowConfirm(false)
+    showFeedback({ message: `已清理 ${removedCount} 条非收藏记录`, tone: 'success' })
   }
 
-  // 展开或收起长内容
-  const toggleExpanded = (id: string): void => {
-    setExpandedIds((current) => (
-      current.includes(id)
-        ? current.filter((itemId) => itemId !== id)
-        : [...current, id]
-    ))
+  const handleOpenLink = async (item: ClipboardItem): Promise<void> => {
+    const result = await window.electronAPI.clipboard.openLink(item.id)
+    showFeedback({ message: result.message, tone: result.success ? 'success' : 'danger' })
   }
 
-  // 键盘操作列表
+  const handleSaveImage = async (item: ClipboardItem): Promise<void> => {
+    const result = await window.electronAPI.clipboard.saveImage(item.id)
+    showFeedback({ message: result.message ?? '图片保存失败', tone: result.success ? 'success' : result.status === 'cancelled' ? 'neutral' : 'danger' })
+  }
+
+  const handleShowFile = async (item: ClipboardFileItem, path: string): Promise<void> => {
+    const result = await window.electronAPI.clipboard.showFile(item.id, path)
+    showFeedback({ message: result.message, tone: result.success ? 'success' : 'danger' })
+  }
+
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
-    if (filteredList.length === 0) return
-
-    const currentIndex = Math.max(
-      filteredList.findIndex((item) => item.id === activeSelectedId),
-      0
-    )
-
-    if (event.key === 'ArrowDown') {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'f') {
       event.preventDefault()
-      const nextIndex = Math.min(currentIndex + 1, filteredList.length - 1)
+      searchRef.current?.focus()
+      searchRef.current?.select()
+      return
+    }
+
+    const target = event.target as HTMLElement
+    if (['INPUT', 'TEXTAREA', 'BUTTON'].includes(target.tagName) || filteredList.length === 0) return
+    const currentIndex = Math.max(filteredList.findIndex((item) => item.id === selectedItem?.id), 0)
+
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault()
+      const offset = event.key === 'ArrowDown' ? 1 : -1
+      const nextIndex = Math.min(Math.max(currentIndex + offset, 0), filteredList.length - 1)
       setSelectedId(filteredList[nextIndex].id)
-      return
-    }
-
-    if (event.key === 'ArrowUp') {
+      setDetailDismissed(false)
+    } else if (event.key === 'Enter' && selectedItem) {
       event.preventDefault()
-      const nextIndex = Math.max(currentIndex - 1, 0)
-      setSelectedId(filteredList[nextIndex].id)
-      return
-    }
-
-    if (event.key === 'Enter') {
+      void handleCopy(selectedItem)
+    } else if (event.key === 'Delete' && selectedItem) {
       event.preventDefault()
-      const target = filteredList[currentIndex]
-      void handleCopy(target)
-      return
-    }
-
-    if (event.key === 'Delete') {
-      event.preventDefault()
-      removeItem(filteredList[currentIndex].id)
+      void handleDelete(selectedItem)
+    } else if (event.key === 'Escape') {
+      setContextMenu(null)
+      setDetailDismissed(true)
     }
   }
 
-  const favoriteCount = list.filter((item) => item.favorite).length
+  const openContextMenu = (event: MouseEvent<HTMLDivElement>, item: ClipboardItem): void => {
+    event.preventDefault()
+    setSelectedId(item.id)
+    setDetailDismissed(false)
+    setContextMenu({
+      item,
+      x: Math.min(event.clientX, window.innerWidth - 208),
+      y: Math.min(event.clientY, window.innerHeight - 280)
+    })
+  }
+
   const emptyText = keyword
     ? '没有找到匹配的记录'
     : filter === 'all'
       ? '暂无剪贴板历史'
-      : '当前筛选没有记录，可以切回“全部”查看其他类型'
+      : '当前筛选没有记录'
+  const contextFirstExistingFile = contextMenu?.item.type === 'file'
+    ? contextMenu.item.files.find((file) => file.exists)
+    : undefined
 
-  if (loading) {
-    return (
-      <div className="empty-state">
-        加载中...
-      </div>
-    )
-  }
+  if (loading) return <div className="empty-state">加载中...</div>
 
   return (
-    <div
-      className="tool-page outline-none"
-      tabIndex={0}
-      onKeyDown={handleKeyDown}
-    >
-      <div className="toolbar-surface tab-toolbar">
+    <div className="tool-page outline-none" tabIndex={0} onKeyDown={handleKeyDown}>
+      <div className="toolbar-surface tab-toolbar clipboard-toolbar">
         <div className="tab-toolbar-main">
-          <div className="relative min-w-64 flex-1">
+          <div className="relative min-w-56 flex-1">
             <ListFilter className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[color:var(--text-muted)]" />
             <input
+              ref={searchRef}
               type="text"
-              placeholder="搜索剪贴板历史..."
+              placeholder="搜索内容、文件名或路径..."
               value={keyword}
-              onChange={(e) => setKeyword(e.target.value)}
+              onChange={(event) => setKeyword(event.target.value)}
               className="field-input pl-10 pr-4 text-sm"
             />
           </div>
-          <div className="segmented-control flex-wrap">
+          <div className="segmented-control clipboard-filter-control">
             {filterOptions.map((option) => (
               <button
                 key={option.key}
@@ -311,178 +474,109 @@ export function ClipboardPage(): JSX.Element {
             ))}
           </div>
         </div>
-
         <div className="panel-actions">
-          <span className="chip whitespace-nowrap text-sm">
-            {filteredList.length} / {list.length} 条
-            {favoriteCount > 0 && ` · ${favoriteCount} 收藏`}
-          </span>
-          {copyMessage && (
-            <span className="chip whitespace-nowrap text-sm tone-success">
-              {copyMessage}
-            </span>
-          )}
-          <button
-            className="toolbar-button-danger"
-            onClick={() => setShowConfirm(true)}
-          >
-            <Eraser className="h-4 w-4" />
-            清空非收藏
+          <span className="chip whitespace-nowrap">{filteredList.length} / {list.length} 条{favoriteCount > 0 && ` · ${favoriteCount} 收藏`}</span>
+          <button className="toolbar-button-danger" onClick={() => setShowConfirm(true)} disabled={!list.some((item) => !item.favorite)}>
+            <Eraser className="h-4 w-4" />清空非收藏
           </button>
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-auto pr-1">
-        {filteredList.length === 0 ? (
-          <div className="empty-state flex-col gap-2 rounded-[8px] border border-dashed border-[var(--glass-border)] bg-[var(--glass-muted)] text-sm">
-            <div>{emptyText}</div>
-            <div className="text-xs text-[color:var(--text-muted)]">复制文本、图片或文件后会自动出现在这里</div>
-          </div>
-        ) : (
-          <div className="clipboard-card-list">
-            {filteredList.map((item: ClipboardItem) => {
-              const meta = getItemMeta(item)
-              const expanded = expandedIds.includes(item.id)
-              const canExpand = item.content.length > 280 || item.content.split(/\r?\n/).length > 4
-              const selected = item.id === activeSelectedId
-              const textKind = item.type === 'text' ? getClipboardKind(item.content) : null
-
-              return (
-                <div
+      <div className={`clipboard-workspace ${selectedItem && !detailDismissed ? 'clipboard-detail-open' : ''}`}>
+        <div className="clipboard-list-panel" role="listbox" aria-label="剪贴板历史">
+          {filteredList.length === 0 ? (
+            <div className="empty-state clipboard-empty-state">
+              <ClipboardCopy className="h-8 w-8" />
+              <div className="font-medium">{emptyText}</div>
+              <div className="text-xs">支持文本、图片、文件和富文本，复制后会自动记录</div>
+            </div>
+          ) : (
+            <div className="clipboard-card-list">
+              {filteredList.map((item) => (
+                <ClipboardCard
                   key={item.id}
-                  className={`interactive-row clipboard-history-card group ${
-                    selected
-                      ? 'selected-surface'
-                      : ''
-                  }`}
-                  onClick={() => setSelectedId(item.id)}
-                >
-                  <div className="flex items-start justify-between gap-6">
-                    <div className="flex min-w-0 flex-1 flex-col gap-4 overflow-hidden">
-                      <div className="flex flex-wrap items-center gap-2.5">
-                        <span className={`meta-badge meta-badge-${meta.tone}`}>
-                          {meta.label}
-                        </span>
-                        <span className="text-xs text-[color:var(--text-muted)]">{formatTime(item.updatedAt)}</span>
-                        <span className="text-xs text-[color:var(--text-muted)]">{getItemStats(item)}</span>
-                        {item.type === 'image' && item.originalTooLarge && (
-                          <span className="text-xs tone-warning">已保存压缩版</span>
-                        )}
-                        {item.favorite && (
-                          <span className="inline-flex items-center gap-1 text-xs tone-warning">
-                            <Star className="h-3 w-3 fill-current" />
-                            已收藏
-                          </span>
-                        )}
-                      </div>
+                  item={item}
+                  selected={selectedItem?.id === item.id}
+                  onSelect={() => {
+                    setSelectedId(item.id)
+                    setDetailDismissed(false)
+                  }}
+                  onCopy={() => void handleCopy(item)}
+                  onFavorite={() => void toggleFavorite(item.id)}
+                  onContextMenu={(event) => openContextMenu(event, item)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
 
-                      <div
-                        className={`content-block overflow-hidden whitespace-pre-wrap break-all font-mono text-sm leading-6 text-[color:var(--text-secondary)] ${
-                          expanded ? 'max-h-none' : 'max-h-24'
-                        }`}
-                      >
-                        {getPreviewText(item.content)}
-                      </div>
-
-                      <div className="flex flex-col gap-3">
-                        {item.type === 'image' && <ImagePreview item={item} />}
-                        {item.type === 'file' && <FilePreview item={item} />}
-                      </div>
-
-                      {canExpand && (
-                        <button
-                          className="w-fit rounded-[6px] px-2 py-1 text-xs text-[color:var(--text-muted)] hover:bg-[var(--glass-surface-hover)] hover:text-[color:var(--text-primary)]"
-                          onClick={(event) => {
-                            event.stopPropagation()
-                            toggleExpanded(item.id)
-                          }}
-                        >
-                          {expanded ? '收起' : '展开'}
-                        </button>
-                      )}
-                    </div>
-
-                    <div className="work-row-actions shrink-0 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
-                      {textKind === 'url' && (
-                        <button
-                          className="icon-button icon-button-accent"
-                          onClick={(event) => {
-                            event.stopPropagation()
-                            void handleCopy(item)
-                          }}
-                          title="复制链接"
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                        </button>
-                      )}
-                      <TypeIcon item={item} />
-                      <button
-                        className={`icon-button icon-button-warning ${
-                          item.favorite
-                            ? 'tone-warning'
-                            : ''
-                        }`}
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          toggleFavorite(item.id)
-                        }}
-                        title={item.favorite ? '取消收藏' : '收藏'}
-                      >
-                        <Star className={`h-4 w-4 ${item.favorite ? 'fill-current' : ''}`} />
-                      </button>
-                      <button
-                        className={`icon-button icon-button-success ${
-                          copiedId === item.id
-                            ? 'tone-success'
-                            : ''
-                        }`}
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          void handleCopy(item)
-                        }}
-                        title="复制"
-                      >
-                        <ClipboardCopy className="h-4 w-4" />
-                      </button>
-                      <button
-                        className="icon-button icon-button-danger"
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          removeItem(item.id)
-                        }}
-                        title="删除"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
+        {selectedItem ? (
+          <ClipboardDetail
+            key={selectedItem.id}
+            item={selectedItem}
+            onClose={() => setDetailDismissed(true)}
+            onCopy={() => void handleCopy(selectedItem)}
+            onCopyText={() => void handleCopyText(selectedItem)}
+            onFavorite={() => void toggleFavorite(selectedItem.id)}
+            onDelete={() => void handleDelete(selectedItem)}
+            onOpenLink={() => void handleOpenLink(selectedItem)}
+            onSaveImage={() => void handleSaveImage(selectedItem)}
+            onShowFile={(path) => selectedItem.type === 'file' && void handleShowFile(selectedItem, path)}
+          />
+        ) : (
+          <aside className="glass-panel clipboard-detail-panel clipboard-detail-placeholder">
+            <MoreHorizontal className="h-7 w-7" />
+            <span>选择一条记录查看完整内容</span>
+          </aside>
         )}
       </div>
+
+      {contextMenu && (
+        <div
+          className="clipboard-context-menu"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <button onClick={() => { setContextMenu(null); void handleCopy(contextMenu.item) }}><ClipboardCopy className="h-4 w-4" />复制</button>
+          <button onClick={() => { setContextMenu(null); void toggleFavorite(contextMenu.item.id) }}>
+            <Star className="h-4 w-4" />{contextMenu.item.favorite ? '取消收藏' : '收藏'}
+          </button>
+          {contextMenu.item.type === 'text' && getClipboardKind(contextMenu.item.content) === 'url' && (
+            <button onClick={() => { setContextMenu(null); void handleOpenLink(contextMenu.item) }}><ExternalLink className="h-4 w-4" />打开链接</button>
+          )}
+          {contextMenu.item.type === 'image' && (
+            <button onClick={() => { setContextMenu(null); void handleSaveImage(contextMenu.item) }}><Save className="h-4 w-4" />保存图片</button>
+          )}
+          {contextMenu.item.type === 'file' && contextFirstExistingFile && (
+            <button onClick={() => { setContextMenu(null); void handleShowFile(contextMenu.item as ClipboardFileItem, contextFirstExistingFile.path) }}>
+              <FolderOpen className="h-4 w-4" />定位第一个文件
+            </button>
+          )}
+          {(contextMenu.item.type === 'file' || contextMenu.item.type === 'richText') && (
+            <button onClick={() => { setContextMenu(null); void handleCopyText(contextMenu.item) }}><Copy className="h-4 w-4" />复制纯文本</button>
+          )}
+          <div className="clipboard-context-separator" />
+          <button className="tone-danger" onClick={() => { setContextMenu(null); void handleDelete(contextMenu.item) }}><Trash2 className="h-4 w-4" />删除</button>
+        </div>
+      )}
+
+      {feedback && (
+        <div className={`clipboard-feedback clipboard-feedback-${feedback.tone}`}>
+          <span>{feedback.message}</span>
+          {feedback.undoToken && <button onClick={() => void handleUndo()}>撤销</button>}
+        </div>
+      )}
 
       {showConfirm && (
         <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="modal-surface w-full max-w-96 rounded-[8px] p-6">
-            <h3 className="text-lg font-semibold">确认清空</h3>
+            <h3 className="text-lg font-semibold">确认清空非收藏记录</h3>
             <p className="mt-2 text-sm text-[color:var(--text-muted)]">
-              此操作将清空所有非收藏剪贴板历史，收藏内容会保留。
+              将清理 {list.filter((item) => !item.favorite).length} 条记录，收藏内容会保留。此操作无法撤销。
             </p>
             <div className="mt-6 flex justify-end gap-3">
-              <button
-                className="toolbar-button"
-                onClick={() => setShowConfirm(false)}
-              >
-                取消
-              </button>
-              <button
-                className="toolbar-button-danger"
-                onClick={handleClearConfirm}
-              >
-                确认清空
-              </button>
+              <button className="toolbar-button" onClick={() => setShowConfirm(false)}>取消</button>
+              <button className="toolbar-button-danger" onClick={() => void handleClearConfirm()}>确认清空</button>
             </div>
           </div>
         </div>

@@ -48,10 +48,22 @@ const electronAPI: ElectronAPI = {
     clearHistory: (keepFavorites = true) => ipcRenderer.invoke(IPC_CHANNELS.CLIPBOARD_CLEAR_HISTORY, { keepFavorites }),
     // 删除单条记录
     removeItem: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.CLIPBOARD_REMOVE_ITEM, { id }),
+    // 撤销删除单条记录
+    restoreItem: (undoToken: string) => ipcRenderer.invoke(IPC_CHANNELS.CLIPBOARD_RESTORE_ITEM, { undoToken }),
     // 切换收藏状态
     toggleFavorite: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.CLIPBOARD_TOGGLE_FAVORITE, { id }),
     // 复制历史项到系统剪贴板
     copyItem: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.CLIPBOARD_COPY_ITEM, { id }),
+    // 以纯文本复制历史项
+    copyItemText: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.CLIPBOARD_COPY_ITEM_TEXT, { id }),
+    // 打开历史中的链接
+    openLink: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.CLIPBOARD_OPEN_LINK, { id }),
+    // 在资源管理器中定位文件
+    showFile: (id: string, path: string) => ipcRenderer.invoke(IPC_CHANNELS.CLIPBOARD_SHOW_FILE, { id, path }),
+    // 保存历史中的图片
+    saveImage: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.CLIPBOARD_SAVE_IMAGE, { id }),
+    // 读取历史图片用于详情预览
+    getImageData: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.CLIPBOARD_GET_IMAGE_DATA, { id }),
     // 监听历史记录变化
     onHistoryChanged: (callback: (history: ClipboardItem[]) => void) => {
       const listener = (_event: Electron.IpcRendererEvent, history: ClipboardItem[]) => {
