@@ -4,20 +4,6 @@ export const APP_NAME = 'PawKit'
 // 应用版本
 export const APP_VERSION = '0.0.1'
 
-// 默认窗口尺寸
-export const DEFAULT_WINDOW_WIDTH = 960
-export const DEFAULT_WINDOW_HEIGHT = 680
-export const MIN_WINDOW_WIDTH = 800
-export const MIN_WINDOW_HEIGHT = 560
-
-// 默认快捷键
-export const DEFAULT_SHORTCUTS = {
-  toggleWindow: 'Alt+Space',
-  clipboard: 'Alt+V',
-  screenshot: 'Alt+A',
-  colorPicker: 'Alt+C'
-} as const
-
 // 工具 ID
 export const TOOL_IDS = {
   HOME: 'home',

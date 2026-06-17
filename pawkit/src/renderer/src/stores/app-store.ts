@@ -1,21 +1,11 @@
 import { create } from 'zustand'
 import { AppStartPage, AppTheme, ToolUsageRecord } from '../../../shared/types'
 import { TOOL_IDS, ToolId } from '../../../shared/constants'
-import { resolveStartTool, updateToolUsage } from '../utils/tool-preferences'
+import { manageableToolIds, defaultFavoriteTools, resolveStartTool, updateToolUsage } from '../utils/tool-preferences'
 import { trimQrCodeHistory } from '../utils/qrcode'
 
-const defaultEnabledTools = [
-  TOOL_IDS.CLIPBOARD,
-  TOOL_IDS.COLOR_PICKER,
-  TOOL_IDS.JSON_TOOL,
-  TOOL_IDS.TIMESTAMP_TOOL,
-  TOOL_IDS.SCREENSHOT,
-  TOOL_IDS.BASE64_TOOL,
-  TOOL_IDS.QRCODE
-]
-
-const defaultToolOrder = [...defaultEnabledTools]
-const defaultFavoriteTools = [TOOL_IDS.CLIPBOARD, TOOL_IDS.JSON_TOOL, TOOL_IDS.SCREENSHOT]
+const defaultEnabledTools = manageableToolIds
+const defaultToolOrder = [...manageableToolIds]
 const nonUsageTools: ToolId[] = [TOOL_IDS.HOME, TOOL_IDS.MANAGEMENT, TOOL_IDS.SETTINGS]
 
 function shouldRecordToolUsage(tool: ToolId): boolean {

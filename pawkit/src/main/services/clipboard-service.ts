@@ -1,4 +1,4 @@
-import { app, BrowserWindow, clipboard, dialog, nativeImage, shell } from 'electron'
+import { app, BrowserWindow, clipboard, nativeImage, shell } from 'electron'
 import type { NativeImage } from 'electron'
 import { spawn } from 'child_process'
 import { createHash } from 'crypto'
@@ -22,6 +22,7 @@ import { IPC_CHANNELS } from '../../shared/ipc-channels'
 import { getSetting, setSetting } from '../store'
 import { CLIPBOARD_CONFIG } from './clipboard-config'
 import { logger } from '../logger'
+import { showSaveDialogSafe } from '../dialog-utils'
 
 type ClipboardSnapshot =
   | {
@@ -749,15 +750,11 @@ export async function saveClipboardImage(id: string): Promise<ImageSaveResult> {
       return { success: false, status: 'error', message: '图片文件已失效' }
     }
 
-    const ownerWindow = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
-    const options = {
+    const result = await showSaveDialogSafe({
       title: '保存剪贴板图片',
       defaultPath: `clipboard-${Date.now()}.png`,
       filters: [{ name: 'PNG 图片', extensions: ['png'] }]
-    }
-    const result = ownerWindow
-      ? await dialog.showSaveDialog(ownerWindow, options)
-      : await dialog.showSaveDialog(options)
+    })
 
     if (result.canceled || !result.filePath) {
       return { success: false, status: 'cancelled', message: '保存已取消' }

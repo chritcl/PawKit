@@ -11,6 +11,8 @@ export const manageableToolIds: ToolId[] = [
   TOOL_IDS.QRCODE
 ]
 
+export const defaultFavoriteTools: ToolId[] = [TOOL_IDS.CLIPBOARD, TOOL_IDS.JSON_TOOL, TOOL_IDS.SCREENSHOT]
+
 const alwaysVisibleToolIds: ToolId[] = [TOOL_IDS.HOME, TOOL_IDS.MANAGEMENT, TOOL_IDS.SETTINGS]
 
 // 规整工具排序，去重、过滤未知工具，并补齐缺失工具

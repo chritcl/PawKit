@@ -1,4 +1,4 @@
-import { desktopCapturer, clipboard, nativeImage, dialog, BrowserWindow, screen, ipcMain } from 'electron'
+import { desktopCapturer, clipboard, nativeImage, BrowserWindow, screen, ipcMain } from 'electron'
 import type { Display, IpcMainEvent } from 'electron'
 import { is } from '@electron-toolkit/utils'
 import { writeFile } from 'fs/promises'
@@ -12,6 +12,7 @@ import {
 } from '../shared/types'
 import { IPC_CHANNELS } from '../shared/ipc-channels'
 import { logger } from './logger'
+import { showSaveDialogSafe } from './dialog-utils'
 
 // 当前取色覆盖层窗口
 let activeColorPickerWindow: BrowserWindow | null = null
@@ -31,15 +32,11 @@ export function copyImageToClipboard(dataUrl: string): boolean {
 // 保存图片到本地
 export async function saveImage(dataUrl: string): Promise<ImageSaveResult> {
   try {
-    const window = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
-    const options = {
+    const result = await showSaveDialogSafe({
       title: '保存截图',
       defaultPath: `screenshot-${Date.now()}.png`,
       filters: [{ name: 'PNG 图片', extensions: ['png'] }]
-    }
-    const result = window
-      ? await dialog.showSaveDialog(window, options)
-      : await dialog.showSaveDialog(options)
+    })
 
     if (result.canceled || !result.filePath) {
       return { success: false, status: 'cancelled', message: '保存已取消' }

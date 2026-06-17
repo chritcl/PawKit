@@ -10,6 +10,16 @@ const annotation: CaptureAnnotation = {
   strokeWidth: 4
 }
 
+const textAnnotation: CaptureAnnotation = {
+  id: 'text1',
+  type: 'text',
+  rect: { x: 20, y: 30, width: 160, height: 38 },
+  text: '说明',
+  color: '#ff4d4f',
+  fontSize: 20,
+  lineHeight: 28
+}
+
 const stepAnnotation: CaptureAnnotation = {
   id: 'step1',
   type: 'step',
@@ -54,15 +64,6 @@ describe('全新截图状态机', () => {
     expect(redone.annotations).toEqual([annotation])
   })
 
-  it('预览移动不写入历史', () => {
-    const state = captureEditorReducer(createInitialCaptureEditorState(), {
-      type: 'preview-annotations',
-      annotations: [annotation]
-    })
-    expect(state.annotations).toEqual([annotation])
-    expect(state.past).toEqual([])
-  })
-
   it('切换工具时取消选中但不清除标注', () => {
     const state = captureEditorReducer({
       ...createInitialCaptureEditorState(),
@@ -77,14 +78,56 @@ describe('全新截图状态机', () => {
     expect(state.tool).toBe('ellipse')
   })
 
-  it('新建标注后自动选中', () => {
+  it('新建标注后不自动选中', () => {
     const state = captureEditorReducer(createInitialCaptureEditorState(), {
       type: 'commit-annotations',
-      annotations: [annotation],
-      selectedId: 'rect'
+      annotations: [annotation]
     })
-    expect(state.selectedId).toBe('rect')
+    expect(state.selectedId).toBeNull()
     expect(state.annotations).toEqual([annotation])
+  })
+
+  it('支持选中标注', () => {
+    const state = captureEditorReducer({
+      ...createInitialCaptureEditorState(),
+      annotations: [textAnnotation]
+    }, {
+      type: 'set-selected',
+      id: 'text1'
+    })
+    expect(state.selectedId).toBe('text1')
+  })
+
+  it('预览标注移动时不写入历史', () => {
+    const state = captureEditorReducer({
+      ...createInitialCaptureEditorState(),
+      annotations: [textAnnotation]
+    }, {
+      type: 'preview-annotations',
+      annotations: [{ ...textAnnotation, rect: { ...textAnnotation.rect, x: 40 } }]
+    })
+    expect(state.annotations[0]).toMatchObject({ rect: { x: 40 } })
+    expect(state.past).toEqual([])
+  })
+
+  it('更新选中文字样式时写入历史并保持选中', () => {
+    const state = captureEditorReducer({
+      ...createInitialCaptureEditorState(),
+      annotations: [textAnnotation],
+      selectedId: 'text1'
+    }, {
+      type: 'update-selected-style',
+      patch: { fontSize: 30, color: '#00ff00' }
+    })
+    const updated = state.annotations[0]
+    expect(updated.type).toBe('text')
+    if (updated.type === 'text') {
+      expect(updated.fontSize).toBe(30)
+      expect(updated.color).toBe('#00ff00')
+      expect(updated.lineHeight).toBe(42)
+    }
+    expect(state.past).toEqual([[textAnnotation]])
+    expect(state.selectedId).toBe('text1')
   })
 
   it('修改工具样式不影响其他工具', () => {
@@ -96,32 +139,6 @@ describe('全新截图状态机', () => {
     expect(state.toolStyles.rect.color).toBe('#00ff00')
     expect(state.toolStyles.ellipse.color).toBe('#ff4d4f')
     expect(state.toolStyles.arrow.color).toBe('#ff4d4f')
-  })
-
-  it('修改选中标注样式写入历史', () => {
-    const state = captureEditorReducer({
-      ...createInitialCaptureEditorState(),
-      annotations: [annotation],
-      selectedId: 'rect'
-    }, {
-      type: 'update-selected-style',
-      patch: { color: '#0000ff' }
-    })
-    expect((state.annotations[0] as { color: string }).color).toBe('#0000ff')
-    expect(state.past.length).toBe(1)
-    expect(state.future).toEqual([])
-  })
-
-  it('未选中时修改样式不影响标注', () => {
-    const state = captureEditorReducer({
-      ...createInitialCaptureEditorState(),
-      annotations: [annotation],
-      selectedId: null
-    }, {
-      type: 'update-selected-style',
-      patch: { color: '#0000ff' }
-    })
-    expect((state.annotations[0] as { color: string }).color).toBe('#ff0000')
   })
 
   it('序号计数器递增和重置', () => {
@@ -164,5 +181,45 @@ describe('全新截图状态机', () => {
     const undone = captureEditorReducer(state, { type: 'undo' })
     expect(undone.annotations).toHaveLength(1)
     expect(undone.annotations[0].type).toBe('step')
+  })
+
+  it('撤销与重做支持文字和其他标注类型', () => {
+    const allAnnotations: CaptureAnnotation[] = [
+      textAnnotation,
+      annotation,
+      {
+        id: 'arrow1',
+        type: 'arrow',
+        points: [{ x: 10, y: 10 }, { x: 100, y: 100 }],
+        color: '#ff4d4f',
+        strokeWidth: 4,
+        arrowSize: 16
+      },
+      {
+        id: 'pen1',
+        type: 'pen',
+        points: [{ x: 10, y: 10 }, { x: 20, y: 20 }],
+        color: '#ff4d4f',
+        strokeWidth: 4
+      },
+      mosaicPaintAnnotation,
+      stepAnnotation
+    ]
+    const committed = captureEditorReducer(createInitialCaptureEditorState(), {
+      type: 'commit-annotations',
+      annotations: allAnnotations
+    })
+    const undone = captureEditorReducer(committed, { type: 'undo' })
+    const redone = captureEditorReducer(undone, { type: 'redo' })
+
+    expect(undone.annotations).toEqual([])
+    expect(redone.annotations.map((item) => item.type)).toEqual([
+      'text',
+      'rect',
+      'arrow',
+      'pen',
+      'mosaic-paint',
+      'step'
+    ])
   })
 })

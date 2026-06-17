@@ -100,13 +100,6 @@ export interface ClipboardActionResult {
   message: string
 }
 
-// 剪贴板存储结构
-export interface ClipboardStoreSchema {
-  clipboard: {
-    history: ClipboardItem[]
-  }
-}
-
 // 颜色 RGB
 export interface RGB {
   r: number

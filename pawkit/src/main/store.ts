@@ -1,9 +1,10 @@
 import Store from 'electron-store'
-import { BrowserWindow, dialog } from 'electron'
+import { BrowserWindow } from 'electron'
 import { writeFile } from 'fs/promises'
 import { AppSettings, AppTheme, WindowBounds } from '../shared/types'
 import { TOOL_IDS } from '../shared/constants'
 import { logger } from './logger'
+import { showSaveDialogSafe } from './dialog-utils'
 
 // 允许的设置 key 白名单
 const ALLOWED_KEYS = [
@@ -141,17 +142,11 @@ export function resetSettings(): boolean {
 
 // 导出配置到 JSON 文件
 export async function exportConfig(ownerWindow?: BrowserWindow | null): Promise<{ success: boolean; path?: string; message: string }> {
-  const result = ownerWindow && !ownerWindow.isDestroyed()
-    ? await dialog.showSaveDialog(ownerWindow, {
-      title: '导出 PawKit 配置',
-      defaultPath: `pawkit-config-${Date.now()}.json`,
-      filters: [{ name: 'JSON 文件', extensions: ['json'] }]
-    })
-    : await dialog.showSaveDialog({
-      title: '导出 PawKit 配置',
-      defaultPath: `pawkit-config-${Date.now()}.json`,
-      filters: [{ name: 'JSON 文件', extensions: ['json'] }]
-    })
+  const result = await showSaveDialogSafe({
+    title: '导出 PawKit 配置',
+    defaultPath: `pawkit-config-${Date.now()}.json`,
+    filters: [{ name: 'JSON 文件', extensions: ['json'] }]
+  }, ownerWindow)
 
   if (result.canceled || !result.filePath) {
     return { success: false, message: '导出已取消' }

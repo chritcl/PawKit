@@ -5,22 +5,19 @@ import type {
   LineAnnotation,
   MosaicAnnotation,
   MosaicPaintAnnotation,
-  ResizeDirection,
-  ShapeAnnotation
+  ShapeAnnotation,
+  TextAnnotation,
+  TextStyle
 } from './types'
 import { containsPoint } from './geometry'
 
+export const TEXT_PADDING_X = 8
+export const TEXT_PADDING_Y = 5
+export const TEXT_MIN_WIDTH = 160
+
 export function getAnnotationBounds(annotation: CaptureAnnotation): CaptureRect {
   if (annotation.type === 'text') {
-    const lines = annotation.text.split('\n')
-    const maxLineLength = Math.max(...lines.map((l) => l.length), 1)
-    const lineHeight = annotation.fontSize * 1.4
-    return {
-      x: annotation.point.x,
-      y: annotation.point.y,
-      width: Math.max(30, maxLineLength * annotation.fontSize * 0.6),
-      height: Math.max(lineHeight, lines.length * lineHeight)
-    }
+    return annotation.rect
   }
   if (annotation.type === 'step') {
     return {
@@ -59,6 +56,83 @@ export function getAnnotationBounds(annotation: CaptureAnnotation): CaptureRect 
   }
 }
 
+export function getTextLineHeight(fontSize: number): number {
+  return Math.round(fontSize * 1.4)
+}
+
+export function getTextFont(style: Pick<TextStyle, 'fontSize' | 'bold'>): string {
+  const weight = style.bold ? '700' : '600'
+  return `${weight} ${style.fontSize}px "Microsoft YaHei UI", sans-serif`
+}
+
+export function normalizeTextValue(value: string): string {
+  return value.replace(/\r\n?/g, '\n')
+}
+
+export function measureTextValue(
+  value: string,
+  style: TextStyle,
+  context: CanvasRenderingContext2D | null = getMeasureContext()
+): { width: number; height: number; lineHeight: number } {
+  const text = normalizeTextValue(value)
+  const lines = text.split('\n')
+  const lineHeight = getTextLineHeight(style.fontSize)
+  const maxLineWidth = Math.max(...lines.map((line) => measureLineWidth(line, style, context)), 0)
+  return {
+    width: Math.max(TEXT_MIN_WIDTH, Math.ceil(maxLineWidth + TEXT_PADDING_X * 2)),
+    height: Math.max(lineHeight + TEXT_PADDING_Y * 2, Math.ceil(lines.length * lineHeight + TEXT_PADDING_Y * 2)),
+    lineHeight
+  }
+}
+
+export function getTextRect(
+  point: CapturePoint,
+  value: string,
+  style: TextStyle,
+  context?: CanvasRenderingContext2D | null
+): CaptureRect {
+  const size = measureTextValue(value, style, context)
+  return {
+    x: point.x,
+    y: point.y,
+    width: size.width,
+    height: size.height
+  }
+}
+
+export function createTextAnnotation({
+  id,
+  point,
+  value,
+  style
+}: {
+  id: string
+  point: CapturePoint
+  value: string
+  style: TextStyle
+}): TextAnnotation | null {
+  const text = normalizeTextValue(value)
+  if (text.trim().length === 0) return null
+  const size = measureTextValue(text, style)
+  return {
+    id,
+    type: 'text',
+    rect: {
+      x: point.x,
+      y: point.y,
+      width: size.width,
+      height: size.height
+    },
+    text,
+    color: style.color,
+    fontSize: style.fontSize,
+    lineHeight: size.lineHeight,
+    bold: style.bold,
+    bgColor: style.bgColor,
+    align: style.align
+  }
+}
+
 export function hitTestAnnotation(
   annotations: CaptureAnnotation[],
   point: CapturePoint,
@@ -88,8 +162,6 @@ export function moveAnnotation(
   delta: CapturePoint
 ): CaptureAnnotation {
   if (isLineAnnotation(annotation) || annotation.type === 'mosaic-paint') {
-    const key = 'points' in annotation ? 'points' : null
-    if (!key) return annotation
     return {
       ...annotation,
       points: (annotation as LineAnnotation | MosaicPaintAnnotation).points.map((point) => ({
@@ -98,7 +170,17 @@ export function moveAnnotation(
       }))
     }
   }
-  if (annotation.type === 'text' || annotation.type === 'step') {
+  if (annotation.type === 'text') {
+    return {
+      ...annotation,
+      rect: {
+        ...annotation.rect,
+        x: annotation.rect.x + delta.x,
+        y: annotation.rect.y + delta.y
+      }
+    }
+  }
+  if (annotation.type === 'step') {
     return {
       ...annotation,
       point: {
@@ -118,82 +200,65 @@ export function moveAnnotation(
   }
 }
 
-export function resizeAnnotation(
-  annotation: CaptureAnnotation,
-  direction: ResizeDirection,
-  delta: CapturePoint,
-  minSize = 6
-): CaptureAnnotation {
-  if (annotation.type !== 'rect' && annotation.type !== 'ellipse') return annotation
-  const rect = annotation.rect
-  let left = rect.x
-  let top = rect.y
-  let right = rect.x + rect.width
-  let bottom = rect.y + rect.height
-
-  if (direction.includes('left')) left = Math.min(left + delta.x, right - minSize)
-  if (direction.includes('right')) right = Math.max(right + delta.x, left + minSize)
-  if (direction.includes('top')) top = Math.min(top + delta.y, bottom - minSize)
-  if (direction.includes('bottom')) bottom = Math.max(bottom + delta.y, top + minSize)
-
-  return {
-    ...annotation,
-    rect: { x: left, y: top, width: right - left, height: bottom - top }
-  }
-}
-
-export function dragArrowEndpoint(
-  annotation: CaptureAnnotation,
-  endpointIndex: number,
-  point: CapturePoint
-): CaptureAnnotation {
-  if (annotation.type !== 'arrow' && annotation.type !== 'pen') return annotation
-  const points = [...annotation.points]
-  if (endpointIndex < 0 || endpointIndex >= points.length) return annotation
-  points[endpointIndex] = point
-  return { ...annotation, points }
-}
-
 export function updateAnnotationStyle(
   annotation: CaptureAnnotation,
   stylePatch: Record<string, unknown>
 ): CaptureAnnotation {
-  return { ...annotation, ...stylePatch } as CaptureAnnotation
+  if (annotation.type !== 'text') {
+    return { ...annotation, ...stylePatch } as CaptureAnnotation
+  }
+  const updated = { ...annotation, ...stylePatch } as TextAnnotation
+  const style = getTextStyleFromAnnotation(updated)
+  const size = measureTextValue(updated.text, style)
+  return {
+    ...updated,
+    rect: {
+      ...updated.rect,
+      width: size.width,
+      height: size.height
+    },
+    lineHeight: size.lineHeight
+  }
 }
 
-export function hitTestAnnotationResizeHandle(
-  annotation: CaptureAnnotation,
-  point: CapturePoint,
-  radius = 8
-): ResizeDirection | null {
-  if (annotation.type !== 'rect' && annotation.type !== 'ellipse') return null
-  const rect = annotation.rect
-  const handles: Array<[ResizeDirection, CapturePoint]> = [
-    ['top-left', { x: rect.x, y: rect.y }],
-    ['top', { x: rect.x + rect.width / 2, y: rect.y }],
-    ['top-right', { x: rect.x + rect.width, y: rect.y }],
-    ['right', { x: rect.x + rect.width, y: rect.y + rect.height / 2 }],
-    ['bottom-right', { x: rect.x + rect.width, y: rect.y + rect.height }],
-    ['bottom', { x: rect.x + rect.width / 2, y: rect.y + rect.height }],
-    ['bottom-left', { x: rect.x, y: rect.y + rect.height }],
-    ['left', { x: rect.x, y: rect.y + rect.height / 2 }]
-  ]
-  return handles.find(([, handle]) => Math.hypot(point.x - handle.x, point.y - handle.y) <= radius)?.[0] ?? null
-}
-
-export function hitTestArrowEndpoint(
-  annotation: CaptureAnnotation,
-  point: CapturePoint,
-  radius = 10
-): number | null {
-  if (annotation.type !== 'arrow') return null
-  const len = annotation.points.length
-  if (len < 2) return null
-  if (Math.hypot(point.x - annotation.points[0].x, point.y - annotation.points[0].y) <= radius) return 0
-  if (Math.hypot(point.x - annotation.points[len - 1].x, point.y - annotation.points[len - 1].y) <= radius) return len - 1
-  return null
+export function getTextStyleFromAnnotation(annotation: TextAnnotation): TextStyle {
+  return {
+    color: annotation.color,
+    fontSize: annotation.fontSize,
+    bold: annotation.bold ?? false,
+    bgColor: annotation.bgColor ?? null,
+    align: annotation.align ?? 'left'
+  }
 }
 
 function isLineAnnotation(annotation: CaptureAnnotation): annotation is LineAnnotation {
   return annotation.type === 'pen' || annotation.type === 'arrow'
+}
+
+function measureLineWidth(
+  line: string,
+  style: TextStyle,
+  context: CanvasRenderingContext2D | null
+): number {
+  if (context) {
+    context.save()
+    context.font = getTextFont(style)
+    const width = context.measureText(line).width
+    context.restore()
+    return width
+  }
+  return Array.from(line).reduce((width, char) => width + estimateCharacterWidth(char, style.fontSize), 0)
+}
+
+function estimateCharacterWidth(char: string, fontSize: number): number {
+  const code = char.codePointAt(0) ?? 0
+  if (code === 32) return fontSize * 0.32
+  if (code >= 0x2e80) return fontSize
+  return fontSize * 0.58
+}
+
+function getMeasureContext(): CanvasRenderingContext2D | null {
+  if (typeof document === 'undefined') return null
+  const canvas = document.createElement('canvas')
+  return canvas.getContext('2d')
 }

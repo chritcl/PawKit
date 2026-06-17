@@ -1,6 +1,8 @@
-import { BrowserWindow, clipboard, dialog, nativeImage } from 'electron'
+import { clipboard, nativeImage } from 'electron'
+import type { BrowserWindow } from 'electron'
 import { writeFile } from 'fs/promises'
 import { logger } from '../logger'
+import { showSaveDialogSafe } from '../dialog-utils'
 import type {
   ScreenCaptureActionRequest,
   ScreenCaptureActionResponse
@@ -28,14 +30,11 @@ export async function performScreenCaptureOutput(
   }
 
   try {
-    const options = {
+    const result = await showSaveDialogSafe({
       title: '保存截图',
       defaultPath: `PawKit截图_${formatTimestamp(new Date())}.png`,
       filters: [{ name: 'PNG 图片', extensions: ['png'] }]
-    }
-    const result = ownerWindow && !ownerWindow.isDestroyed()
-      ? await dialog.showSaveDialog(ownerWindow, options)
-      : await dialog.showSaveDialog(options)
+    }, ownerWindow)
 
     if (result.canceled || !result.filePath) {
       return { status: 'cancelled', message: '保存已取消' }

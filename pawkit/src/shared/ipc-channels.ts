@@ -56,6 +56,3 @@ export const IPC_CHANNELS = {
   SHORTCUT_SET_ENABLED: 'shortcut:set-enabled',
   SHORTCUT_NAVIGATE: 'shortcut:navigate'
 } as const
-
-// IPC 通道类型
-export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS]

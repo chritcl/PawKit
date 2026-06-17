@@ -1,4 +1,4 @@
-import { getAnnotationBounds } from './annotations'
+import { getAnnotationBounds, getTextFont, TEXT_PADDING_X, TEXT_PADDING_Y } from './annotations'
 import { toPixelRect } from './geometry'
 import type {
   CaptureAnnotation,
@@ -8,7 +8,8 @@ import type {
   LineAnnotation,
   MosaicPaintAnnotation,
   ShapeAnnotation,
-  StepAnnotation
+  StepAnnotation,
+  TextAnnotation
 } from './types'
 
 export function prepareCanvas(
@@ -104,9 +105,7 @@ export function drawInteractionLayer(
   context.strokeRect(selection.x, selection.y, selection.width, selection.height)
 
   if (!locked) drawResizeHandles(context, selection)
-  if (selected) {
-    drawAnnotationSelection(context, selected)
-  }
+  if (selected) drawAnnotationSelection(context, selected)
 
   if (brushCursor) {
     context.save()
@@ -242,11 +241,16 @@ function drawShape(context: CanvasRenderingContext2D, shape: ShapeAnnotation): v
   context.setLineDash([])
 }
 
-function drawText(context: CanvasRenderingContext2D, annotation: { point: { x: number; y: number }; text: string; color: string; fontSize: number; bold?: boolean; bgColor?: string | null; align?: string }): void {
+function drawText(context: CanvasRenderingContext2D, annotation: TextAnnotation): void {
   const lines = annotation.text.split('\n')
-  const lineHeight = annotation.fontSize * 1.4
-  const weight = annotation.bold ? '700' : '600'
-  context.font = `${weight} ${annotation.fontSize}px "Microsoft YaHei UI", sans-serif`
+  const style = {
+    color: annotation.color,
+    fontSize: annotation.fontSize,
+    bold: annotation.bold ?? false,
+    bgColor: annotation.bgColor ?? null,
+    align: annotation.align ?? 'left'
+  }
+  context.font = getTextFont(style)
   context.textBaseline = 'top'
 
   if (annotation.align === 'center') context.textAlign = 'center'
@@ -254,19 +258,21 @@ function drawText(context: CanvasRenderingContext2D, annotation: { point: { x: n
   else context.textAlign = 'left'
 
   if (annotation.bgColor) {
-    const maxWidth = Math.max(...lines.map((l) => context.measureText(l).width))
-    const totalHeight = lines.length * lineHeight
-    let bgX = annotation.point.x - 4
-    if (annotation.align === 'center') bgX = annotation.point.x - maxWidth / 2 - 4
-    else if (annotation.align === 'right') bgX = annotation.point.x - maxWidth - 4
     context.fillStyle = annotation.bgColor
-    context.fillRect(bgX, annotation.point.y - 2, maxWidth + 8, totalHeight + 4)
+    context.fillRect(annotation.rect.x, annotation.rect.y, annotation.rect.width, annotation.rect.height)
   }
 
+  const textX = getTextDrawX(annotation)
   context.fillStyle = annotation.color
   lines.forEach((line, i) => {
-    context.fillText(line, annotation.point.x, annotation.point.y + i * lineHeight)
+    context.fillText(line, textX, annotation.rect.y + TEXT_PADDING_Y + i * annotation.lineHeight)
   })
+}
+
+function getTextDrawX(annotation: TextAnnotation): number {
+  if (annotation.align === 'center') return annotation.rect.x + annotation.rect.width / 2
+  if (annotation.align === 'right') return annotation.rect.x + annotation.rect.width - TEXT_PADDING_X
+  return annotation.rect.x + TEXT_PADDING_X
 }
 
 function drawStep(context: CanvasRenderingContext2D, step: StepAnnotation): void {
@@ -360,26 +366,6 @@ function drawAnnotationSelection(context: CanvasRenderingContext2D, selected: Ca
   context.lineWidth = 1
   context.setLineDash([6, 4])
   context.strokeRect(bounds.x - 4, bounds.y - 4, bounds.width + 8, bounds.height + 8)
-  context.restore()
-
-  if (selected.type === 'rect' || selected.type === 'ellipse') {
-    drawResizeHandles(context, selected.rect)
-  }
-  if (selected.type === 'arrow' && selected.points.length >= 2) {
-    drawEndpointHandle(context, selected.points[0])
-    drawEndpointHandle(context, selected.points[selected.points.length - 1])
-  }
-}
-
-function drawEndpointHandle(context: CanvasRenderingContext2D, point: { x: number; y: number }): void {
-  context.save()
-  context.fillStyle = '#ffffff'
-  context.strokeStyle = '#3f8cff'
-  context.lineWidth = 2
-  context.beginPath()
-  context.arc(point.x, point.y, 6, 0, Math.PI * 2)
-  context.fill()
-  context.stroke()
   context.restore()
 }
 

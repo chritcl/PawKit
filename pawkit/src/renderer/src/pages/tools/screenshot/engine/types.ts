@@ -61,10 +61,11 @@ export interface ShapeAnnotation extends AnnotationBase {
 
 export interface TextAnnotation extends AnnotationBase {
   type: 'text'
-  point: CapturePoint
+  rect: CaptureRect
   text: string
   color: string
   fontSize: number
+  lineHeight: number
   bold?: boolean
   bgColor?: string | null
   align?: 'left' | 'center' | 'right'

@@ -6,6 +6,7 @@ import type {
   CaptureTool,
   ToolStyleMap
 } from './types'
+import { updateAnnotationStyle } from './annotations'
 
 export type CaptureEditorAction =
   | { type: 'set-phase'; phase: CaptureEditorState['phase'] }
@@ -67,7 +68,7 @@ export function captureEditorReducer(
         draft: null
       }
     case 'set-selected':
-      return { ...state, selectedId: action.id }
+      return { ...state, selectedId: action.id, draft: null }
     case 'set-draft':
       return { ...state, draft: action.draft, phase: action.draft ? 'drawing' : 'editing' }
     case 'preview-annotations':
@@ -96,7 +97,7 @@ export function captureEditorReducer(
       if (!state.selectedId) return state
       const updated = state.annotations.map((annotation) =>
         annotation.id === state.selectedId
-          ? { ...annotation, ...action.patch }
+          ? updateAnnotationStyle(annotation, action.patch)
           : annotation
       )
       return {

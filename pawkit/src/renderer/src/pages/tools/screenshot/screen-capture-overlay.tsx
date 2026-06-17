@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import {
+  AlignCenter,
+  AlignLeft,
+  AlignRight,
   ArrowUpRight,
+  Bold,
   Brush,
   Check,
   Circle,
@@ -8,10 +12,12 @@ import {
   Grid3X3,
   Highlighter,
   MousePointer2,
+  PaintBucket,
   RotateCcw,
   RotateCw,
   Save,
   Square,
+  SquareDashed,
   Type,
   X
 } from 'lucide-react'
@@ -26,12 +32,11 @@ import {
   exportSelectionImage
 } from './engine/canvas-renderer'
 import {
+  createTextAnnotation,
+  getTextRect,
+  getTextStyleFromAnnotation,
   hitTestAnnotation,
-  hitTestAnnotationResizeHandle,
-  hitTestArrowEndpoint,
-  moveAnnotation,
-  resizeAnnotation,
-  dragArrowEndpoint
+  moveAnnotation
 } from './engine/annotations'
 import {
   constrainSquare,
@@ -43,6 +48,13 @@ import {
   normalizeRect,
   resizeRect
 } from './engine/geometry'
+import {
+  StyleActionButton,
+  StyleColorControl,
+  StyleNumberStepper,
+  StyleSegmentedControl,
+  StyleToggleButton
+} from './screenshot-style-controls'
 import {
   captureEditorReducer,
   createInitialCaptureEditorState
@@ -56,6 +68,7 @@ import type {
   MosaicStyle,
   ResizeDirection,
   StepStyle,
+  TextAnnotation,
   ToolStyleMap
 } from './engine/types'
 
@@ -63,30 +76,25 @@ type PointerInteraction =
   | { type: 'selecting'; start: CapturePoint }
   | { type: 'moving-selection'; start: CapturePoint; initial: CaptureRect }
   | { type: 'resizing-selection'; start: CapturePoint; initial: CaptureRect; direction: ResizeDirection }
+  | { type: 'text-input'; start: CapturePoint; annotation?: TextAnnotation }
   | {
     type: 'moving-annotation'
     start: CapturePoint
     annotation: CaptureAnnotation
     initialAnnotations: CaptureAnnotation[]
-  }
-  | {
-    type: 'resizing-annotation'
-    start: CapturePoint
-    annotation: CaptureAnnotation
-    direction: ResizeDirection
-    initialAnnotations: CaptureAnnotation[]
-  }
-  | {
-    type: 'dragging-endpoint'
-    start: CapturePoint
-    annotation: CaptureAnnotation
-    endpointIndex: number
-    initialAnnotations: CaptureAnnotation[]
+    moved: boolean
   }
 
 interface TextEditorState {
-  point: CapturePoint
+  rect: CaptureRect
   value: string
+  style: {
+    color: string
+    fontSize: number
+    bold: boolean
+    bgColor: string | null
+    align: 'left' | 'center' | 'right'
+  }
   editingId?: string
 }
 
@@ -109,6 +117,8 @@ export function ScreenCaptureOverlay(): JSX.Element {
   const [state, dispatch] = useReducer(captureEditorReducer, undefined, createInitialCaptureEditorState)
   const [textEditor, setTextEditor] = useState<TextEditorState | null>(null)
   const [toolbarSize, setToolbarSize] = useState<CaptureSize>({ width: 690, height: 46 })
+  const [styleToolbarSize, setStyleToolbarSize] = useState<CaptureSize>({ width: 420, height: 44 })
+  const [styleToolbarNode, setStyleToolbarNode] = useState<HTMLDivElement | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [cursor, setCursor] = useState('crosshair')
   const [mosaicSubMode, setMosaicSubMode] = useState<MosaicSubMode>('paint')
@@ -116,11 +126,14 @@ export function ScreenCaptureOverlay(): JSX.Element {
   const backgroundRef = useRef<HTMLCanvasElement>(null)
   const annotationRef = useRef<HTMLCanvasElement>(null)
   const interactionRef = useRef<HTMLCanvasElement>(null)
+  const textAreaRef = useRef<HTMLTextAreaElement>(null)
   const toolbarRef = useRef<HTMLDivElement>(null)
   const pointerInteractionRef = useRef<PointerInteraction | null>(null)
   const shapeStartRef = useRef<CapturePoint | null>(null)
   const imageRef = useRef<HTMLImageElement | null>(null)
   const mosaicPaintingRef = useRef(false)
+  const textComposingRef = useRef(false)
+  const skipTextCommitRef = useRef(false)
 
   const viewport = useMemo<CaptureSize>(() => ({
     width: payload?.bounds.width ?? window.innerWidth,
@@ -135,6 +148,10 @@ export function ScreenCaptureOverlay(): JSX.Element {
     () => state.annotations.find((annotation) => annotation.id === state.selectedId) ?? null,
     [state.annotations, state.selectedId]
   )
+  const hasTextEditor = Boolean(textEditor)
+  const shouldSelectTextEditor = Boolean(textEditor?.editingId)
+  const textEditorFocusX = textEditor?.rect.x
+  const textEditorFocusY = textEditor?.rect.y
 
   const toolbarPosition = useMemo(
     () => state.selection
@@ -142,6 +159,15 @@ export function ScreenCaptureOverlay(): JSX.Element {
       : { x: 8, y: 8 },
     [state.selection, toolbarSize, viewport]
   )
+  const styleToolbarPosition = useMemo(
+    () => state.selection
+      ? getStyleToolbarPosition(toolbarPosition, toolbarSize, styleToolbarSize, viewport)
+      : { x: 8, y: toolbarSize.height + 12 },
+    [state.selection, styleToolbarSize, toolbarPosition, toolbarSize, viewport]
+  )
+  const setStyleToolbarRef = useCallback((node: HTMLDivElement | null): void => {
+    setStyleToolbarNode(node)
+  }, [])
 
   useEffect(() => {
     const removePayload = window.electronAPI.screenCapture.onPayload((nextPayload) => {
@@ -207,6 +233,18 @@ export function ScreenCaptureOverlay(): JSX.Element {
     return () => observer.disconnect()
   }, [state.selection])
 
+  useEffect(() => {
+    if (!styleToolbarNode) return
+    const update = (): void => setStyleToolbarSize({
+      width: styleToolbarNode.offsetWidth,
+      height: styleToolbarNode.offsetHeight
+    })
+    update()
+    const observer = new ResizeObserver(update)
+    observer.observe(styleToolbarNode)
+    return () => observer.disconnect()
+  }, [styleToolbarNode])
+
   const exportCurrent = useCallback(() => {
     if (
       !payload ||
@@ -242,46 +280,111 @@ export function ScreenCaptureOverlay(): JSX.Element {
     }
   }, [exportCurrent, payload])
 
-  const commitText = useCallback((): void => {
-    const text = textEditor?.value.trim()
-    if (textEditor && text) {
-      const style = state.toolStyles.text
-      if (textEditor.editingId) {
-        dispatch({
-          type: 'commit-annotations',
-          annotations: state.annotations.map((a) =>
-            a.id === textEditor.editingId && a.type === 'text'
-              ? { ...a, text }
-              : a
-          ),
-          previous: state.annotations
-        })
-      } else {
-        dispatch({
-          type: 'commit-annotations',
-          annotations: [
-            ...state.annotations,
-            {
-              id: crypto.randomUUID(),
-              type: 'text',
-              point: textEditor.point,
-              text,
-              color: style.color,
-              fontSize: style.fontSize,
-              bold: style.bold,
-              bgColor: style.bgColor,
-              align: style.align
-            }
-          ],
-          selectedId: null
-        })
-      }
-    } else if (textEditor?.editingId) {
-      setTextEditor(null)
-    }
+  const beginTextInputAtPoint = useCallback((point: CapturePoint, annotation?: TextAnnotation): void => {
+    const style = annotation
+      ? getTextStyleFromAnnotation(annotation)
+      : state.toolStyles.text
+    const rect = annotation
+      ? annotation.rect
+      : getTextRect(point, '', style)
+    skipTextCommitRef.current = false
+    textComposingRef.current = false
+    setMessage(null)
+    setTextEditor({
+      rect,
+      value: annotation?.text ?? '',
+      style,
+      editingId: annotation?.id
+    })
+    dispatch({ type: 'set-selected', id: annotation?.id ?? null })
+    dispatch({ type: 'set-phase', phase: 'typing' })
+  }, [state.toolStyles.text])
+
+  const cancelTextInput = useCallback((): void => {
+    skipTextCommitRef.current = true
+    textComposingRef.current = false
     setTextEditor(null)
     dispatch({ type: 'set-phase', phase: 'editing' })
-  }, [state.annotations, state.toolStyles.text, textEditor])
+  }, [])
+
+  const updateTextEditorStyle = useCallback((patch: Record<string, unknown>): void => {
+    setTextEditor((current) => {
+      if (!current) return current
+      const style = {
+        ...current.style,
+        ...patch
+      } as TextEditorState['style']
+      return {
+        ...current,
+        style,
+        rect: getTextRect({ x: current.rect.x, y: current.rect.y }, current.value, style)
+      }
+    })
+  }, [])
+
+  useEffect(() => {
+    if (!hasTextEditor) return
+    const frame = window.requestAnimationFrame(() => {
+      const textarea = textAreaRef.current
+      if (!textarea) return
+      textarea.focus()
+      if (shouldSelectTextEditor) {
+        textarea.setSelectionRange(0, textarea.value.length)
+      }
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [hasTextEditor, shouldSelectTextEditor, textEditorFocusX, textEditorFocusY])
+
+  const commitText = useCallback((): void => {
+    if (skipTextCommitRef.current) {
+      skipTextCommitRef.current = false
+      return
+    }
+    if (!textEditor) return
+    const annotation = createTextAnnotation({
+      id: textEditor.editingId ?? crypto.randomUUID(),
+      point: { x: textEditor.rect.x, y: textEditor.rect.y },
+      value: textEditor.value,
+      style: textEditor.style
+    })
+    if (annotation) {
+      const annotations = textEditor.editingId
+        ? state.annotations.map((item) => item.id === textEditor.editingId ? annotation : item)
+        : [...state.annotations, annotation]
+      dispatch({
+        type: 'commit-annotations',
+        annotations,
+        previous: state.annotations,
+        selectedId: annotation.id
+      })
+    } else if (textEditor.editingId) {
+      dispatch({
+        type: 'commit-annotations',
+        annotations: state.annotations.filter((item) => item.id !== textEditor.editingId),
+        previous: state.annotations
+      })
+    } else {
+      dispatch({ type: 'set-phase', phase: 'editing' })
+    }
+    textComposingRef.current = false
+    setTextEditor(null)
+  }, [state.annotations, textEditor])
+
+  const handleTextEditorBlur = useCallback((event: React.FocusEvent<HTMLTextAreaElement>): void => {
+    const nextTarget = event.relatedTarget
+    if (nextTarget instanceof Node && styleToolbarNode?.contains(nextTarget)) return
+    commitText()
+  }, [commitText, styleToolbarNode])
+
+  const handleStyleToolbarBlur = useCallback((event: React.FocusEvent<HTMLDivElement>): void => {
+    if (!textEditor) return
+    const nextTarget = event.relatedTarget
+    if (
+      nextTarget instanceof Node &&
+      (styleToolbarNode?.contains(nextTarget) || textAreaRef.current?.contains(nextTarget))
+    ) return
+    commitText()
+  }, [commitText, styleToolbarNode, textEditor])
 
   const getPoint = (event: React.PointerEvent<HTMLCanvasElement>): CapturePoint => ({
     x: event.clientX,
@@ -289,52 +392,36 @@ export function ScreenCaptureOverlay(): JSX.Element {
   })
 
   const handlePointerDown = (event: React.PointerEvent<HTMLCanvasElement>): void => {
-    if (event.button !== 0 || locked) return
+    if (event.button !== 0) return
+    if (locked) {
+      if (state.tool === 'text') setMessage('请在当前操作的显示器添加文字')
+      return
+    }
     window.electronAPI.screenCapture.claim()
     const point = getPoint(event)
-
-    // === 通用标注交互（所有工具） ===
-    if (selectedAnnotation) {
-      const annResizeHandle = hitTestAnnotationResizeHandle(selectedAnnotation, point)
-      if (annResizeHandle) {
-        event.currentTarget.setPointerCapture(event.pointerId)
-        pointerInteractionRef.current = {
-          type: 'resizing-annotation',
-          start: point,
-          annotation: selectedAnnotation,
-          direction: annResizeHandle,
-          initialAnnotations: state.annotations
-        }
-        return
-      }
-      if (selectedAnnotation.type === 'arrow') {
-        const epIndex = hitTestArrowEndpoint(selectedAnnotation, point)
-        if (epIndex !== null) {
-          event.currentTarget.setPointerCapture(event.pointerId)
-          pointerInteractionRef.current = {
-            type: 'dragging-endpoint',
-            start: point,
-            annotation: selectedAnnotation,
-            endpointIndex: epIndex,
-            initialAnnotations: state.annotations
-          }
-          return
-        }
-      }
-    }
-
-    // 点击到已有标注 → 选中并开始拖动（所有工具通用）
-    const hitAnnotation = state.selection
+    const hitAnnotation = state.selection && containsPoint(state.selection, point)
       ? hitTestAnnotation(state.annotations, point)
       : null
-    if (hitAnnotation) {
+
+    if (state.tool === 'text') {
+      event.currentTarget.setPointerCapture(event.pointerId)
+      pointerInteractionRef.current = {
+        type: 'text-input',
+        start: point,
+        annotation: hitAnnotation?.type === 'text' ? hitAnnotation : undefined
+      }
+      return
+    }
+
+    if (hitAnnotation && state.tool === 'select') {
       event.currentTarget.setPointerCapture(event.pointerId)
       dispatch({ type: 'set-selected', id: hitAnnotation.id })
       pointerInteractionRef.current = {
         type: 'moving-annotation',
         start: point,
         annotation: hitAnnotation,
-        initialAnnotations: state.annotations
+        initialAnnotations: state.annotations,
+        moved: false
       }
       return
     }
@@ -360,7 +447,6 @@ export function ScreenCaptureOverlay(): JSX.Element {
           start: point,
           initial: state.selection
         }
-        dispatch({ type: 'set-selected', id: null })
         return
       }
 
@@ -379,18 +465,6 @@ export function ScreenCaptureOverlay(): JSX.Element {
     if (!state.selection || !containsPoint(state.selection, point)) return
 
     // === 工具特定创建 ===
-    if (state.tool === 'text') {
-      const existingText = hitTestAnnotation(state.annotations, point)
-      if (existingText && existingText.type === 'text') {
-        setTextEditor({ point: existingText.point, value: existingText.text, editingId: existingText.id })
-        dispatch({ type: 'set-phase', phase: 'typing' })
-        return
-      }
-      setTextEditor({ point, value: '' })
-      dispatch({ type: 'set-phase', phase: 'typing' })
-      return
-    }
-
     if (state.tool === 'step') {
       const stepStyle = state.toolStyles.step as StepStyle
       dispatch({
@@ -406,8 +480,7 @@ export function ScreenCaptureOverlay(): JSX.Element {
             bgColor: stepStyle.bgColor,
             size: stepStyle.size
           }
-        ],
-        selectedId: null
+        ]
       })
       dispatch({ type: 'increment-step' })
       return
@@ -500,30 +573,15 @@ export function ScreenCaptureOverlay(): JSX.Element {
           selection: resizeRect(interaction.initial, interaction.direction, delta, viewport)
         })
       } else if (interaction.type === 'moving-annotation') {
-        dispatch({
-          type: 'preview-annotations',
-          annotations: interaction.initialAnnotations.map((annotation) =>
-            annotation.id === interaction.annotation.id ? moveAnnotation(annotation, delta) : annotation
-          )
-        })
-      } else if (interaction.type === 'resizing-annotation') {
-        dispatch({
-          type: 'preview-annotations',
-          annotations: interaction.initialAnnotations.map((annotation) =>
-            annotation.id === interaction.annotation.id
-              ? resizeAnnotation(annotation, interaction.direction, delta)
-              : annotation
-          )
-        })
-      } else if (interaction.type === 'dragging-endpoint') {
-        dispatch({
-          type: 'preview-annotations',
-          annotations: interaction.initialAnnotations.map((annotation) =>
-            annotation.id === interaction.annotation.id
-              ? dragArrowEndpoint(annotation, interaction.endpointIndex, point)
-              : annotation
-          )
-        })
+        if (Math.abs(delta.x) > 1 || Math.abs(delta.y) > 1) {
+          interaction.moved = true
+          dispatch({
+            type: 'preview-annotations',
+            annotations: interaction.initialAnnotations.map((annotation) =>
+              annotation.id === interaction.annotation.id ? moveAnnotation(annotation, delta) : annotation
+            )
+          })
+        }
       }
       return
     }
@@ -561,20 +619,8 @@ export function ScreenCaptureOverlay(): JSX.Element {
       return
     }
 
-    if (selectedAnnotation) {
-      const annHandle = hitTestAnnotationResizeHandle(selectedAnnotation, point)
-      if (annHandle) {
-        setCursor(getResizeCursor(annHandle))
-        return
-      }
-      if (selectedAnnotation.type === 'arrow' && hitTestArrowEndpoint(selectedAnnotation, point)) {
-        setCursor('move')
-        return
-      }
-    }
-
-    if (hitTestAnnotation(state.annotations, point)) {
-      setCursor('move')
+    if (state.tool === 'text' && hitTestAnnotation(state.annotations, point)?.type === 'text') {
+      setCursor('text')
       return
     }
 
@@ -586,6 +632,8 @@ export function ScreenCaptureOverlay(): JSX.Element {
     const handle = state.selection ? getResizeHandle(point, state.selection) : null
     if (handle) {
       setCursor(getResizeCursor(handle))
+    } else if (hitTestAnnotation(state.annotations, point)) {
+      setCursor('move')
     } else if (state.selection && containsPoint(state.selection, point)) {
       setCursor('move')
     } else {
@@ -602,6 +650,19 @@ export function ScreenCaptureOverlay(): JSX.Element {
     shapeStartRef.current = null
     mosaicPaintingRef.current = false
 
+    if (interaction?.type === 'text-input') {
+      if (!state.selection) {
+        setMessage('请先框选截图区域')
+        return
+      }
+      if (!containsPoint(state.selection, interaction.start)) {
+        setMessage('请在选区内添加文字')
+        return
+      }
+      beginTextInputAtPoint(interaction.start, interaction.annotation)
+      return
+    }
+
     if (interaction?.type === 'selecting') {
       const selection = state.selection && isUsableRect(state.selection)
         ? state.selection
@@ -609,12 +670,17 @@ export function ScreenCaptureOverlay(): JSX.Element {
       dispatch({ type: 'set-selection', selection })
       return
     }
-    if (interaction?.type === 'moving-annotation' || interaction?.type === 'resizing-annotation' || interaction?.type === 'dragging-endpoint') {
-      dispatch({
-        type: 'commit-annotations',
-        annotations: state.annotations,
-        previous: interaction.initialAnnotations
-      })
+    if (interaction?.type === 'moving-annotation') {
+      if (interaction.moved) {
+        dispatch({
+          type: 'commit-annotations',
+          annotations: state.annotations,
+          previous: interaction.initialAnnotations,
+          selectedId: interaction.annotation.id
+        })
+      } else {
+        dispatch({ type: 'set-selected', id: interaction.annotation.id })
+      }
       return
     }
     if (state.draft) {
@@ -622,11 +688,9 @@ export function ScreenCaptureOverlay(): JSX.Element {
         ? state.draft.points.length >= 2
         : isUsableRect(state.draft.rect)
       if (valid) {
-        const newId = state.draft.id
         dispatch({
           type: 'commit-annotations',
-          annotations: [...state.annotations, state.draft],
-          selectedId: newId
+          annotations: [...state.annotations, state.draft]
         })
       } else {
         dispatch({ type: 'set-draft', draft: null })
@@ -634,11 +698,19 @@ export function ScreenCaptureOverlay(): JSX.Element {
     }
   }
 
+  const handleDoubleClick = (event: React.MouseEvent<HTMLCanvasElement>): void => {
+    if (locked || !state.selection || textEditor) return
+    const point = { x: event.clientX, y: event.clientY }
+    const hitAnnotation = hitTestAnnotation(state.annotations, point)
+    if (hitAnnotation?.type !== 'text') return
+    event.preventDefault()
+    beginTextInputAtPoint(point, hitAnnotation)
+  }
+
   const handleContextMenu = (event: React.MouseEvent): void => {
     event.preventDefault()
     if (textEditor) {
-      setTextEditor(null)
-      dispatch({ type: 'set-phase', phase: 'editing' })
+      cancelTextInput()
       return
     }
     if (state.draft) {
@@ -652,34 +724,52 @@ export function ScreenCaptureOverlay(): JSX.Element {
 
   const getStyleEditor = (): JSX.Element | null => {
     if (!state.selection) return null
-    if (textEditor) return null
 
-    const tool = selectedAnnotation
+    const tool = textEditor
+      ? 'text'
+      : selectedAnnotation
       ? selectedAnnotation.type === 'mosaic-paint' ? 'mosaic' : selectedAnnotation.type === 'step' ? 'step' : selectedAnnotation.type
       : state.tool
     if (tool === 'select') return null
 
     if (tool === 'mosaic') {
       const style = state.toolStyles.mosaic as MosaicStyle
+      const ann = selectedAnnotation?.type === 'mosaic-paint' ? selectedAnnotation : null
+      const brushSize = ann?.brushSize ?? style.brushSize
+      const strength = ann?.strength ?? style.strength
+      const updateStyle = (patch: Record<string, unknown>): void => {
+        if (ann) {
+          dispatch({ type: 'update-selected-style', patch })
+        } else {
+          dispatch({ type: 'set-tool-style', tool: 'mosaic', patch })
+        }
+      }
       return (
-        <div className="flex items-center gap-2">
-          <label className="text-xs text-slate-400">模式</label>
-          <button
-            className={`rounded px-2 py-0.5 text-xs ${mosaicSubMode === 'paint' ? 'bg-[#3f8cff] text-white' : 'text-slate-300 hover:bg-white/10'}`}
-            onClick={() => setMosaicSubMode('paint')}
-          >涂抹</button>
-          <button
-            className={`rounded px-2 py-0.5 text-xs ${mosaicSubMode === 'area' ? 'bg-[#3f8cff] text-white' : 'text-slate-300 hover:bg-white/10'}`}
-            onClick={() => setMosaicSubMode('area')}
-          >区域</button>
-          <label className="text-xs text-slate-400">笔刷</label>
-          <input type="range" min={8} max={60} value={style.brushSize}
-            onChange={(e) => dispatch({ type: 'set-tool-style', tool: 'mosaic', patch: { brushSize: Number(e.target.value) } })}
-            className="w-16" title={`笔刷 ${style.brushSize}px`} />
-          <label className="text-xs text-slate-400">强度</label>
-          <input type="range" min={4} max={24} value={style.strength}
-            onChange={(e) => dispatch({ type: 'set-tool-style', tool: 'mosaic', patch: { strength: Number(e.target.value) } })}
-            className="w-16" title={`强度 ${style.strength}`} />
+        <div className="screenshot-style-row">
+          <StyleSegmentedControl
+            label="模式"
+            value={mosaicSubMode}
+            options={[
+              { value: 'paint', label: '涂抹' },
+              { value: 'area', label: '区域' }
+            ]}
+            onChange={(value) => setMosaicSubMode(value as MosaicSubMode)}
+          />
+          <StyleNumberStepper
+            label="笔刷"
+            value={brushSize}
+            min={8}
+            max={60}
+            unit="px"
+            onChange={(value) => updateStyle({ brushSize: value })}
+          />
+          <StyleNumberStepper
+            label="强度"
+            value={strength}
+            min={4}
+            max={24}
+            onChange={(value) => updateStyle({ strength: value })}
+          />
         </div>
       )
     }
@@ -687,44 +777,80 @@ export function ScreenCaptureOverlay(): JSX.Element {
     if (tool === 'text') {
       const style = state.toolStyles.text
       const ann = selectedAnnotation?.type === 'text' ? selectedAnnotation : null
-      const color = ann?.color ?? style.color
-      const fontSize = ann?.fontSize ?? style.fontSize
-      const bold = ann?.bold ?? style.bold
-      const bgColor = ann?.bgColor ?? style.bgColor
-      const align = ann?.align ?? style.align
+      const color = textEditor?.style.color ?? ann?.color ?? style.color
+      const fontSize = textEditor?.style.fontSize ?? ann?.fontSize ?? style.fontSize
+      const bold = textEditor?.style.bold ?? ann?.bold ?? style.bold
+      const bgColor = textEditor?.style.bgColor ?? ann?.bgColor ?? style.bgColor
+      const align = textEditor?.style.align ?? ann?.align ?? style.align
       const updateStyle = (patch: Record<string, unknown>): void => {
-        if (ann) {
+        if (textEditor) {
+          updateTextEditorStyle(patch)
+        } else if (ann) {
           dispatch({ type: 'update-selected-style', patch })
         } else {
           dispatch({ type: 'set-tool-style', tool: 'text', patch })
         }
       }
       return (
-        <div className="flex items-center gap-2">
-          <input type="color" value={color} onChange={(e) => updateStyle({ color: e.target.value })} className="h-7 w-8 cursor-pointer bg-transparent" title="文字颜色" />
-          <input type="range" min={12} max={48} value={fontSize} onChange={(e) => updateStyle({ fontSize: Number(e.target.value) })} className="w-16" title={`字号 ${fontSize}px`} />
-          <button className={`rounded px-2 py-0.5 text-xs ${bold ? 'bg-[#3f8cff] text-white' : 'text-slate-300 hover:bg-white/10'}`}
-            onClick={() => updateStyle({ bold: !bold })}>粗体</button>
-          <button className={`rounded px-2 py-0.5 text-xs ${bgColor ? 'bg-[#3f8cff] text-white' : 'text-slate-300 hover:bg-white/10'}`}
-            onClick={() => updateStyle({ bgColor: bgColor ? null : 'rgba(0,0,0,0.5)' })}>背景</button>
-          <select value={align} onChange={(e) => updateStyle({ align: e.target.value })}
-            className="rounded bg-transparent text-xs text-slate-300">
-            <option value="left">左对齐</option>
-            <option value="center">居中</option>
-            <option value="right">右对齐</option>
-          </select>
+        <div className="screenshot-style-row">
+          <StyleColorControl label="文字" value={color} onChange={(value) => updateStyle({ color: value })} />
+          <StyleNumberStepper
+            label="字号"
+            value={fontSize}
+            min={12}
+            max={48}
+            unit="px"
+            onChange={(value) => updateStyle({ fontSize: value })}
+          />
+          <div className="screenshot-style-group" role="group" aria-label="文字样式">
+            <StyleToggleButton label="粗体" active={bold} onClick={() => updateStyle({ bold: !bold })}>
+              <Bold className="h-4 w-4" />
+            </StyleToggleButton>
+            <StyleToggleButton label="背景" active={Boolean(bgColor)} onClick={() => updateStyle({ bgColor: bgColor ? null : 'rgba(0,0,0,0.5)' })}>
+              <PaintBucket className="h-4 w-4" />
+            </StyleToggleButton>
+          </div>
+          <div className="screenshot-style-group" role="group" aria-label="文字对齐">
+            <StyleToggleButton label="左对齐" active={align === 'left'} showLabel={false} onClick={() => updateStyle({ align: 'left' })}>
+              <AlignLeft className="h-4 w-4" />
+            </StyleToggleButton>
+            <StyleToggleButton label="居中对齐" active={align === 'center'} showLabel={false} onClick={() => updateStyle({ align: 'center' })}>
+              <AlignCenter className="h-4 w-4" />
+            </StyleToggleButton>
+            <StyleToggleButton label="右对齐" active={align === 'right'} showLabel={false} onClick={() => updateStyle({ align: 'right' })}>
+              <AlignRight className="h-4 w-4" />
+            </StyleToggleButton>
+          </div>
         </div>
       )
     }
 
     if (tool === 'step') {
       const style = state.toolStyles.step as StepStyle
+      const ann = selectedAnnotation?.type === 'step' ? selectedAnnotation : null
+      const bgColor = ann?.bgColor ?? style.bgColor
+      const size = ann?.size ?? style.size
+      const updateStyle = (patch: Record<string, unknown>): void => {
+        if (ann) {
+          dispatch({ type: 'update-selected-style', patch })
+        } else {
+          dispatch({ type: 'set-tool-style', tool: 'step', patch })
+        }
+      }
       return (
-        <div className="flex items-center gap-2">
-          <input type="color" value={style.bgColor} onChange={(e) => dispatch({ type: 'set-tool-style', tool: 'step', patch: { bgColor: e.target.value } })} className="h-7 w-8 cursor-pointer bg-transparent" title="序号底色" />
-          <input type="range" min={20} max={48} value={style.size} onChange={(e) => dispatch({ type: 'set-tool-style', tool: 'step', patch: { size: Number(e.target.value) } })} className="w-16" title={`大小 ${style.size}px`} />
-          <button className="rounded px-2 py-0.5 text-xs text-slate-300 hover:bg-white/10"
-            onClick={() => dispatch({ type: 'reset-step-counter' })}>重置序号</button>
+        <div className="screenshot-style-row">
+          <StyleColorControl label="底色" value={bgColor} onChange={(value) => updateStyle({ bgColor: value })} />
+          <StyleNumberStepper
+            label="大小"
+            value={size}
+            min={20}
+            max={48}
+            unit="px"
+            onChange={(value) => updateStyle({ size: value })}
+          />
+          <StyleActionButton label="重置序号" onClick={() => dispatch({ type: 'reset-step-counter' })}>
+            <RotateCcw className="h-4 w-4" />
+          </StyleActionButton>
         </div>
       )
     }
@@ -744,13 +870,24 @@ export function ScreenCaptureOverlay(): JSX.Element {
         }
       }
       return (
-        <div className="flex items-center gap-2">
-          <input type="color" value={color} onChange={(e) => updateStyle({ color: e.target.value })} className="h-7 w-8 cursor-pointer bg-transparent" title="描边颜色" />
-          <input type="range" min={2} max={14} value={strokeWidth} onChange={(e) => updateStyle({ strokeWidth: Number(e.target.value) })} className="w-16" title={`线宽 ${strokeWidth}px`} />
-          <button className={`rounded px-2 py-0.5 text-xs ${dashed ? 'bg-[#3f8cff] text-white' : 'text-slate-300 hover:bg-white/10'}`}
-            onClick={() => updateStyle({ dashed: !dashed })}>虚线</button>
-          <button className={`rounded px-2 py-0.5 text-xs ${fillColor ? 'bg-[#3f8cff] text-white' : 'text-slate-300 hover:bg-white/10'}`}
-            onClick={() => updateStyle({ fillColor: fillColor ? null : 'rgba(255,77,79,0.15)' })}>填充</button>
+        <div className="screenshot-style-row">
+          <StyleColorControl label="描边" value={color} onChange={(value) => updateStyle({ color: value })} />
+          <StyleNumberStepper
+            label="线宽"
+            value={strokeWidth}
+            min={2}
+            max={14}
+            unit="px"
+            onChange={(value) => updateStyle({ strokeWidth: value })}
+          />
+          <div className="screenshot-style-group" role="group" aria-label="形状样式">
+            <StyleToggleButton label="虚线" active={Boolean(dashed)} onClick={() => updateStyle({ dashed: !dashed })}>
+              <SquareDashed className="h-4 w-4" />
+            </StyleToggleButton>
+            <StyleToggleButton label="填充" active={Boolean(fillColor)} onClick={() => updateStyle({ fillColor: fillColor ? null : 'rgba(255,77,79,0.15)' })}>
+              <PaintBucket className="h-4 w-4" />
+            </StyleToggleButton>
+          </div>
         </div>
       )
     }
@@ -769,20 +906,51 @@ export function ScreenCaptureOverlay(): JSX.Element {
         }
       }
       return (
-        <div className="flex items-center gap-2">
-          <input type="color" value={color} onChange={(e) => updateStyle({ color: e.target.value })} className="h-7 w-8 cursor-pointer bg-transparent" title="箭头颜色" />
-          <input type="range" min={2} max={14} value={strokeWidth} onChange={(e) => updateStyle({ strokeWidth: Number(e.target.value) })} className="w-16" title={`线宽 ${strokeWidth}px`} />
-          <input type="range" min={8} max={32} value={arrowSize} onChange={(e) => updateStyle({ arrowSize: Number(e.target.value) })} className="w-16" title={`箭头 ${arrowSize}px`} />
+        <div className="screenshot-style-row">
+          <StyleColorControl label="颜色" value={color} onChange={(value) => updateStyle({ color: value })} />
+          <StyleNumberStepper
+            label="线宽"
+            value={strokeWidth}
+            min={2}
+            max={14}
+            unit="px"
+            onChange={(value) => updateStyle({ strokeWidth: value })}
+          />
+          <StyleNumberStepper
+            label="箭头"
+            value={arrowSize}
+            min={8}
+            max={32}
+            unit="px"
+            onChange={(value) => updateStyle({ arrowSize: value })}
+          />
         </div>
       )
     }
 
     if (tool === 'pen') {
       const style = state.toolStyles.pen
+      const ann = selectedAnnotation?.type === 'pen' ? selectedAnnotation : null
+      const color = ann?.color ?? style.color
+      const strokeWidth = ann?.strokeWidth ?? style.strokeWidth
+      const updateStyle = (patch: Record<string, unknown>): void => {
+        if (ann) {
+          dispatch({ type: 'update-selected-style', patch })
+        } else {
+          dispatch({ type: 'set-tool-style', tool: 'pen', patch })
+        }
+      }
       return (
-        <div className="flex items-center gap-2">
-          <input type="color" value={style.color} onChange={(e) => dispatch({ type: 'set-tool-style', tool: 'pen', patch: { color: e.target.value } })} className="h-7 w-8 cursor-pointer bg-transparent" title="画笔颜色" />
-          <input type="range" min={2} max={14} value={style.strokeWidth} onChange={(e) => dispatch({ type: 'set-tool-style', tool: 'pen', patch: { strokeWidth: Number(e.target.value) } })} className="w-16" title={`线宽 ${style.strokeWidth}px`} />
+        <div className="screenshot-style-row">
+          <StyleColorControl label="画笔" value={color} onChange={(value) => updateStyle({ color: value })} />
+          <StyleNumberStepper
+            label="线宽"
+            value={strokeWidth}
+            min={2}
+            max={14}
+            unit="px"
+            onChange={(value) => updateStyle({ strokeWidth: value })}
+          />
         </div>
       )
     }
@@ -794,8 +962,7 @@ export function ScreenCaptureOverlay(): JSX.Element {
     const handleKeyDown = (event: KeyboardEvent): void => {
       if (textEditor) {
         if (event.key === 'Escape') {
-          setTextEditor(null)
-          dispatch({ type: 'set-phase', phase: 'editing' })
+          cancelTextInput()
         }
         return
       }
@@ -809,7 +976,8 @@ export function ScreenCaptureOverlay(): JSX.Element {
         event.preventDefault()
         dispatch({
           type: 'commit-annotations',
-          annotations: state.annotations.filter((annotation) => annotation.id !== state.selectedId)
+          annotations: state.annotations.filter((annotation) => annotation.id !== state.selectedId),
+          previous: state.annotations
         })
       } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
         event.preventDefault()
@@ -830,11 +998,13 @@ export function ScreenCaptureOverlay(): JSX.Element {
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [performOutput, state.annotations, state.selectedId, state.selection, textEditor])
+  }, [cancelTextInput, performOutput, state.annotations, state.selectedId, state.selection, textEditor])
 
   if (!payload) {
     return <div className="flex h-screen w-screen items-center justify-center bg-black text-sm text-white">正在冻结屏幕...</div>
   }
+
+  const styleEditor = getStyleEditor()
 
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-black text-white" onContextMenu={handleContextMenu}>
@@ -847,6 +1017,7 @@ export function ScreenCaptureOverlay(): JSX.Element {
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
+        onDoubleClick={handleDoubleClick}
       />
 
       {locked && (
@@ -893,12 +1064,14 @@ export function ScreenCaptureOverlay(): JSX.Element {
               <Check className="h-4 w-4" />复制并关闭
             </button>
           </div>
-          {getStyleEditor() && (
+          {styleEditor && (
             <div
-              className="absolute flex max-w-[calc(100vw-16px)] flex-wrap items-center gap-1 rounded-lg border border-white/15 bg-[#101827]/95 px-2 py-1.5 shadow-2xl backdrop-blur"
-              style={{ left: toolbarPosition.x, top: toolbarPosition.y + toolbarSize.height + 4 }}
+              ref={setStyleToolbarRef}
+              className="screenshot-style-toolbar"
+              style={{ left: styleToolbarPosition.x, top: styleToolbarPosition.y }}
+              onBlur={handleStyleToolbarBlur}
             >
-              {getStyleEditor()}
+              {styleEditor}
             </div>
           )}
         </>
@@ -906,31 +1079,60 @@ export function ScreenCaptureOverlay(): JSX.Element {
 
       {textEditor && (
         <textarea
+          ref={textAreaRef}
           autoFocus
+          wrap="off"
           value={textEditor.value}
-          onChange={(event) => setTextEditor({ ...textEditor, value: event.target.value })}
-          onBlur={commitText}
+          onChange={(event) => setTextEditor((current) => {
+            if (!current) return current
+            const value = event.target.value
+            return {
+              ...current,
+              value,
+              rect: getTextRect({ x: current.rect.x, y: current.rect.y }, value, current.style)
+            }
+          })}
+          onBlur={handleTextEditorBlur}
+          onCompositionStart={() => {
+            textComposingRef.current = true
+          }}
+          onCompositionEnd={() => {
+            textComposingRef.current = false
+          }}
           onPointerDown={(event) => event.stopPropagation()}
+          onPointerUp={(event) => event.stopPropagation()}
+          onClick={(event) => event.stopPropagation()}
           onKeyDown={(event) => {
+            if (event.nativeEvent.isComposing || textComposingRef.current) {
+              event.stopPropagation()
+              return
+            }
             if (event.key === 'Enter' && !event.shiftKey) {
               event.preventDefault()
               event.currentTarget.blur()
             }
             if (event.key === 'Escape') {
               event.preventDefault()
-              setTextEditor(null)
-              dispatch({ type: 'set-phase', phase: 'editing' })
+              cancelTextInput()
             }
             event.stopPropagation()
           }}
-          className="absolute z-50 min-w-40 min-h-[2.5rem] rounded border border-[#3f8cff] bg-black/80 px-2 py-1 text-white outline-none resize-none"
+          className="absolute rounded border-2 border-[#3f8cff] px-2 py-[5px] text-white outline-none resize-none overflow-hidden"
           style={{
-            left: textEditor.point.x,
-            top: textEditor.point.y,
-            fontSize: state.toolStyles.text.fontSize,
-            fontWeight: state.toolStyles.text.bold ? 700 : 400,
-            color: state.toolStyles.text.color,
-            textAlign: state.toolStyles.text.align
+            zIndex: 1000,
+            pointerEvents: 'auto',
+            left: textEditor.rect.x,
+            top: textEditor.rect.y,
+            width: textEditor.rect.width,
+            height: textEditor.rect.height,
+            fontSize: textEditor.style.fontSize,
+            lineHeight: `${Math.round(textEditor.style.fontSize * 1.4)}px`,
+            fontFamily: '"Microsoft YaHei UI", sans-serif',
+            fontWeight: textEditor.style.bold ? 700 : 600,
+            color: textEditor.style.color,
+            backgroundColor: textEditor.style.bgColor ?? 'rgba(0, 0, 0, 0.8)',
+            textAlign: textEditor.style.align,
+            boxShadow: '0 0 0 2px rgba(63, 140, 255, 0.35), 0 12px 32px rgba(0, 0, 0, 0.38)'
           }}
           placeholder="输入标注文字（Shift+Enter 换行）"
         />
@@ -966,6 +1168,33 @@ function ToolbarButton({
       {children}
     </button>
   )
+}
+
+function getStyleToolbarPosition(
+  toolbarPosition: CapturePoint,
+  toolbarSize: CaptureSize,
+  styleToolbarSize: CaptureSize,
+  viewport: CaptureSize
+): CapturePoint {
+  const margin = 8
+  const gap = 4
+  const maxX = Math.max(margin, viewport.width - styleToolbarSize.width - margin)
+  const x = clampNumber(toolbarPosition.x, margin, maxX)
+  const below = toolbarPosition.y + toolbarSize.height + gap
+  const above = toolbarPosition.y - styleToolbarSize.height - gap
+  const maxY = Math.max(margin, viewport.height - styleToolbarSize.height - margin)
+
+  if (below + styleToolbarSize.height <= viewport.height - margin) {
+    return { x, y: below }
+  }
+  if (above >= margin) {
+    return { x, y: above }
+  }
+  return { x, y: clampNumber(below, margin, maxY) }
+}
+
+function clampNumber(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value))
 }
 
 function getResizeCursor(direction: ResizeDirection): string {
