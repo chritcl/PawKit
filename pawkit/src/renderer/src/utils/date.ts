@@ -7,7 +7,7 @@ dayjs.extend(customParseFormat)
 dayjs.extend(utc)
 
 // 默认日期格式
-const DEFAULT_FORMAT = 'YYYY-MM-DD HH:mm:ss'
+export const DEFAULT_FORMAT = 'YYYY-MM-DD HH:mm:ss'
 const COMMON_FORMATS = [
   'YYYY-MM-DD HH:mm:ss',
   'YYYY-MM-DD HH:mm',
@@ -16,6 +16,18 @@ const COMMON_FORMATS = [
   'YYYY/MM/DD HH:mm',
   'YYYY/MM/DD'
 ]
+const MIN_REASONABLE_MILLIS = 946684800000
+const MAX_REASONABLE_MILLIS = 4102444800000
+
+// 输出格式模板
+export type TimeFormatTemplate =
+  | 'default'
+  | 'slash'
+  | 'iso'
+  | 'rfc3339'
+  | 'unix-seconds'
+  | 'unix-millis'
+  | 'custom'
 
 // 智能时间输入类型
 export type TimeInputKind = 'now' | 'timestamp-seconds' | 'timestamp-millis' | 'date' | 'invalid'
@@ -29,6 +41,7 @@ export interface TimezoneOffset {
 // 单条时间解析结果
 export interface SmartTimeResult {
   source: string
+  matchedInput?: string
   kind: TimeInputKind
   valid: boolean
   millis?: number
@@ -74,8 +87,8 @@ export function dateToTimestamp(dateStr: string): { seconds: number; millis: num
 
 // 校验时间戳是否有效
 export function isValidTimestamp(timestamp: string): boolean {
-  const num = Number(timestamp)
-  return Number.isFinite(num) && num > 0 && num < 9999999999999
+  const parsed = parseNumericTimestamp(timestamp.trim())
+  return parsed.valid
 }
 
 // 校验日期字符串是否有效（严格模式）
@@ -86,7 +99,7 @@ export function isValidDate(dateStr: string): boolean {
 // 解析固定 UTC 偏移
 export function parseTimezoneOffset(value: string): TimezoneOffset | null {
   const trimmed = value.trim()
-  if (trimmed === 'local') {
+  if (trimmed === 'local' || trimmed === '本地') {
     return {
       label: '本地',
       minutes: -new Date().getTimezoneOffset()
@@ -137,6 +150,20 @@ export function formatWithOffset(millis: number, offsetMinutes: number): string 
   return `${dayjs.utc(millis).utcOffset(offsetMinutes).format(DEFAULT_FORMAT)} ${formatOffsetLabel(offsetMinutes)}`
 }
 
+// 按模板格式化时间
+export function formatTimeByTemplate(
+  millis: number,
+  template: TimeFormatTemplate,
+  customFormat: string = DEFAULT_FORMAT
+): string {
+  if (template === 'unix-seconds') return String(Math.floor(millis / 1000))
+  if (template === 'unix-millis') return String(millis)
+  if (template === 'iso') return new Date(millis).toISOString()
+  if (template === 'rfc3339') return dayjs(millis).format('YYYY-MM-DDTHH:mm:ssZ')
+  if (template === 'slash') return dayjs(millis).format('YYYY/MM/DD HH:mm:ss')
+  return dayjs(millis).format(template === 'custom' ? customFormat || DEFAULT_FORMAT : DEFAULT_FORMAT)
+}
+
 // 生成相对时间描述
 export function formatRelativeTime(millis: number, nowMillis = Date.now()): string {
   const diff = millis - nowMillis
@@ -153,50 +180,21 @@ export function formatRelativeTime(millis: number, nowMillis = Date.now()): stri
   return diff >= 0 ? `${value}${unit.label}后` : `${value}${unit.label}前`
 }
 
-// 智能解析单条输入
-export function parseSmartTimeLine(input: string, offset: TimezoneOffset, nowMillis = Date.now()): SmartTimeResult {
-  const source = input.trim()
-  if (!source) {
-    return { source: input, kind: 'invalid', valid: false, error: '输入为空' }
-  }
+function isReasonableTimestampMillis(millis: number): boolean {
+  return millis >= MIN_REASONABLE_MILLIS && millis <= MAX_REASONABLE_MILLIS
+}
 
-  let millis: number | null = null
-  let kind: TimeInputKind = 'invalid'
-
-  if (source.toLowerCase() === 'now') {
-    millis = nowMillis
-    kind = 'now'
-  } else if (/^\d{10}$/.test(source)) {
-    millis = Number(source) * 1000
-    kind = 'timestamp-seconds'
-  } else if (/^\d{13}$/.test(source)) {
-    millis = Number(source)
-    kind = 'timestamp-millis'
-  } else if (/^\d+$/.test(source)) {
-    const number = Number(source)
-    if (number > 0 && number < 9999999999999) {
-      millis = source.length <= 10 ? number * 1000 : number
-      kind = source.length <= 10 ? 'timestamp-seconds' : 'timestamp-millis'
-    }
-  } else {
-    const parsed = parseDateInput(source)
-    if (parsed.isValid()) {
-      millis = parsed.valueOf()
-      kind = 'date'
-    }
-  }
-
-  if (millis === null || !Number.isFinite(millis)) {
-    return {
-      source,
-      kind: 'invalid',
-      valid: false,
-      error: '无法识别为时间戳、日期、ISO 字符串或 now'
-    }
-  }
-
+function createValidResult(
+  source: string,
+  kind: TimeInputKind,
+  millis: number,
+  offset: TimezoneOffset,
+  nowMillis: number,
+  matchedInput?: string
+): SmartTimeResult {
   return {
     source,
+    matchedInput,
     kind,
     valid: true,
     millis,
@@ -207,6 +205,93 @@ export function parseSmartTimeLine(input: string, offset: TimezoneOffset, nowMil
     iso: new Date(millis).toISOString(),
     relative: formatRelativeTime(millis, nowMillis)
   }
+}
+
+function createInvalidResult(source: string, error: string): SmartTimeResult {
+  return { source, kind: 'invalid', valid: false, error }
+}
+
+function parseNumericTimestamp(source: string): { valid: true; millis: number; kind: TimeInputKind } | { valid: false; error: string } {
+  if (!/^\d+$/.test(source)) return { valid: false, error: '不是纯数字时间戳' }
+
+  const number = Number(source)
+  if (!Number.isFinite(number) || number <= 0) {
+    return { valid: false, error: '时间戳必须是大于 0 的数字' }
+  }
+
+  const kind: TimeInputKind = source.length <= 10 ? 'timestamp-seconds' : 'timestamp-millis'
+  const millis = kind === 'timestamp-seconds' ? number * 1000 : number
+
+  if (!isReasonableTimestampMillis(millis)) {
+    return {
+      valid: false,
+      error: '时间戳超出合理范围，请使用 2000-01-01 到 2100-01-01 之间的时间'
+    }
+  }
+
+  if (![9, 10, 12, 13].includes(source.length)) {
+    return {
+      valid: false,
+      error: '数字位数不常见，建议使用 10 位秒级或 13 位毫秒级时间戳'
+    }
+  }
+
+  return { valid: true, millis, kind }
+}
+
+function parseDirectTimeSource(source: string, offset: TimezoneOffset, nowMillis: number): SmartTimeResult {
+  if (!source) {
+    return createInvalidResult(source, '输入为空')
+  }
+
+  if (source.toLowerCase() === 'now') {
+    return createValidResult(source, 'now', nowMillis, offset, nowMillis)
+  }
+
+  if (/^\d+$/.test(source)) {
+    const parsed = parseNumericTimestamp(source)
+    return parsed.valid
+      ? createValidResult(source, parsed.kind, parsed.millis, offset, nowMillis)
+      : createInvalidResult(source, parsed.error)
+  }
+
+  const parsed = parseDateInput(source)
+  if (parsed.isValid()) {
+    return createValidResult(source, 'date', parsed.valueOf(), offset, nowMillis)
+  }
+
+  return createInvalidResult(source, '无法识别为时间戳、日期、ISO 字符串或 now')
+}
+
+function findTimeCandidate(source: string): string | null {
+  const patterns = [
+    /\b\d{13}\b/g,
+    /\b\d{10}\b/g,
+    /\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?(?:\.\d{1,6})?(?:Z|[+-]\d{2}:?\d{2})?\b/g,
+    /\b\d{4}[-/]\d{2}[-/]\d{2}(?:[ T]\d{2}:\d{2}(?::\d{2})?)?\b/g
+  ]
+
+  for (const pattern of patterns) {
+    const matches = source.match(pattern)
+    if (matches?.[0]) return matches[0]
+  }
+
+  return null
+}
+
+// 智能解析单条输入
+export function parseSmartTimeLine(input: string, offset: TimezoneOffset, nowMillis = Date.now()): SmartTimeResult {
+  const source = input.trim()
+  const direct = parseDirectTimeSource(source, offset, nowMillis)
+  if (direct.valid || /^\d+$/.test(source) || !source) return direct
+
+  const candidate = findTimeCandidate(source)
+  if (!candidate) return direct
+
+  const parsed = parseDirectTimeSource(candidate, offset, nowMillis)
+  return parsed.valid
+    ? { ...parsed, source, matchedInput: candidate }
+    : direct
 }
 
 // 智能解析多行输入

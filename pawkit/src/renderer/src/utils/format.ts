@@ -22,6 +22,9 @@ export interface DataUrlParseResult {
   mediaType?: string
   isBase64?: boolean
   data?: string
+  dataLength?: number
+  decodedByteLength?: number
+  textPreviewable?: boolean
   decodedPreview?: string
   error?: string
 }
@@ -36,14 +39,42 @@ function textToBase64(text: string): string {
   return btoa(binary)
 }
 
-// Base64 转文本
-function base64ToText(encoded: string): string {
-  const binary = atob(encoded)
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : '未知错误'
+}
+
+function validateBase64(input: string): string {
+  const compact = input.trim().replace(/\s/g, '').replace(/-/g, '+').replace(/_/g, '/')
+  const content = compact.replace(/=+$/g, '')
+  const paddingLength = compact.length - content.length
+  if (paddingLength > 2 || /[^A-Za-z0-9+/=]/.test(compact) || /=/.test(content)) {
+    throw new Error('解码失败：Base64 包含非法字符或 padding 位置不正确')
+  }
+  if (paddingLength > 0 && ![2, 3].includes(content.length % 4)) {
+    throw new Error('解码失败：Base64 padding 数量不匹配')
+  }
+  if (content.length % 4 === 1) {
+    throw new Error('解码失败：Base64 长度不合法，请检查 padding 和输入内容')
+  }
+  return content
+}
+
+function base64ToBytes(encoded: string): Uint8Array {
+  const content = validateBase64(encoded)
+  const padding = content.length % 4
+  const normalized = padding === 0 ? content : `${content}${'='.repeat(4 - padding)}`
+  const binary = atob(normalized)
   const bytes = new Uint8Array(binary.length)
   for (let index = 0; index < binary.length; index += 1) {
     bytes[index] = binary.charCodeAt(index)
   }
-  return new TextDecoder().decode(bytes)
+  return bytes
+}
+
+// Base64 转文本
+function base64ToText(encoded: string): string {
+  const bytes = base64ToBytes(encoded)
+  return new TextDecoder('utf-8', { fatal: true }).decode(bytes)
 }
 
 // 补齐 Base64 padding
@@ -65,9 +96,13 @@ export function base64Encode(text: string): FormatResult {
 // Base64 解码
 export function base64Decode(encoded: string): FormatResult {
   try {
-    return { success: true, result: base64ToText(normalizeBase64(encoded)) }
-  } catch {
-    return { success: false, result: '', error: '解码失败，请确保输入是有效的 Base64 字符串' }
+    return { success: true, result: base64ToText(encoded) }
+  } catch (error) {
+    const message = getErrorMessage(error)
+    if (message.startsWith('解码失败')) {
+      return { success: false, result: '', error: message }
+    }
+    return { success: false, result: '', error: '解码失败：内容不是有效的 UTF-8 文本' }
   }
 }
 
@@ -100,7 +135,7 @@ export function urlDecode(encoded: string): FormatResult {
   try {
     return { success: true, result: decodeURIComponent(encoded) }
   } catch {
-    return { success: false, result: '', error: '解码失败，请确保输入是有效的 URL 编码字符串' }
+    return { success: false, result: '', error: '解码失败：存在不完整的 % 转义或非法编码片段' }
   }
 }
 
@@ -109,6 +144,9 @@ export function decodeJwt(token: string): JwtDecodeResult {
   const parts = token.trim().split('.')
   if (parts.length < 2) {
     return { success: false, error: 'JWT 至少需要 header 和 payload 两段' }
+  }
+  if (parts.length > 3 || parts.some((part, index) => index < 2 && !part)) {
+    return { success: false, error: 'JWT 分段数量或内容不正确，应包含 header、payload 和可选 signature' }
   }
 
   const headerText = base64UrlDecode(parts[0])
@@ -133,6 +171,18 @@ export function decodeJwt(token: string): JwtDecodeResult {
   }
 }
 
+function isTextMediaType(mediaType: string): boolean {
+  const normalized = mediaType.toLowerCase()
+  return normalized.startsWith('text/') ||
+    normalized === 'application/json' ||
+    normalized === 'application/xml' ||
+    normalized === 'application/javascript' ||
+    normalized === 'application/x-www-form-urlencoded' ||
+    normalized === 'image/svg+xml' ||
+    normalized.endsWith('+json') ||
+    normalized.endsWith('+xml')
+}
+
 // 解析 Data URL
 export function parseDataUrl(input: string): DataUrlParseResult {
   const match = input.trim().match(/^data:([^;,]+)?((?:;[^,]*)?),([\s\S]*)$/)
@@ -144,14 +194,29 @@ export function parseDataUrl(input: string): DataUrlParseResult {
   const flags = match[2] || ''
   const data = match[3] || ''
   const isBase64 = flags.includes(';base64')
-  let decodedPreview = ''
+  const textPreviewable = isTextMediaType(mediaType)
+  let decodedPreview = textPreviewable ? '' : '无法按文本预览'
+  let decodedByteLength = data.length
 
   try {
-    decodedPreview = isBase64
-      ? base64ToText(normalizeBase64(data)).slice(0, 2000)
-      : decodeURIComponent(data).slice(0, 2000)
+    if (isBase64) {
+      const bytes = base64ToBytes(data)
+      decodedByteLength = bytes.byteLength
+      if (textPreviewable) {
+        decodedPreview = new TextDecoder('utf-8', { fatal: true }).decode(bytes).slice(0, 2000)
+      }
+    } else {
+      const decodedText = decodeURIComponent(data)
+      decodedByteLength = new TextEncoder().encode(decodedText).byteLength
+      if (textPreviewable) {
+        decodedPreview = decodedText.slice(0, 2000)
+      }
+    }
   } catch {
-    decodedPreview = '内容无法按文本预览'
+    return {
+      success: false,
+      error: isBase64 ? 'Data URL 中的 Base64 数据不合法' : 'Data URL 的 URL 编码数据不合法'
+    }
   }
 
   return {
@@ -159,6 +224,9 @@ export function parseDataUrl(input: string): DataUrlParseResult {
     mediaType,
     isBase64,
     data,
+    dataLength: data.length,
+    decodedByteLength,
+    textPreviewable,
     decodedPreview
   }
 }

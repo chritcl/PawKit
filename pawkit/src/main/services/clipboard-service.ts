@@ -323,7 +323,7 @@ function createImageThumbnail(image: NativeImage, width: number, height: number)
 // 读取当前系统剪贴板快照
 async function readCurrentClipboardSnapshot(): Promise<ClipboardSnapshot | null> {
   const formats = clipboard.availableFormats()
-  logger.debug('剪贴板格式:', formats.join(', ') || '无')
+  // logger.debug('剪贴板格式:', formats.join(', ') || '无')
 
   const files = readClipboardFiles(formats)
   if (files.length > 0) {

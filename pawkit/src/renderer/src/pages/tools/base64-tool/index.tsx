@@ -1,6 +1,20 @@
 import { useMemo, useState } from 'react'
-import { Binary, Braces, Clipboard, Copy, Link, RotateCcw, ScanText } from 'lucide-react'
 import {
+  AlertTriangle,
+  ArrowLeftRight,
+  Binary,
+  Braces,
+  Clipboard,
+  Copy,
+  Info,
+  Link,
+  RotateCcw,
+  ScanText
+} from 'lucide-react'
+import {
+  DataUrlParseResult,
+  FormatResult,
+  JwtDecodeResult,
   base64Decode,
   base64Encode,
   base64UrlDecode,
@@ -14,6 +28,11 @@ import {
 type EncodeMode = 'base64' | 'url' | 'jwt' | 'data-url'
 type Base64Variant = 'standard' | 'url-safe'
 type EncodeOperation = 'encode' | 'decode'
+type ComputedResult =
+  | { type: 'empty' }
+  | { type: 'text'; result: FormatResult }
+  | { type: 'jwt'; result: JwtDecodeResult }
+  | { type: 'data-url'; result: DataUrlParseResult }
 
 const modeItems: Array<{ mode: EncodeMode; label: string; icon: typeof Binary }> = [
   { mode: 'base64', label: 'Base64', icon: Binary },
@@ -21,6 +40,71 @@ const modeItems: Array<{ mode: EncodeMode; label: string; icon: typeof Binary }>
   { mode: 'jwt', label: 'JWT', icon: Braces },
   { mode: 'data-url', label: 'Data URL', icon: ScanText }
 ]
+
+function getTextBytes(text: string): number {
+  return new Blob([text]).size
+}
+
+function formatTextStats(text: string): string {
+  return `${Array.from(text).length} 字符 · ${getTextBytes(text)} B`
+}
+
+function formatBytes(bytes = 0): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+}
+
+function getModeHint(mode: EncodeMode, operation: EncodeOperation, variant: Base64Variant): string {
+  if (mode === 'base64') {
+    return variant === 'url-safe'
+      ? 'URL-safe 会自动处理 -、_ 和缺失 padding'
+      : 'Base64 是编码，不是加密'
+  }
+  if (mode === 'url') {
+    return operation === 'encode'
+      ? '当前按 URI Component 语义编码，不会保留 ?、=、&'
+      : 'URL 解码会检查不完整的 % 转义'
+  }
+  if (mode === 'jwt') {
+    return 'JWT 只本地解码，不验证签名，不代表令牌可信'
+  }
+  return 'Data URL 会解析媒体类型、编码方式和文本预览'
+}
+
+function getErrorText(computed: ComputedResult): string {
+  if (computed.type === 'text' && !computed.result.success) return computed.result.error ?? '转换失败'
+  if (computed.type === 'jwt' && !computed.result.success) return computed.result.error ?? 'JWT 解码失败'
+  if (computed.type === 'data-url' && !computed.result.success) return computed.result.error ?? 'Data URL 解析失败'
+  return ''
+}
+
+function getOutputText(computed: ComputedResult): string {
+  if (computed.type === 'text') return computed.result.success ? computed.result.result : ''
+  if (computed.type === 'jwt') {
+    if (!computed.result.success) return ''
+    return [
+      'Header',
+      computed.result.headerJson,
+      '',
+      'Payload',
+      computed.result.payloadJson,
+      '',
+      `Signature: ${computed.result.signature || '无'}`
+    ].join('\n')
+  }
+  if (computed.type === 'data-url') {
+    if (!computed.result.success || !computed.result.textPreviewable) return ''
+    return computed.result.decodedPreview ?? ''
+  }
+  return ''
+}
+
+function getPlaceholder(mode: EncodeMode): string {
+  if (mode === 'jwt') return '粘贴 JWT，支持两段或三段 token'
+  if (mode === 'data-url') return '粘贴 data:text/plain;base64,...'
+  return '粘贴编码文本后实时转换'
+}
 
 // 编码转换工具组件
 export function Base64ToolPage(): JSX.Element {
@@ -30,69 +114,64 @@ export function Base64ToolPage(): JSX.Element {
   const [input, setInput] = useState('')
   const [message, setMessage] = useState('等待输入')
 
-  const computed = useMemo(() => {
-    if (!input.trim()) return { type: 'empty' as const }
+  const computed = useMemo<ComputedResult>(() => {
+    if (input.length === 0) return { type: 'empty' }
 
     if (mode === 'base64') {
       const result = operation === 'encode'
         ? variant === 'standard' ? base64Encode(input) : base64UrlEncode(input)
         : variant === 'standard' ? base64Decode(input) : base64UrlDecode(input)
-      return { type: 'text' as const, result }
+      return { type: 'text', result }
     }
 
     if (mode === 'url') {
       const result = operation === 'encode' ? urlEncode(input) : urlDecode(input)
-      return { type: 'text' as const, result }
+      return { type: 'text', result }
     }
 
     if (mode === 'jwt') {
-      return { type: 'jwt' as const, result: decodeJwt(input) }
+      return { type: 'jwt', result: decodeJwt(input) }
     }
 
-    return { type: 'data-url' as const, result: parseDataUrl(input) }
+    return { type: 'data-url', result: parseDataUrl(input) }
   }, [input, mode, operation, variant])
 
-  const outputText = useMemo(() => {
-    if (computed.type === 'text') return computed.result.success ? computed.result.result : computed.result.error ?? ''
-    if (computed.type === 'jwt') {
-      if (!computed.result.success) return computed.result.error ?? ''
-      return [
-        'Header',
-        computed.result.headerJson,
-        '',
-        'Payload',
-        computed.result.payloadJson,
-        '',
-        `Signature: ${computed.result.signature || '无'}`
-      ].join('\n')
-    }
-    if (computed.type === 'data-url') {
-      if (!computed.result.success) return computed.result.error ?? ''
-      return [
-        `媒体类型：${computed.result.mediaType}`,
-        `编码方式：${computed.result.isBase64 ? 'Base64' : 'URL 编码'}`,
-        '',
-        computed.result.decodedPreview
-      ].join('\n')
-    }
-    return ''
-  }, [computed])
+  const errorText = useMemo(() => getErrorText(computed), [computed])
+  const outputText = useMemo(() => getOutputText(computed), [computed])
+  const isSuccess = computed.type !== 'empty' && !errorText
+  const canSwap = outputText.length > 0 && (mode === 'base64' || mode === 'url')
+  const statusLabel = computed.type === 'empty' ? '等待输入' : isSuccess ? '转换成功' : '转换失败'
 
   const copyText = async (text: string, nextMessage = '已复制'): Promise<void> => {
     if (!text) return
-    await window.electronAPI.clipboard.writeText(text)
-    setMessage(nextMessage)
+    try {
+      await window.electronAPI.clipboard.writeText(text)
+      setMessage(nextMessage)
+    } catch {
+      setMessage('复制失败')
+    }
   }
 
   const pasteInput = async (): Promise<void> => {
-    const text = await window.electronAPI.clipboard.readText()
-    setInput(text)
-    setMessage('已从剪贴板粘贴')
+    try {
+      const text = await window.electronAPI.clipboard.readText()
+      setInput(text)
+      setMessage(text ? '已从剪贴板粘贴' : '剪贴板没有文本')
+    } catch {
+      setMessage('读取剪贴板失败')
+    }
   }
 
   const clearInput = (): void => {
     setInput('')
     setMessage('已清空')
+  }
+
+  const swapInputOutput = (): void => {
+    if (!canSwap) return
+    setInput(outputText)
+    setOperation((current) => current === 'encode' ? 'decode' : 'encode')
+    setMessage('已交换输入输出')
   }
 
   const fillExample = (): void => {
@@ -110,15 +189,9 @@ export function Base64ToolPage(): JSX.Element {
     setMessage('已填充示例')
   }
 
-  const statusText = computed.type === 'empty'
-    ? '等待输入'
-    : outputText && !outputText.includes('失败') && !outputText.includes('不是有效') && !outputText.includes('至少需要')
-      ? '转换成功'
-      : outputText
-
   return (
-    <div className="tool-page">
-      <div className="toolbar-surface tab-toolbar">
+    <div className="tool-page encoding-tool-page">
+      <div className="toolbar-surface tab-toolbar encoding-toolbar">
         <div className="tab-toolbar-main">
           <div className="segmented-control segmented-scroll">
             {modeItems.map((item) => {
@@ -161,13 +234,17 @@ export function Base64ToolPage(): JSX.Element {
         </div>
 
         <div className="panel-actions">
-          <button className="toolbar-button" onClick={pasteInput} title="粘贴">
+          <button className="toolbar-button" onClick={pasteInput} title="从剪贴板粘贴">
             <Clipboard className="h-4 w-4" />
             粘贴
           </button>
-          <button className="toolbar-button" onClick={fillExample} title="示例">
+          <button className="toolbar-button" onClick={fillExample} title="填充示例">
             <ScanText className="h-4 w-4" />
             示例
+          </button>
+          <button className="toolbar-button" onClick={swapInputOutput} disabled={!canSwap} title="交换输入输出并切换方向">
+            <ArrowLeftRight className="h-4 w-4" />
+            交换
           </button>
           <button className="toolbar-button" onClick={clearInput} title="清空">
             <RotateCcw className="h-4 w-4" />
@@ -180,12 +257,12 @@ export function Base64ToolPage(): JSX.Element {
         <section className="editor-surface tool-panel">
           <div className="panel-header">
             <span>输入</span>
-            <span className="text-xs text-[color:var(--text-muted)]">{new Blob([input]).size} bytes</span>
+            <span className="text-xs text-[color:var(--text-muted)]">{formatTextStats(input)}</span>
           </div>
           <textarea
             value={input}
             onChange={(event) => setInput(event.target.value)}
-            placeholder={mode === 'jwt' ? '粘贴 JWT...' : mode === 'data-url' ? '粘贴 Data URL...' : '输入要转换的文本...'}
+            placeholder={getPlaceholder(mode)}
             className="editor-textarea"
           />
         </section>
@@ -193,62 +270,99 @@ export function Base64ToolPage(): JSX.Element {
         <section className="editor-surface tool-panel">
           <div className="panel-header">
             <span>输出</span>
-            <button className="toolbar-button min-h-7 px-2 py-1 text-xs disabled:opacity-30" disabled={!outputText} onClick={() => void copyText(outputText, '输出已复制')} title="复制输出">
-              <Copy className="h-3.5 w-3.5" />
-              复制
-            </button>
+            <div className="toolbar-group">
+              <span className="text-xs text-[color:var(--text-muted)]">{formatTextStats(outputText)}</span>
+              <button className="toolbar-button min-h-7 px-2 py-1 text-xs disabled:opacity-30" disabled={!outputText} onClick={() => void copyText(outputText, '输出已复制')} title="复制输出">
+                <Copy className="h-3.5 w-3.5" />
+                复制
+              </button>
+            </div>
           </div>
+          {errorText && (
+            <div className="encoding-error-row">
+              <AlertTriangle className="h-4 w-4" />
+              <span>{errorText}</span>
+            </div>
+          )}
+          {mode === 'url' && (
+            <div className="encoding-note-row">
+              <Info className="h-4 w-4" />
+              <span>{getModeHint(mode, operation, variant)}</span>
+            </div>
+          )}
           <textarea
             value={outputText}
             readOnly
-            placeholder="转换结果将显示在这里..."
+            placeholder={errorText ? '修正输入后重新转换' : '转换结果将显示在这里'}
             className="editor-textarea"
           />
         </section>
       </div>
 
       {computed.type === 'jwt' && computed.result.success && (
-        <div className="data-grid">
-          <button className="glass-card action-card text-left" onClick={() => void copyText(computed.result.headerJson ?? '', 'Header 已复制')}>
-            <div className="text-xs text-[color:var(--text-muted)]">Header</div>
-            <div className="mt-1 truncate font-mono text-sm text-[color:var(--text-secondary)]">{computed.result.headerJson}</div>
+        <div className="encoding-detail-grid">
+          <button className="encoding-detail-card" onClick={() => void copyText(computed.result.headerJson ?? '', 'Header 已复制')}>
+            <div className="encoding-detail-title">
+              <span>Header</span>
+              <Copy className="h-3.5 w-3.5" />
+            </div>
+            <pre>{computed.result.headerJson}</pre>
           </button>
-          <button className="glass-card action-card text-left" onClick={() => void copyText(computed.result.payloadJson ?? '', 'Payload 已复制')}>
-            <div className="text-xs text-[color:var(--text-muted)]">Payload</div>
-            <div className="mt-1 truncate font-mono text-sm text-[color:var(--text-secondary)]">{computed.result.payloadJson}</div>
+          <button className="encoding-detail-card" onClick={() => void copyText(computed.result.payloadJson ?? '', 'Payload 已复制')}>
+            <div className="encoding-detail-title">
+              <span>Payload</span>
+              <Copy className="h-3.5 w-3.5" />
+            </div>
+            <pre>{computed.result.payloadJson}</pre>
           </button>
-          <button className="glass-card action-card text-left" onClick={() => void copyText(computed.result.signature ?? '', 'Signature 已复制')}>
-            <div className="text-xs text-[color:var(--text-muted)]">Signature</div>
-            <div className="mt-1 truncate font-mono text-sm text-[color:var(--text-secondary)]">{computed.result.signature || '无'}</div>
+          <button className="encoding-detail-card" onClick={() => void copyText(computed.result.signature ?? '', 'Signature 已复制')}>
+            <div className="encoding-detail-title">
+              <span>Signature</span>
+              <Copy className="h-3.5 w-3.5" />
+            </div>
+            <code>{computed.result.signature || '无'}</code>
           </button>
         </div>
       )}
 
       {computed.type === 'data-url' && computed.result.success && (
-        <div className="data-grid text-sm">
-          <div className="stat-card">
-            <div className="text-xs text-[color:var(--text-muted)]">媒体类型</div>
-            <div className="mt-1 font-mono text-[color:var(--text-secondary)]">{computed.result.mediaType}</div>
+        <div className="encoding-detail-grid">
+          <div className="encoding-detail-card">
+            <div className="encoding-detail-title">
+              <span>媒体类型</span>
+            </div>
+            <code>{computed.result.mediaType}</code>
           </div>
-          <div className="stat-card">
-            <div className="text-xs text-[color:var(--text-muted)]">编码方式</div>
-            <div className="mt-1 font-mono text-[color:var(--text-secondary)]">{computed.result.isBase64 ? 'Base64' : 'URL 编码'}</div>
+          <div className="encoding-detail-card">
+            <div className="encoding-detail-title">
+              <span>编码方式</span>
+            </div>
+            <code>{computed.result.isBase64 ? 'Base64' : 'URL 编码'}</code>
           </div>
-          <button className="glass-card action-card text-left" onClick={() => void copyText(computed.result.data ?? '', 'Data URL 内容已复制')}>
-            <div className="text-xs text-[color:var(--text-muted)]">数据片段</div>
-            <div className="mt-1 truncate font-mono text-[color:var(--text-secondary)]">{computed.result.data}</div>
+          <div className="encoding-detail-card">
+            <div className="encoding-detail-title">
+              <span>数据大小</span>
+            </div>
+            <code>{formatBytes(computed.result.decodedByteLength)} 解码 · {computed.result.dataLength} 字符片段</code>
+          </div>
+          <button className="encoding-detail-card" onClick={() => void copyText(computed.result.data ?? '', 'Data URL 数据片段已复制')}>
+            <div className="encoding-detail-title">
+              <span>数据片段</span>
+              <Copy className="h-3.5 w-3.5" />
+            </div>
+            <pre>{computed.result.data}</pre>
           </button>
         </div>
       )}
 
-      <div className="status-strip flex items-center gap-3 text-xs">
-        <span className={statusText === '转换成功' ? 'tone-success' : 'text-[color:var(--text-muted)]'}>{message}</span>
-        <span className="text-[color:var(--text-muted)]">|</span>
-        <span className={statusText === '转换成功' ? 'tone-success' : statusText === '等待输入' ? 'text-[color:var(--text-muted)]' : 'tone-danger'}>
-          {statusText}
+      <div className="status-strip encoding-status-strip text-xs">
+        <span className={isSuccess ? 'tone-success' : computed.type === 'empty' ? 'text-[color:var(--text-muted)]' : 'tone-danger'}>
+          {statusLabel}
         </span>
         <span className="text-[color:var(--text-muted)]">|</span>
-        <span className="text-[color:var(--text-secondary)]">Base64 是编码，不是加密；JWT 只本地解码，不校验签名</span>
+        <span className="text-[color:var(--text-secondary)]">{message}</span>
+        <span className="text-[color:var(--text-muted)]">|</span>
+        <span className="text-[color:var(--text-secondary)]">{getModeHint(mode, operation, variant)}</span>
       </div>
     </div>
   )

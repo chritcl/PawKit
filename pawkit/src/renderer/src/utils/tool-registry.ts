@@ -73,7 +73,7 @@ export const toolRegistry: ExtendedToolMeta[] = [
     id: TOOL_IDS.BASE64_TOOL,
     name: '编码转换',
     icon: Binary,
-    description: 'Base64、URL、JWT 和 Data URL 调试',
+    description: 'Base64、URL、JWT、Data URL 本地转换与调试',
     phase: 5,
     canDisable: true
   },

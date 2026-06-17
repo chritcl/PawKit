@@ -148,6 +148,9 @@ export type QrCodeTemplateType = 'text' | 'url' | 'wifi' | 'vcard'
 // 二维码纠错级别
 export type QrCodeErrorCorrectionLevel = 'L' | 'M' | 'Q' | 'H'
 
+// 二维码最近动作
+export type QrCodeLastAction = 'copied' | 'saved' | 'edited'
+
 // 二维码样式配置
 export interface QrCodeStyleSettings {
   size: number
@@ -155,6 +158,7 @@ export interface QrCodeStyleSettings {
   darkColor: string
   lightColor: string
   errorCorrectionLevel: QrCodeErrorCorrectionLevel
+  preset?: string
 }
 
 // 二维码历史项
@@ -168,6 +172,7 @@ export interface QrCodeHistoryItem {
   favorite: boolean
   createdAt: string
   updatedAt: string
+  lastAction?: QrCodeLastAction
 }
 
 // 应用配置
