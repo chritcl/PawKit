@@ -1,5 +1,6 @@
 import { ToolId } from './constants'
 import { LucideIcon } from 'lucide-react'
+import type { BBox, FeatureCollection } from 'geojson'
 
 // 工具元数据
 export interface ToolMeta {
@@ -166,6 +167,134 @@ export interface QrCodeHistoryItem {
   createdAt: string
   updatedAt: string
   lastAction?: QrCodeLastAction
+}
+
+// 地理数据格式
+export type GeoDataFormat =
+  | 'geojson'
+  | 'topojson'
+  | 'csv'
+  | 'kml'
+  | 'svg'
+  | 'shapefile'
+  | 'flatgeobuf'
+  | 'geopackage'
+  | 'geoparquet'
+  | 'geotiff'
+
+// 地理图层类型
+export type GeoLayerKind = 'vector' | 'raster'
+
+// 地理文件对话框过滤器
+export interface GeoFileDialogFilter {
+  name: string
+  extensions: string[]
+}
+
+// 地理二进制数据
+export type GeoBinaryData = ArrayBuffer | Uint8Array
+
+// 地理文件读取结果
+export interface GeoFilePayload {
+  name: string
+  path: string
+  bytes: GeoBinaryData
+  size: number
+}
+
+// 地理文件保存请求
+export interface GeoSaveFileRequest {
+  suggestedName: string
+  bytes: GeoBinaryData
+  filters: GeoFileDialogFilter[]
+}
+
+// 地理文件保存结果
+export interface GeoSaveFileResult {
+  success: boolean
+  status: 'saved' | 'cancelled' | 'error'
+  path?: string
+  message: string
+}
+
+// 地理压缩包条目
+export interface GeoArchiveEntry {
+  name: string
+  bytes: GeoBinaryData
+}
+
+// 地理压缩包保存请求
+export interface GeoSaveArchiveRequest {
+  suggestedName: string
+  entries: GeoArchiveEntry[]
+}
+
+// 地理图层
+export interface GeoLayer {
+  id: string
+  name: string
+  kind: GeoLayerKind
+  format: GeoDataFormat
+  visible: boolean
+  featureCount: number
+  bbox?: BBox
+  crs?: string
+  collection?: FeatureCollection
+  raster?: {
+    width: number
+    height: number
+    bbox?: BBox
+    dataUrl?: string
+  }
+  warnings?: string[]
+}
+
+// 地理工作区
+export interface GeoWorkspace {
+  layers: GeoLayer[]
+  activeLayerId: string | null
+}
+
+// 地理导入结果
+export interface GeoImportResult {
+  layers: GeoLayer[]
+  warnings: string[]
+}
+
+// 地理导出请求
+export interface GeoExportRequest {
+  layerId: string
+  format: Exclude<GeoDataFormat, 'geotiff'>
+  fileName: string
+}
+
+// 地理操作类型
+export type GeoOperationType =
+  | 'simplify'
+  | 'clip'
+  | 'erase'
+  | 'merge'
+  | 'filter'
+  | 'calculate'
+  | 'rename-field'
+  | 'drop-field'
+  | 'sort'
+  | 'project'
+  | 'buffer'
+
+// 地理操作请求
+export interface GeoOperationRequest {
+  type: GeoOperationType
+  layer: GeoLayer
+  clipLayer?: GeoLayer
+  options: Record<string, unknown>
+}
+
+// 地理操作结果
+export interface GeoOperationResult {
+  success: boolean
+  message: string
+  layer?: GeoLayer
 }
 
 // 应用配置
@@ -422,6 +551,11 @@ export interface ElectronAPI {
     getAll: () => Promise<AppSettings>
     reset: () => Promise<boolean>
     exportConfig: () => Promise<{ success: boolean; path?: string; message: string }>
+  }
+  geo: {
+    openFiles: (filters: GeoFileDialogFilter[]) => Promise<GeoFilePayload[]>
+    saveFile: (request: GeoSaveFileRequest) => Promise<GeoSaveFileResult>
+    saveArchive: (request: GeoSaveArchiveRequest) => Promise<GeoSaveFileResult>
   }
   clipboard: {
     readText: () => Promise<string>

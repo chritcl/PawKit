@@ -10,6 +10,7 @@ export const TOOL_IDS = {
   CLIPBOARD: 'clipboard',
   COLOR_PICKER: 'color-picker',
   SCREENSHOT: 'screenshot',
+  GEOSPATIAL: 'geospatial',
   JSON_TOOL: 'json-tool',
   TIMESTAMP_TOOL: 'timestamp-tool',
   BASE64_TOOL: 'base64-tool',

@@ -10,6 +10,7 @@ import { JsonToolPage } from '../../pages/tools/json-tool'
 import { TimestampToolPage } from '../../pages/tools/timestamp-tool'
 import { Base64ToolPage } from '../../pages/tools/base64-tool'
 import { QRCodeToolPage } from '../../pages/tools/qrcode-tool'
+import { GeospatialPage } from '../../pages/tools/geospatial'
 
 // 内容区组件
 export function ContentArea(): JSX.Element {
@@ -35,6 +36,8 @@ export function ContentArea(): JSX.Element {
         return <Base64ToolPage />
       case 'qrcode':
         return <QRCodeToolPage />
+      case 'geospatial':
+        return <GeospatialPage />
       case 'management':
         return <ManagementPage />
       case 'settings':

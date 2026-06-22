@@ -8,6 +8,7 @@ import {
   Braces,
   Clock,
   Binary,
+  Map,
   QrCode,
   Settings,
   Sliders
@@ -82,6 +83,14 @@ export const toolRegistry: ExtendedToolMeta[] = [
     name: '二维码',
     icon: QrCode,
     description: '文本、URL、WiFi 和名片二维码',
+    phase: 5,
+    canDisable: true
+  },
+  {
+    id: TOOL_IDS.GEOSPATIAL,
+    name: '地理空间',
+    icon: Map,
+    description: '地理数据读写、地图编辑与空间处理',
     phase: 5,
     canDisable: true
   },

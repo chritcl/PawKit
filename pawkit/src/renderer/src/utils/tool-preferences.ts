@@ -8,7 +8,8 @@ export const manageableToolIds: ToolId[] = [
   TOOL_IDS.TIMESTAMP_TOOL,
   TOOL_IDS.SCREENSHOT,
   TOOL_IDS.BASE64_TOOL,
-  TOOL_IDS.QRCODE
+  TOOL_IDS.QRCODE,
+  TOOL_IDS.GEOSPATIAL
 ]
 
 export const defaultFavoriteTools: ToolId[] = [TOOL_IDS.CLIPBOARD, TOOL_IDS.JSON_TOOL, TOOL_IDS.SCREENSHOT]

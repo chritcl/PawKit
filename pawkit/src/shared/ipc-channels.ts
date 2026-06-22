@@ -15,6 +15,11 @@ export const IPC_CHANNELS = {
   SETTING_RESET: 'setting:reset',
   SETTING_EXPORT_CONFIG: 'setting:export-config',
 
+  // 地理空间文件相关
+  GEO_OPEN_FILES: 'geo:open-files',
+  GEO_SAVE_FILE: 'geo:save-file',
+  GEO_SAVE_ARCHIVE: 'geo:save-archive',
+
   // 剪贴板相关
   CLIPBOARD_READ_TEXT: 'clipboard:read-text',
   CLIPBOARD_WRITE_TEXT: 'clipboard:write-text',

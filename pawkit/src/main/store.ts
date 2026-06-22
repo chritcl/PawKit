@@ -47,7 +47,8 @@ const defaultSettings: AppSettings = {
       TOOL_IDS.TIMESTAMP_TOOL,
       TOOL_IDS.SCREENSHOT,
       TOOL_IDS.BASE64_TOOL,
-      TOOL_IDS.QRCODE
+      TOOL_IDS.QRCODE,
+      TOOL_IDS.GEOSPATIAL
     ],
     startPage: TOOL_IDS.HOME,
     lastActiveTool: TOOL_IDS.HOME,
@@ -61,7 +62,8 @@ const defaultSettings: AppSettings = {
       TOOL_IDS.TIMESTAMP_TOOL,
       TOOL_IDS.SCREENSHOT,
       TOOL_IDS.BASE64_TOOL,
-      TOOL_IDS.QRCODE
+      TOOL_IDS.QRCODE,
+      TOOL_IDS.GEOSPATIAL
     ],
     favoriteTools: [TOOL_IDS.CLIPBOARD, TOOL_IDS.JSON_TOOL, TOOL_IDS.SCREENSHOT],
     autoUpdate: false,

@@ -2,6 +2,9 @@ import { contextBridge, ipcRenderer } from 'electron'
 import { IPC_CHANNELS } from '../shared/ipc-channels'
 import type {
   ClipboardItem,
+  GeoFileDialogFilter,
+  GeoSaveArchiveRequest,
+  GeoSaveFileRequest,
   ElectronAPI,
   PinnedWindowActionRequest,
   PinnedWindowCreateRequest,
@@ -40,6 +43,14 @@ const electronAPI: ElectronAPI = {
     reset: () => ipcRenderer.invoke(IPC_CHANNELS.SETTING_RESET),
     // 导出配置
     exportConfig: () => ipcRenderer.invoke(IPC_CHANNELS.SETTING_EXPORT_CONFIG)
+  },
+  geo: {
+    // 打开地理空间数据文件
+    openFiles: (filters: GeoFileDialogFilter[]) => ipcRenderer.invoke(IPC_CHANNELS.GEO_OPEN_FILES, filters),
+    // 保存单个地理空间数据文件
+    saveFile: (request: GeoSaveFileRequest) => ipcRenderer.invoke(IPC_CHANNELS.GEO_SAVE_FILE, request),
+    // 保存多文件地理空间压缩包
+    saveArchive: (request: GeoSaveArchiveRequest) => ipcRenderer.invoke(IPC_CHANNELS.GEO_SAVE_ARCHIVE, request)
   },
   clipboard: {
     // 读取系统剪贴板文本
