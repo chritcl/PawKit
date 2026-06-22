@@ -262,6 +262,57 @@ export interface ScreenCaptureActionResponse {
   path?: string
 }
 
+// 置顶截图窗口数据
+export interface PinnedWindowData {
+  id: string
+  dataUrl: string
+  width: number
+  height: number
+  bounds: WindowBounds
+  preferences: ScreenshotPreferences
+  createdAt: string
+}
+
+// 创建置顶截图窗口请求
+export interface PinnedWindowCreateRequest {
+  dataUrl: string
+  width: number
+  height: number
+  bounds: WindowBounds
+  displayId?: string
+}
+
+// 创建置顶截图窗口响应
+export interface PinnedWindowCreateResponse {
+  status: 'pinned' | 'error'
+  message: string
+  id?: string
+}
+
+// 更新置顶截图窗口请求
+export interface PinnedWindowUpdateRequest {
+  pinnedId: string
+  dataUrl: string
+  width: number
+  height: number
+  bounds?: WindowBounds
+}
+
+// 更新置顶截图窗口响应
+export interface PinnedWindowUpdateResponse {
+  status: 'updated' | 'error'
+  message: string
+}
+
+// 置顶窗口输出动作
+export interface PinnedWindowActionRequest {
+  pinnedId: string
+  action: 'copy' | 'save'
+  dataUrl: string
+  width: number
+  height: number
+}
+
 // 图片保存状态
 export type ImageSaveStatus = 'saved' | 'cancelled' | 'error'
 
@@ -405,6 +456,14 @@ export interface ElectronAPI {
     cancel: () => void
     onPayload: (callback: (payload: ScreenCaptureDisplayPayload) => void) => () => void
     onSessionState: (callback: (state: ScreenCaptureSessionState) => void) => () => void
+  }
+  pinned: {
+    create: (request: PinnedWindowCreateRequest) => Promise<PinnedWindowCreateResponse>
+    overlayReady: () => void
+    update: (request: PinnedWindowUpdateRequest) => Promise<PinnedWindowUpdateResponse>
+    performAction: (request: PinnedWindowActionRequest) => Promise<ScreenCaptureActionResponse>
+    close: () => void
+    onData: (callback: (data: PinnedWindowData) => void) => () => void
   }
   shortcut: {
     getStatus: () => Promise<ShortcutStatusItem[]>

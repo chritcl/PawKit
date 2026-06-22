@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
+import type { FocusEvent, MouseEvent, PointerEvent, ReactNode } from 'react'
 import {
   AlignCenter,
   AlignLeft,
@@ -9,11 +10,11 @@ import {
   Check,
   Circle,
   Clipboard,
+  Edit3,
   Grid3X3,
   Highlighter,
   MousePointer2,
   PaintBucket,
-  Pin,
   RotateCcw,
   RotateCw,
   Save,
@@ -22,10 +23,7 @@ import {
   Type,
   X
 } from 'lucide-react'
-import type {
-  ScreenCaptureDisplayPayload,
-  ScreenCaptureSessionState
-} from '../../../../../shared/types'
+import type { PinnedWindowData } from '../../../../../shared/types'
 import {
   drawAnnotationLayer,
   drawFrozenScreen,
@@ -42,12 +40,9 @@ import {
 import {
   constrainSquare,
   containsPoint,
-  getResizeHandle,
   getToolbarPosition,
   isUsableRect,
-  moveRect,
-  normalizeRect,
-  resizeRect
+  normalizeRect
 } from './engine/geometry'
 import {
   StyleActionButton,
@@ -67,16 +62,12 @@ import type {
   CaptureSize,
   CaptureTool,
   MosaicStyle,
-  ResizeDirection,
   StepStyle,
   TextAnnotation,
   ToolStyleMap
 } from './engine/types'
 
 type PointerInteraction =
-  | { type: 'selecting'; start: CapturePoint }
-  | { type: 'moving-selection'; start: CapturePoint; initial: CaptureRect }
-  | { type: 'resizing-selection'; start: CapturePoint; initial: CaptureRect; direction: ResizeDirection }
   | { type: 'text-input'; start: CapturePoint; annotation?: TextAnnotation }
   | {
     type: 'moving-annotation'
@@ -112,18 +103,19 @@ const tools: Array<{ tool: CaptureTool; label: string; icon: typeof MousePointer
   { tool: 'step', label: '序号', icon: Grid3X3 }
 ]
 
-export function ScreenCaptureOverlay(): JSX.Element {
-  const [payload, setPayload] = useState<ScreenCaptureDisplayPayload | null>(null)
-  const [sessionState, setSessionState] = useState<ScreenCaptureSessionState | null>(null)
+export function PinnedOverlay(): JSX.Element {
+  const [data, setData] = useState<PinnedWindowData | null>(null)
+  const [mode, setMode] = useState<'view' | 'edit'>('view')
   const [state, dispatch] = useReducer(captureEditorReducer, undefined, createInitialCaptureEditorState)
   const [textEditor, setTextEditor] = useState<TextEditorState | null>(null)
   const [toolbarSize, setToolbarSize] = useState<CaptureSize>({ width: 690, height: 46 })
   const [styleToolbarSize, setStyleToolbarSize] = useState<CaptureSize>({ width: 420, height: 44 })
   const [styleToolbarNode, setStyleToolbarNode] = useState<HTMLDivElement | null>(null)
   const [message, setMessage] = useState<string | null>(null)
-  const [cursor, setCursor] = useState('crosshair')
+  const [cursor, setCursor] = useState('default')
   const [mosaicSubMode, setMosaicSubMode] = useState<MosaicSubMode>('paint')
-  const [brushPoint, setBrushPoint] = useState<{ x: number; y: number } | null>(null)
+  const [brushPoint, setBrushPoint] = useState<CapturePoint | null>(null)
+  const viewport = useViewportSize()
   const backgroundRef = useRef<HTMLCanvasElement>(null)
   const annotationRef = useRef<HTMLCanvasElement>(null)
   const interactionRef = useRef<HTMLCanvasElement>(null)
@@ -131,20 +123,20 @@ export function ScreenCaptureOverlay(): JSX.Element {
   const toolbarRef = useRef<HTMLDivElement>(null)
   const pointerInteractionRef = useRef<PointerInteraction | null>(null)
   const shapeStartRef = useRef<CapturePoint | null>(null)
-  const imageRef = useRef<HTMLImageElement | null>(null)
   const mosaicPaintingRef = useRef(false)
   const textComposingRef = useRef(false)
   const skipTextCommitRef = useRef(false)
 
-  const viewport = useMemo<CaptureSize>(() => ({
-    width: payload?.bounds.width ?? window.innerWidth,
-    height: payload?.bounds.height ?? window.innerHeight
-  }), [payload])
   const imageSize = useMemo<CaptureSize>(() => ({
-    width: payload?.width ?? 1,
-    height: payload?.height ?? 1
-  }), [payload])
-  const locked = sessionState?.status === 'locked'
+    width: data?.width ?? 1,
+    height: data?.height ?? 1
+  }), [data])
+  const fullSelection = useMemo<CaptureRect>(() => ({
+    x: 0,
+    y: 0,
+    width: viewport.width,
+    height: viewport.height
+  }), [viewport])
   const selectedAnnotation = useMemo(
     () => state.annotations.find((annotation) => annotation.id === state.selectedId) ?? null,
     [state.annotations, state.selectedId]
@@ -153,52 +145,44 @@ export function ScreenCaptureOverlay(): JSX.Element {
   const shouldSelectTextEditor = Boolean(textEditor?.editingId)
   const textEditorFocusX = textEditor?.rect.x
   const textEditorFocusY = textEditor?.rect.y
-
   const toolbarPosition = useMemo(
-    () => state.selection
-      ? getToolbarPosition(state.selection, toolbarSize, viewport)
-      : { x: 8, y: 8 },
-    [state.selection, toolbarSize, viewport]
+    () => getToolbarPosition(fullSelection, toolbarSize, viewport),
+    [fullSelection, toolbarSize, viewport]
   )
   const styleToolbarPosition = useMemo(
-    () => state.selection
-      ? getStyleToolbarPosition(toolbarPosition, toolbarSize, styleToolbarSize, viewport)
-      : { x: 8, y: toolbarSize.height + 12 },
-    [state.selection, styleToolbarSize, toolbarPosition, toolbarSize, viewport]
+    () => getStyleToolbarPosition(toolbarPosition, toolbarSize, styleToolbarSize, viewport),
+    [styleToolbarSize, toolbarPosition, toolbarSize, viewport]
   )
   const setStyleToolbarRef = useCallback((node: HTMLDivElement | null): void => {
     setStyleToolbarNode(node)
   }, [])
 
   useEffect(() => {
-    const removePayload = window.electronAPI.screenCapture.onPayload((nextPayload) => {
-      setPayload(nextPayload)
+    const removeData = window.electronAPI.pinned.onData((nextData) => {
+      setData(nextData)
     })
-    const removeState = window.electronAPI.screenCapture.onSessionState(setSessionState)
-    window.electronAPI.screenCapture.overlayReady()
+    window.electronAPI.pinned.overlayReady()
     return () => {
-      removePayload()
-      removeState()
+      removeData()
     }
   }, [])
 
   useEffect(() => {
-    if (!payload || !backgroundRef.current) return
+    if (!data || mode !== 'edit' || !backgroundRef.current) return
     let cancelled = false
     const image = new Image()
     image.onload = () => {
       if (cancelled || !backgroundRef.current) return
-      imageRef.current = image
       drawFrozenScreen(backgroundRef.current, image, imageSize, viewport)
     }
-    image.src = payload.dataUrl
+    image.src = data.dataUrl
     return () => {
       cancelled = true
     }
-  }, [imageSize, payload, viewport])
+  }, [data, imageSize, mode, viewport])
 
   useEffect(() => {
-    if (!payload || !annotationRef.current || !backgroundRef.current) return
+    if (mode !== 'edit' || !data || !annotationRef.current || !backgroundRef.current) return
     drawAnnotationLayer(
       annotationRef.current,
       backgroundRef.current,
@@ -207,24 +191,25 @@ export function ScreenCaptureOverlay(): JSX.Element {
       imageSize,
       viewport
     )
-  }, [imageSize, payload, state.annotations, state.draft, viewport])
+  }, [data, imageSize, mode, state.annotations, state.draft, viewport])
 
   useEffect(() => {
-    if (!interactionRef.current) return
+    if (mode !== 'edit' || !interactionRef.current) return
     const brush = state.tool === 'mosaic' && mosaicSubMode === 'paint' && brushPoint
       ? { point: brushPoint, size: (state.toolStyles.mosaic as MosaicStyle).brushSize }
       : null
     drawInteractionLayer(
       interactionRef.current,
-      state.selection,
+      fullSelection,
       selectedAnnotation,
       viewport,
-      Boolean(locked),
+      false,
       brush
     )
-  }, [locked, selectedAnnotation, state.selection, viewport, brushPoint, state.tool, mosaicSubMode, state.toolStyles])
+  }, [brushPoint, fullSelection, mode, mosaicSubMode, selectedAnnotation, state.tool, state.toolStyles, viewport])
 
   useEffect(() => {
+    if (mode !== 'edit') return
     const toolbar = toolbarRef.current
     if (!toolbar) return
     const update = (): void => setToolbarSize({ width: toolbar.offsetWidth, height: toolbar.offsetHeight })
@@ -232,10 +217,10 @@ export function ScreenCaptureOverlay(): JSX.Element {
     const observer = new ResizeObserver(update)
     observer.observe(toolbar)
     return () => observer.disconnect()
-  }, [state.selection])
+  }, [mode])
 
   useEffect(() => {
-    if (!styleToolbarNode) return
+    if (mode !== 'edit' || !styleToolbarNode) return
     const update = (): void => setStyleToolbarSize({
       width: styleToolbarNode.offsetWidth,
       height: styleToolbarNode.offsetHeight
@@ -244,69 +229,106 @@ export function ScreenCaptureOverlay(): JSX.Element {
     const observer = new ResizeObserver(update)
     observer.observe(styleToolbarNode)
     return () => observer.disconnect()
-  }, [styleToolbarNode])
+  }, [mode, styleToolbarNode])
+
+  const resetEditor = useCallback((): void => {
+    setTextEditor(null)
+    setBrushPoint(null)
+    pointerInteractionRef.current = null
+    shapeStartRef.current = null
+    mosaicPaintingRef.current = false
+    textComposingRef.current = false
+    skipTextCommitRef.current = false
+    dispatch({ type: 'reset' })
+  }, [])
+
+  const beginEdit = useCallback((): void => {
+    resetEditor()
+    setMessage(null)
+    setMode('edit')
+  }, [resetEditor])
+
+  const cancelEdit = useCallback((): void => {
+    resetEditor()
+    setMessage(null)
+    setMode('view')
+  }, [resetEditor])
 
   const exportCurrent = useCallback(() => {
     if (
-      !payload ||
-      !state.selection ||
+      !data ||
       !backgroundRef.current ||
       !annotationRef.current
     ) return null
     return exportSelectionImage(
       backgroundRef.current,
       annotationRef.current,
-      state.selection,
+      fullSelection,
       viewport,
       imageSize
     )
-  }, [imageSize, payload, state.selection, viewport])
+  }, [data, fullSelection, imageSize, viewport])
 
-  const performOutput = useCallback(async (action: 'copy' | 'complete' | 'save'): Promise<void> => {
-    if (!payload) return
-    const exported = exportCurrent()
-    if (!exported) return
+  const performPinnedAction = useCallback(async (
+    action: 'copy' | 'save',
+    image?: { dataUrl: string; width: number; height: number }
+  ): Promise<void> => {
+    if (!data) return
+    const target = image ?? data
     try {
-      const response = await window.electronAPI.screenCapture.performAction({
+      const response = await window.electronAPI.pinned.performAction({
+        pinnedId: data.id,
         action,
-        dataUrl: exported.dataUrl,
-        width: exported.width,
-        height: exported.height,
-        displayId: payload.displayId
+        dataUrl: target.dataUrl,
+        width: target.width,
+        height: target.height
       })
-      if (response.status === 'error') setMessage(response.message)
-      if (response.status === 'copied' && action === 'copy') setMessage(response.message)
+      setMessage(response.message)
     } catch {
-      setMessage(action === 'save' ? '保存截图失败' : '复制截图失败')
+      setMessage(action === 'save' ? '保存置顶截图失败' : '复制置顶截图失败')
     }
-  }, [exportCurrent, payload])
+  }, [data])
 
-  const pinCurrent = useCallback(async (): Promise<void> => {
-    if (!payload || !state.selection) return
+  const performCurrentAction = useCallback(async (action: 'copy' | 'save'): Promise<void> => {
+    if (mode === 'edit') {
+      const exported = exportCurrent()
+      if (!exported) return
+      await performPinnedAction(action, exported)
+      return
+    }
+    await performPinnedAction(action)
+  }, [exportCurrent, mode, performPinnedAction])
+
+  const finishEdit = useCallback(async (): Promise<void> => {
+    if (!data) return
     const exported = exportCurrent()
     if (!exported) return
     try {
-      const response = await window.electronAPI.pinned.create({
+      const response = await window.electronAPI.pinned.update({
+        pinnedId: data.id,
         dataUrl: exported.dataUrl,
         width: exported.width,
-        height: exported.height,
-        displayId: payload.displayId,
-        bounds: {
-          x: payload.bounds.x + state.selection.x,
-          y: payload.bounds.y + state.selection.y,
-          width: state.selection.width,
-          height: state.selection.height
-        }
+        height: exported.height
       })
-      if (response.status === 'pinned') {
-        window.electronAPI.screenCapture.cancel()
+      if (response.status === 'updated') {
+        setData((current) => current && current.id === data.id
+          ? {
+            ...current,
+            dataUrl: exported.dataUrl,
+            width: exported.width,
+            height: exported.height
+          }
+          : current)
+        resetEditor()
+        setMode('view')
+        setMessage(null)
       } else {
         setMessage(response.message)
       }
     } catch {
-      setMessage('创建置顶截图失败')
+      setMessage('更新置顶截图失败')
     }
-  }, [exportCurrent, payload, state.selection])
+  }, [data, exportCurrent, resetEditor])
 
   const beginTextInputAtPoint = useCallback((point: CapturePoint, annotation?: TextAnnotation): void => {
     const style = annotation
@@ -398,13 +420,13 @@ export function ScreenCaptureOverlay(): JSX.Element {
     setTextEditor(null)
   }, [state.annotations, textEditor])
 
-  const handleTextEditorBlur = useCallback((event: React.FocusEvent<HTMLTextAreaElement>): void => {
+  const handleTextEditorBlur = useCallback((event: FocusEvent<HTMLTextAreaElement>): void => {
     const nextTarget = event.relatedTarget
     if (nextTarget instanceof Node && styleToolbarNode?.contains(nextTarget)) return
     commitText()
   }, [commitText, styleToolbarNode])
 
-  const handleStyleToolbarBlur = useCallback((event: React.FocusEvent<HTMLDivElement>): void => {
+  const handleStyleToolbarBlur = useCallback((event: FocusEvent<HTMLDivElement>): void => {
     if (!textEditor) return
     const nextTarget = event.relatedTarget
     if (
@@ -414,22 +436,16 @@ export function ScreenCaptureOverlay(): JSX.Element {
     commitText()
   }, [commitText, styleToolbarNode, textEditor])
 
-  const getPoint = (event: React.PointerEvent<HTMLCanvasElement>): CapturePoint => ({
+  const getPoint = (event: PointerEvent<HTMLCanvasElement>): CapturePoint => ({
     x: event.clientX,
     y: event.clientY
   })
 
-  const handlePointerDown = (event: React.PointerEvent<HTMLCanvasElement>): void => {
-    if (event.button !== 0) return
-    if (locked) {
-      if (state.tool === 'text') setMessage('请在当前操作的显示器添加文字')
-      return
-    }
-    window.electronAPI.screenCapture.claim()
+  const handlePointerDown = (event: PointerEvent<HTMLCanvasElement>): void => {
+    if (mode !== 'edit' || event.button !== 0) return
     const point = getPoint(event)
-    const hitAnnotation = state.selection && containsPoint(state.selection, point)
-      ? hitTestAnnotation(state.annotations, point)
-      : null
+    if (!containsPoint(fullSelection, point)) return
+    const hitAnnotation = hitTestAnnotation(state.annotations, point)
 
     if (state.tool === 'text') {
       event.currentTarget.setPointerCapture(event.pointerId)
@@ -454,45 +470,11 @@ export function ScreenCaptureOverlay(): JSX.Element {
       return
     }
 
-    // === select 工具特有逻辑 ===
     if (state.tool === 'select') {
-      const handle = state.selection ? getResizeHandle(point, state.selection) : null
-      if (state.selection && handle) {
-        event.currentTarget.setPointerCapture(event.pointerId)
-        pointerInteractionRef.current = {
-          type: 'resizing-selection',
-          start: point,
-          initial: state.selection,
-          direction: handle
-        }
-        return
-      }
-
-      if (state.selection && containsPoint(state.selection, point)) {
-        event.currentTarget.setPointerCapture(event.pointerId)
-        pointerInteractionRef.current = {
-          type: 'moving-selection',
-          start: point,
-          initial: state.selection
-        }
-        return
-      }
-
-      event.currentTarget.setPointerCapture(event.pointerId)
-      pointerInteractionRef.current = { type: 'selecting', start: point }
-      dispatch({
-        type: 'set-selection',
-        selection: { x: point.x, y: point.y, width: 0, height: 0 },
-        clearAnnotations: true
-      })
-      dispatch({ type: 'set-phase', phase: 'selecting' })
+      dispatch({ type: 'set-selected', id: null })
       return
     }
 
-    // === 非 select 工具：必须在选区内 ===
-    if (!state.selection || !containsPoint(state.selection, point)) return
-
-    // === 工具特定创建 ===
     if (state.tool === 'step') {
       const stepStyle = state.toolStyles.step as StepStyle
       dispatch({
@@ -514,7 +496,6 @@ export function ScreenCaptureOverlay(): JSX.Element {
       return
     }
 
-    // 以下工具需要拖动，设置指针捕获
     event.currentTarget.setPointerCapture(event.pointerId)
 
     if (state.tool === 'mosaic' && mosaicSubMode === 'paint') {
@@ -580,8 +561,8 @@ export function ScreenCaptureOverlay(): JSX.Element {
     shapeStartRef.current = point
   }
 
-  const handlePointerMove = (event: React.PointerEvent<HTMLCanvasElement>): void => {
-    if (locked) return
+  const handlePointerMove = (event: PointerEvent<HTMLCanvasElement>): void => {
+    if (mode !== 'edit') return
     const point = getPoint(event)
     const interaction = pointerInteractionRef.current
 
@@ -591,16 +572,7 @@ export function ScreenCaptureOverlay(): JSX.Element {
 
     if (interaction) {
       const delta = { x: point.x - interaction.start.x, y: point.y - interaction.start.y }
-      if (interaction.type === 'selecting') {
-        dispatch({ type: 'set-selection', selection: normalizeRect(interaction.start, point) })
-      } else if (interaction.type === 'moving-selection') {
-        dispatch({ type: 'set-selection', selection: moveRect(interaction.initial, delta, viewport) })
-      } else if (interaction.type === 'resizing-selection') {
-        dispatch({
-          type: 'set-selection',
-          selection: resizeRect(interaction.initial, interaction.direction, delta, viewport)
-        })
-      } else if (interaction.type === 'moving-annotation') {
+      if (interaction.type === 'moving-annotation') {
         if (Math.abs(delta.x) > 1 || Math.abs(delta.y) > 1) {
           interaction.moved = true
           dispatch({
@@ -647,29 +619,19 @@ export function ScreenCaptureOverlay(): JSX.Element {
       return
     }
 
-    if (state.tool === 'text' && hitTestAnnotation(state.annotations, point)?.type === 'text') {
+    const hitAnnotation = hitTestAnnotation(state.annotations, point)
+    if (state.tool === 'text' && hitAnnotation?.type === 'text') {
       setCursor('text')
-      return
-    }
-
-    if (state.tool !== 'select') {
-      setCursor('crosshair')
-      return
-    }
-
-    const handle = state.selection ? getResizeHandle(point, state.selection) : null
-    if (handle) {
-      setCursor(getResizeCursor(handle))
-    } else if (hitTestAnnotation(state.annotations, point)) {
+    } else if (state.tool === 'select' && hitAnnotation) {
       setCursor('move')
-    } else if (state.selection && containsPoint(state.selection, point)) {
-      setCursor('move')
+    } else if (state.tool === 'select') {
+      setCursor('default')
     } else {
       setCursor('crosshair')
     }
   }
 
-  const handlePointerUp = (event: React.PointerEvent<HTMLCanvasElement>): void => {
+  const handlePointerUp = (event: PointerEvent<HTMLCanvasElement>): void => {
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId)
     }
@@ -679,25 +641,14 @@ export function ScreenCaptureOverlay(): JSX.Element {
     mosaicPaintingRef.current = false
 
     if (interaction?.type === 'text-input') {
-      if (!state.selection) {
-        setMessage('请先框选截图区域')
-        return
-      }
-      if (!containsPoint(state.selection, interaction.start)) {
-        setMessage('请在选区内添加文字')
+      if (!containsPoint(fullSelection, interaction.start)) {
+        setMessage('请在置顶截图内添加文字')
         return
       }
       beginTextInputAtPoint(interaction.start, interaction.annotation)
       return
     }
 
-    if (interaction?.type === 'selecting') {
-      const selection = state.selection && isUsableRect(state.selection)
-        ? state.selection
-        : { x: 0, y: 0, width: viewport.width, height: viewport.height }
-      dispatch({ type: 'set-selection', selection })
-      return
-    }
     if (interaction?.type === 'moving-annotation') {
       if (interaction.moved) {
         dispatch({
@@ -711,6 +662,7 @@ export function ScreenCaptureOverlay(): JSX.Element {
       }
       return
     }
+
     if (state.draft) {
       const valid = 'points' in state.draft
         ? state.draft.points.length >= 2
@@ -726,8 +678,8 @@ export function ScreenCaptureOverlay(): JSX.Element {
     }
   }
 
-  const handleDoubleClick = (event: React.MouseEvent<HTMLCanvasElement>): void => {
-    if (locked || !state.selection || textEditor) return
+  const handleDoubleClick = (event: MouseEvent<HTMLCanvasElement>): void => {
+    if (mode !== 'edit' || textEditor) return
     const point = { x: event.clientX, y: event.clientY }
     const hitAnnotation = hitTestAnnotation(state.annotations, point)
     if (hitAnnotation?.type !== 'text') return
@@ -735,23 +687,24 @@ export function ScreenCaptureOverlay(): JSX.Element {
     beginTextInputAtPoint(point, hitAnnotation)
   }
 
-  const handleContextMenu = (event: React.MouseEvent): void => {
+  const handleContextMenu = (event: MouseEvent): void => {
     event.preventDefault()
+    if (mode !== 'edit') return
     if (textEditor) {
       cancelTextInput()
       return
     }
     if (state.draft) {
       dispatch({ type: 'set-draft', draft: null })
-    } else if (state.selection) {
-      dispatch({ type: 'reset' })
+    } else if (state.selectedId) {
+      dispatch({ type: 'set-selected', id: null })
     } else {
-      window.electronAPI.screenCapture.cancel()
+      cancelEdit()
     }
   }
 
   const getStyleEditor = (): JSX.Element | null => {
-    if (!state.selection) return null
+    if (mode !== 'edit') return null
 
     const tool = textEditor
       ? 'text'
@@ -988,6 +941,19 @@ export function ScreenCaptureOverlay(): JSX.Element {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent): void => {
+      if (mode === 'view') {
+        if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'c') {
+          event.preventDefault()
+          void performCurrentAction('copy')
+        } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+          event.preventDefault()
+          void performCurrentAction('save')
+        } else if (event.key === 'Escape') {
+          window.electronAPI.pinned.close()
+        }
+        return
+      }
+
       if (textEditor) {
         if (event.key === 'Escape') {
           cancelTextInput()
@@ -998,7 +964,7 @@ export function ScreenCaptureOverlay(): JSX.Element {
         if (state.selectedId) {
           dispatch({ type: 'set-selected', id: null })
         } else {
-          window.electronAPI.screenCapture.cancel()
+          cancelEdit()
         }
       } else if ((event.key === 'Delete' || event.key === 'Backspace') && state.selectedId) {
         event.preventDefault()
@@ -1015,27 +981,66 @@ export function ScreenCaptureOverlay(): JSX.Element {
         dispatch({ type: 'redo' })
       } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'c') {
         event.preventDefault()
-        void performOutput('copy')
+        void performCurrentAction('copy')
       } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
         event.preventDefault()
-        void performOutput('save')
-      } else if (event.key === 'Enter' && state.selection && !event.ctrlKey && !event.metaKey) {
+        void performCurrentAction('save')
+      } else if (event.key === 'Enter' && !event.ctrlKey && !event.metaKey) {
         event.preventDefault()
-        void performOutput('complete')
+        void finishEdit()
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [cancelTextInput, performOutput, state.annotations, state.selectedId, state.selection, textEditor])
+  }, [
+    cancelEdit,
+    cancelTextInput,
+    finishEdit,
+    mode,
+    performCurrentAction,
+    state.annotations,
+    state.selectedId,
+    textEditor
+  ])
 
-  if (!payload) {
-    return <div className="flex h-screen w-screen items-center justify-center bg-black text-sm text-white">正在冻结屏幕...</div>
+  if (!data) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-transparent text-sm text-white">
+        正在加载置顶截图...
+      </div>
+    )
+  }
+
+  if (mode === 'view') {
+    return (
+      <div className="group relative h-screen w-screen overflow-hidden bg-transparent">
+        <div className="app-drag absolute inset-0 rounded-sm bg-black shadow-2xl ring-1 ring-black/30">
+          <img
+            src={data.dataUrl}
+            alt="置顶截图"
+            draggable={false}
+            className="pointer-events-none h-full w-full select-none object-fill"
+          />
+        </div>
+        <div className="app-no-drag absolute right-2 top-2 flex items-center gap-1 rounded-lg border border-white/15 bg-[#101827]/95 p-1 opacity-0 shadow-2xl backdrop-blur transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+          <PinnedToolButton title="编辑" onClick={beginEdit}><Edit3 className="h-4 w-4" /></PinnedToolButton>
+          <PinnedToolButton title="复制 Ctrl+C" onClick={() => void performCurrentAction('copy')}><Clipboard className="h-4 w-4" /></PinnedToolButton>
+          <PinnedToolButton title="保存 Ctrl+S" onClick={() => void performCurrentAction('save')}><Save className="h-4 w-4" /></PinnedToolButton>
+          <PinnedToolButton title="关闭 Esc" onClick={() => window.electronAPI.pinned.close()}><X className="h-4 w-4" /></PinnedToolButton>
+        </div>
+        {message && (
+          <div className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-md bg-black/80 px-3 py-1.5 text-xs text-white shadow-xl">
+            {message}
+          </div>
+        )}
+      </div>
+    )
   }
 
   const styleEditor = getStyleEditor()
 
   return (
-    <div className="relative h-screen w-screen overflow-hidden bg-black text-white" onContextMenu={handleContextMenu}>
+    <div className="relative h-screen w-screen overflow-hidden bg-[#05070a] text-white" onContextMenu={handleContextMenu}>
       <canvas ref={backgroundRef} className="pointer-events-none absolute inset-0" />
       <canvas ref={annotationRef} className="pointer-events-none absolute inset-0" />
       <canvas
@@ -1048,62 +1053,46 @@ export function ScreenCaptureOverlay(): JSX.Element {
         onDoubleClick={handleDoubleClick}
       />
 
-      {locked && (
-        <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-lg border border-white/15 bg-black/75 px-4 py-2 text-sm shadow-2xl">
-          请在当前操作的显示器完成截图
-        </div>
-      )}
-
-      {state.selection && !locked && (
-        <>
-          <div
-            className="pointer-events-none absolute rounded bg-black/75 px-2 py-1 text-xs"
-            style={{ left: state.selection.x, top: Math.max(8, state.selection.y - 30) }}
-          >
-            {Math.round(state.selection.width)} x {Math.round(state.selection.height)}
-          </div>
-          <div
-            ref={toolbarRef}
-            className="absolute flex max-w-[calc(100vw-16px)] flex-wrap items-center gap-1 rounded-lg border border-white/15 bg-[#101827]/95 p-1.5 shadow-2xl backdrop-blur"
-            style={{ left: toolbarPosition.x, top: toolbarPosition.y }}
-          >
-            {tools.map((item) => {
-              const Icon = item.icon
-              return (
-                <button
-                  key={item.tool}
-                  className={`flex h-8 w-8 items-center justify-center rounded-md ${
-                    state.tool === item.tool ? 'bg-[#3f8cff] text-white' : 'text-slate-300 hover:bg-white/10'
-                  }`}
-                  onClick={() => dispatch({ type: 'set-tool', tool: item.tool })}
-                  title={item.label}
-                >
-                  <Icon className="h-4 w-4" />
-                </button>
-              )
-            })}
-            <div className="mx-1 h-6 w-px bg-white/15" />
-            <ToolbarButton title="撤销 Ctrl+Z" disabled={state.past.length === 0} onClick={() => dispatch({ type: 'undo' })}><RotateCcw className="h-4 w-4" /></ToolbarButton>
-            <ToolbarButton title="重做 Ctrl+Y" disabled={state.future.length === 0} onClick={() => dispatch({ type: 'redo' })}><RotateCw className="h-4 w-4" /></ToolbarButton>
-            <ToolbarButton title="复制 Ctrl+C" onClick={() => void performOutput('copy')}><Clipboard className="h-4 w-4" /></ToolbarButton>
-            <ToolbarButton title="钉在桌面" onClick={() => void pinCurrent()}><Pin className="h-4 w-4" /></ToolbarButton>
-            <ToolbarButton title="保存 Ctrl+S" onClick={() => void performOutput('save')}><Save className="h-4 w-4" /></ToolbarButton>
-            <ToolbarButton title="取消 Esc" onClick={() => window.electronAPI.screenCapture.cancel()}><X className="h-4 w-4" /></ToolbarButton>
-            <button className="flex h-8 items-center gap-1 rounded-md bg-[#3f8cff] px-3 text-sm hover:bg-[#277bf5]" onClick={() => void performOutput('complete')} title="复制并关闭 Enter">
-              <Check className="h-4 w-4" />复制并关闭
-            </button>
-          </div>
-          {styleEditor && (
-            <div
-              ref={setStyleToolbarRef}
-              className="screenshot-style-toolbar"
-              style={{ left: styleToolbarPosition.x, top: styleToolbarPosition.y }}
-              onBlur={handleStyleToolbarBlur}
+      <div
+        ref={toolbarRef}
+        className="absolute flex max-w-[calc(100vw-16px)] flex-wrap items-center gap-1 rounded-lg border border-white/15 bg-[#101827]/95 p-1.5 shadow-2xl backdrop-blur"
+        style={{ left: toolbarPosition.x, top: toolbarPosition.y }}
+      >
+        {tools.map((item) => {
+          const Icon = item.icon
+          return (
+            <button
+              key={item.tool}
+              className={`flex h-8 w-8 items-center justify-center rounded-md ${
+                state.tool === item.tool ? 'bg-[#3f8cff] text-white' : 'text-slate-300 hover:bg-white/10'
+              }`}
+              onClick={() => dispatch({ type: 'set-tool', tool: item.tool })}
+              title={item.label}
             >
-              {styleEditor}
-            </div>
-          )}
-        </>
+              <Icon className="h-4 w-4" />
+            </button>
+          )
+        })}
+        <div className="mx-1 h-6 w-px bg-white/15" />
+        <PinnedToolButton title="撤销 Ctrl+Z" disabled={state.past.length === 0} onClick={() => dispatch({ type: 'undo' })}><RotateCcw className="h-4 w-4" /></PinnedToolButton>
+        <PinnedToolButton title="重做 Ctrl+Y" disabled={state.future.length === 0} onClick={() => dispatch({ type: 'redo' })}><RotateCw className="h-4 w-4" /></PinnedToolButton>
+        <PinnedToolButton title="复制 Ctrl+C" onClick={() => void performCurrentAction('copy')}><Clipboard className="h-4 w-4" /></PinnedToolButton>
+        <PinnedToolButton title="保存 Ctrl+S" onClick={() => void performCurrentAction('save')}><Save className="h-4 w-4" /></PinnedToolButton>
+        <PinnedToolButton title="取消编辑 Esc" onClick={cancelEdit}><X className="h-4 w-4" /></PinnedToolButton>
+        <button className="flex h-8 items-center gap-1 rounded-md bg-[#3f8cff] px-3 text-sm hover:bg-[#277bf5]" onClick={() => void finishEdit()} title="完成编辑 Enter">
+          <Check className="h-4 w-4" />完成
+        </button>
+      </div>
+
+      {styleEditor && (
+        <div
+          ref={setStyleToolbarRef}
+          className="screenshot-style-toolbar"
+          style={{ left: styleToolbarPosition.x, top: styleToolbarPosition.y }}
+          onBlur={handleStyleToolbarBlur}
+        >
+          {styleEditor}
+        </div>
       )}
 
       {textEditor && (
@@ -1168,7 +1157,7 @@ export function ScreenCaptureOverlay(): JSX.Element {
       )}
 
       {message && (
-        <div className="pointer-events-none absolute bottom-6 left-1/2 -translate-x-1/2 rounded-md bg-black/80 px-4 py-2 text-sm shadow-xl">
+        <div className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-md bg-black/80 px-3 py-1.5 text-xs shadow-xl">
           {message}
         </div>
       )}
@@ -1176,13 +1165,13 @@ export function ScreenCaptureOverlay(): JSX.Element {
   )
 }
 
-function ToolbarButton({
+function PinnedToolButton({
   children,
   title,
   disabled,
   onClick
 }: {
-  children: React.ReactNode
+  children: ReactNode
   title: string
   disabled?: boolean
   onClick: () => void
@@ -1226,9 +1215,23 @@ function clampNumber(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
 }
 
-function getResizeCursor(direction: ResizeDirection): string {
-  if (direction === 'top' || direction === 'bottom') return 'ns-resize'
-  if (direction === 'left' || direction === 'right') return 'ew-resize'
-  if (direction === 'top-left' || direction === 'bottom-right') return 'nwse-resize'
-  return 'nesw-resize'
+function useViewportSize(): CaptureSize {
+  const [size, setSize] = useState<CaptureSize>(() => ({
+    width: Math.max(1, window.innerWidth),
+    height: Math.max(1, window.innerHeight)
+  }))
+
+  useEffect(() => {
+    const update = (): void => {
+      setSize({
+        width: Math.max(1, window.innerWidth),
+        height: Math.max(1, window.innerHeight)
+      })
+    }
+    update()
+    window.addEventListener('resize', update)
+    return () => window.removeEventListener('resize', update)
+  }, [])
+
+  return size
 }

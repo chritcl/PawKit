@@ -4,6 +4,7 @@ import { ToolId } from '../../shared/constants'
 import { AppShell } from './components/layout/app-shell'
 import { ColorPickerOverlay } from './pages/tools/color-picker/color-picker-overlay'
 import { ScreenCaptureOverlay } from './pages/tools/screenshot/screen-capture-overlay'
+import { PinnedOverlay } from './pages/tools/screenshot/pinned-overlay'
 
 // 页面名称到工具 ID 的映射
 const pageToToolId: Record<string, ToolId> = {
@@ -61,6 +62,10 @@ function App(): JSX.Element {
 
   if (mode === 'screen-capture-overlay') {
     return <ScreenCaptureOverlay />
+  }
+
+  if (mode === 'pinned-overlay') {
+    return <PinnedOverlay />
   }
 
   return <MainApp />

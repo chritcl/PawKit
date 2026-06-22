@@ -49,6 +49,14 @@ export const IPC_CHANNELS = {
   SCREEN_CAPTURE_PAYLOAD: 'screen-capture:payload',
   SCREEN_CAPTURE_SESSION_STATE: 'screen-capture:session-state',
 
+  // 截图置顶窗口相关
+  PINNED_WINDOW_CREATE: 'pinned-window:create',
+  PINNED_WINDOW_READY: 'pinned-window:ready',
+  PINNED_WINDOW_DATA: 'pinned-window:data',
+  PINNED_WINDOW_UPDATE: 'pinned-window:update',
+  PINNED_WINDOW_ACTION: 'pinned-window:action',
+  PINNED_WINDOW_CLOSE: 'pinned-window:close',
+
   // 快捷键相关
   SHORTCUT_GET_STATUS: 'shortcut:get-status',
   SHORTCUT_UPDATE: 'shortcut:update',

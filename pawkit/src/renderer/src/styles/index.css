@@ -1916,6 +1916,12 @@ button:disabled {
   overflow: auto;
 }
 
+.qrcode-preview-panel {
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
 .qrcode-section-title {
   color: var(--text-muted);
   font-size: 0.75rem;

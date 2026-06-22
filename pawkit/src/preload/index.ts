@@ -3,6 +3,10 @@ import { IPC_CHANNELS } from '../shared/ipc-channels'
 import type {
   ClipboardItem,
   ElectronAPI,
+  PinnedWindowActionRequest,
+  PinnedWindowCreateRequest,
+  PinnedWindowData,
+  PinnedWindowUpdateRequest,
   ScreenColorPickResult,
   ScreenColorPickerPayload,
   ScreenCaptureActionRequest,
@@ -124,6 +128,26 @@ const electronAPI: ElectronAPI = {
       ipcRenderer.on(IPC_CHANNELS.SCREEN_CAPTURE_SESSION_STATE, listener)
       return () => {
         ipcRenderer.removeListener(IPC_CHANNELS.SCREEN_CAPTURE_SESSION_STATE, listener)
+      }
+    }
+  },
+  pinned: {
+    // 创建截图置顶窗口
+    create: (request: PinnedWindowCreateRequest) => ipcRenderer.invoke(IPC_CHANNELS.PINNED_WINDOW_CREATE, request),
+    // 通知主进程置顶窗口已准备
+    overlayReady: () => ipcRenderer.send(IPC_CHANNELS.PINNED_WINDOW_READY),
+    // 更新置顶窗口图片
+    update: (request: PinnedWindowUpdateRequest) => ipcRenderer.invoke(IPC_CHANNELS.PINNED_WINDOW_UPDATE, request),
+    // 执行置顶窗口复制或保存动作
+    performAction: (request: PinnedWindowActionRequest) => ipcRenderer.invoke(IPC_CHANNELS.PINNED_WINDOW_ACTION, request),
+    // 关闭置顶窗口
+    close: () => ipcRenderer.send(IPC_CHANNELS.PINNED_WINDOW_CLOSE),
+    // 接收置顶窗口数据
+    onData: (callback: (data: PinnedWindowData) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, data: PinnedWindowData) => callback(data)
+      ipcRenderer.on(IPC_CHANNELS.PINNED_WINDOW_DATA, listener)
+      return () => {
+        ipcRenderer.removeListener(IPC_CHANNELS.PINNED_WINDOW_DATA, listener)
       }
     }
   },
