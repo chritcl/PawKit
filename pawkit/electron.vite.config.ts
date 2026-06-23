@@ -24,8 +24,7 @@ export default defineConfig({
   renderer: {
     resolve: {
       alias: {
-        '@': resolve('src/renderer/src'),
-        util: 'util/'
+        '@': resolve('src/renderer/src')
       }
     },
     worker: {

@@ -1,14 +1,5 @@
-import { ToolId } from './constants'
-import { LucideIcon } from 'lucide-react'
+import type { ToolId } from './constants'
 import type { BBox, FeatureCollection } from 'geojson'
-
-// 工具元数据
-export interface ToolMeta {
-  id: ToolId
-  name: string
-  icon: LucideIcon
-  description: string
-}
 
 // 应用主题
 export type AppTheme = 'light' | 'dark'
@@ -130,8 +121,8 @@ export interface ColorRecord {
 
 // 管理配置
 export interface ManagementSettings {
-  toolOrder: string[]
-  favoriteTools: string[]
+  toolOrder: ToolId[]
+  favoriteTools: ToolId[]
   autoUpdate: boolean
   lastCheckUpdateTime: string | null
 }
@@ -178,12 +169,6 @@ export type GeoDataFormat =
   | 'svg'
   | 'shapefile'
   | 'flatgeobuf'
-  | 'geopackage'
-  | 'geoparquet'
-  | 'geotiff'
-
-// 地理图层类型
-export type GeoLayerKind = 'vector' | 'raster'
 
 // 地理文件对话框过滤器
 export interface GeoFileDialogFilter {
@@ -233,19 +218,12 @@ export interface GeoSaveArchiveRequest {
 export interface GeoLayer {
   id: string
   name: string
-  kind: GeoLayerKind
   format: GeoDataFormat
   visible: boolean
   featureCount: number
   bbox?: BBox
   crs?: string
-  collection?: FeatureCollection
-  raster?: {
-    width: number
-    height: number
-    bbox?: BBox
-    dataUrl?: string
-  }
+  collection: FeatureCollection
   warnings?: string[]
 }
 
@@ -264,7 +242,7 @@ export interface GeoImportResult {
 // 地理导出请求
 export interface GeoExportRequest {
   layerId: string
-  format: Exclude<GeoDataFormat, 'geotiff'>
+  format: GeoDataFormat
   fileName: string
 }
 
@@ -301,9 +279,9 @@ export interface GeoOperationResult {
 export interface AppSettings {
   app: {
     theme: AppTheme
-    shortcuts: Record<string, { accelerator: string; enabled: boolean }>
+    shortcuts: Record<ShortcutKey, { accelerator: string; enabled: boolean }>
     windowBounds: { x: number; y: number; width: number; height: number } | null
-    enabledTools: string[]
+    enabledTools: ToolId[]
     startPage: AppStartPage
     lastActiveTool: ToolId
     toolUsage: ToolUsageRecord[]

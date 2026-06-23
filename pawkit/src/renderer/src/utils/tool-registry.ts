@@ -1,5 +1,5 @@
-import { ToolMeta } from '../../../shared/types'
-import { TOOL_IDS } from '../../../shared/constants'
+import type { LucideIcon } from 'lucide-react'
+import { TOOL_IDS, isToolId, type ToolId } from '../../../shared/constants'
 import {
   Home,
   Clipboard,
@@ -14,13 +14,15 @@ import {
   Sliders
 } from 'lucide-react'
 
-// 扩展工具元数据（包含阶段信息）
-export interface ExtendedToolMeta extends ToolMeta {
+export interface ExtendedToolMeta {
+  id: ToolId
+  name: string
+  icon: LucideIcon
+  description: string
   phase: number
   canDisable: boolean
 }
 
-// 工具注册表
 export const toolRegistry: ExtendedToolMeta[] = [
   {
     id: TOOL_IDS.HOME,
@@ -112,12 +114,12 @@ export const toolRegistry: ExtendedToolMeta[] = [
   }
 ]
 
-// 获取工具元数据
+export const toolRegistryById = Object.fromEntries(toolRegistry.map((tool) => [tool.id, tool])) as Record<ToolId, ExtendedToolMeta>
+
 export function getToolMeta(toolId: string): ExtendedToolMeta | undefined {
-  return toolRegistry.find((tool) => tool.id === toolId)
+  return isToolId(toolId) ? toolRegistryById[toolId] : undefined
 }
 
-// 获取可禁用的工具列表
 export function getDisableableTools(): ExtendedToolMeta[] {
   return toolRegistry.filter((tool) => tool.canDisable)
 }

@@ -1,0 +1,172 @@
+:root {
+  --color-primary: #3f8cff;
+  --color-primary-rgb: 63, 140, 255;
+  --color-primary-soft: rgba(63, 140, 255, 0.14);
+  --color-danger: #ff6270;
+  --color-danger-soft: rgba(255, 98, 112, 0.12);
+  --tone-success: #158757;
+  --tone-success-rgb: 21, 135, 87;
+  --tone-success-soft: rgba(21, 135, 87, 0.12);
+  --tone-success-border: rgba(21, 135, 87, 0.28);
+  --tone-warning: #966b18;
+  --tone-warning-rgb: 150, 107, 24;
+  --tone-warning-soft: rgba(150, 107, 24, 0.13);
+  --tone-warning-border: rgba(150, 107, 24, 0.3);
+  --tone-danger: #d54859;
+  --tone-danger-rgb: 213, 72, 89;
+  --tone-danger-soft: rgba(213, 72, 89, 0.12);
+  --tone-danger-border: rgba(213, 72, 89, 0.28);
+  --tone-info: #1d72b8;
+  --tone-info-rgb: 29, 114, 184;
+  --tone-info-soft: rgba(29, 114, 184, 0.12);
+  --tone-info-border: rgba(29, 114, 184, 0.28);
+  --tone-accent: #7658c9;
+  --tone-accent-rgb: 118, 88, 201;
+  --tone-accent-soft: rgba(118, 88, 201, 0.12);
+  --tone-accent-border: rgba(118, 88, 201, 0.28);
+  --app-bg: #eef2f7;
+  --app-bg-deep: #dce4ee;
+  --window-surface: #f5f7fb;
+  --window-surface-strong: #ffffff;
+  --glass-surface: #f2f5fa;
+  --glass-surface-hover: #e8eef7;
+  --glass-surface-active: #dce7f5;
+  --glass-surface-strong: #ffffff;
+  --glass-muted: #e7edf5;
+  --glass-border: rgba(45, 58, 78, 0.14);
+  --glass-border-strong: rgba(45, 58, 78, 0.24);
+  --surface-selected: rgba(var(--color-primary-rgb), 0.12);
+  --text-primary: #182235;
+  --text-secondary: #4b5870;
+  --text-muted: #7a879b;
+  --text-inverse: #ffffff;
+  --shadow-glass: 0 18px 42px rgba(35, 49, 70, 0.12);
+  --shadow-card: 0 10px 24px rgba(35, 49, 70, 0.08);
+  --input-surface: #edf2f8;
+  --input-surface-focus: #ffffff;
+  --focus-ring: rgba(63, 140, 255, 0.24);
+  --scroll-thumb: rgba(75, 85, 104, 0.24);
+  --space-page: 1.25rem;
+  --space-panel: 1rem;
+  --space-card: 1rem;
+  --space-row: 0.75rem;
+  --radius-panel: 8px;
+  --radius-control: 7px;
+}
+
+.dark {
+  color-scheme: dark;
+  --tone-success: #7ed9a9;
+  --tone-success-rgb: 126, 217, 169;
+  --tone-success-soft: rgba(126, 217, 169, 0.14);
+  --tone-success-border: rgba(126, 217, 169, 0.32);
+  --tone-warning: #efc86f;
+  --tone-warning-rgb: 239, 200, 111;
+  --tone-warning-soft: rgba(239, 200, 111, 0.14);
+  --tone-warning-border: rgba(239, 200, 111, 0.32);
+  --tone-danger: #ff8792;
+  --tone-danger-rgb: 255, 135, 146;
+  --tone-danger-soft: rgba(255, 135, 146, 0.14);
+  --tone-danger-border: rgba(255, 135, 146, 0.32);
+  --tone-info: #94caff;
+  --tone-info-rgb: 148, 202, 255;
+  --tone-info-soft: rgba(148, 202, 255, 0.14);
+  --tone-info-border: rgba(148, 202, 255, 0.32);
+  --tone-accent: #c5b4ff;
+  --tone-accent-rgb: 197, 180, 255;
+  --tone-accent-soft: rgba(197, 180, 255, 0.14);
+  --tone-accent-border: rgba(197, 180, 255, 0.32);
+  --app-bg: #080d14;
+  --app-bg-deep: #050910;
+  --window-surface: #0c121d;
+  --window-surface-strong: #101827;
+  --glass-surface: #121a28;
+  --glass-surface-hover: #172233;
+  --glass-surface-active: #1d2a3e;
+  --glass-surface-strong: #172131;
+  --glass-muted: #0e1623;
+  --glass-border: rgba(121, 139, 165, 0.16);
+  --glass-border-strong: rgba(134, 154, 184, 0.28);
+  --surface-selected: rgba(var(--color-primary-rgb), 0.18);
+  --text-primary: #eef4ff;
+  --text-secondary: #b8c4d7;
+  --text-muted: #7f8ba1;
+  --shadow-glass: 0 18px 40px rgba(0, 0, 0, 0.34);
+  --shadow-card: 0 12px 28px rgba(0, 0, 0, 0.22);
+  --input-surface: #0d1420;
+  --input-surface-focus: #111b2a;
+  --scroll-thumb: rgba(146, 160, 184, 0.26);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+body {
+  margin: 0;
+  background: var(--app-bg-deep);
+  color: var(--text-primary);
+  font-family:
+    "Segoe UI Variable",
+    "Microsoft YaHei UI",
+    "Microsoft YaHei",
+    "PingFang SC",
+    sans-serif;
+  text-rendering: geometricPrecision;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+.app-drag {
+  -webkit-app-region: drag;
+}
+
+.app-no-drag {
+  -webkit-app-region: no-drag;
+}
+
+.app-root {
+  background: linear-gradient(135deg, var(--app-bg), var(--app-bg-deep));
+  color: var(--text-primary);
+}
+
+.dark.app-root {
+  background: linear-gradient(135deg, #0a1019, var(--app-bg-deep));
+}
+
+.app-window {
+  position: relative;
+  isolation: isolate;
+}
+
+.app-window::before {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  content: "";
+  border: 1px solid var(--glass-border);
+  border-radius: 0;
+  background: var(--window-surface);
+  box-shadow: var(--shadow-glass);
+}

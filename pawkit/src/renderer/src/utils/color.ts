@@ -305,11 +305,6 @@ export function generateColorHarmonyGroups(hex: string): ColorHarmonyGroup[] {
   ]
 }
 
-// 保留旧的扁平配色输出
-export function generateColorHarmony(hex: string): ColorHarmonyItem[] {
-  return generateColorHarmonyGroups(hex).flatMap((item) => item.colors)
-}
-
 // 生成 Tailwind 色板片段
 export function generateTailwindSnippet(hex: string): string {
   const lines = generateColorScale(hex).map((item) => `      ${item.label}: '${item.hex}'`)

@@ -1,26 +1,27 @@
-import { TOOL_IDS, ToolId } from '../../../shared/constants'
-import { AppStartPage, ToolUsageRecord } from '../../../shared/types'
+import {
+  ALWAYS_VISIBLE_TOOL_IDS,
+  DEFAULT_FAVORITE_TOOL_IDS,
+  MANAGEABLE_TOOL_IDS,
+  TOOL_IDS,
+  isToolId,
+  type ToolId
+} from '../../../shared/constants'
+import type { AppStartPage, ToolUsageRecord } from '../../../shared/types'
 
-export const manageableToolIds: ToolId[] = [
-  TOOL_IDS.CLIPBOARD,
-  TOOL_IDS.COLOR_PICKER,
-  TOOL_IDS.JSON_TOOL,
-  TOOL_IDS.TIMESTAMP_TOOL,
-  TOOL_IDS.SCREENSHOT,
-  TOOL_IDS.BASE64_TOOL,
-  TOOL_IDS.QRCODE,
-  TOOL_IDS.GEOSPATIAL
-]
+export const manageableToolIds: ToolId[] = [...MANAGEABLE_TOOL_IDS]
 
-export const defaultFavoriteTools: ToolId[] = [TOOL_IDS.CLIPBOARD, TOOL_IDS.JSON_TOOL, TOOL_IDS.SCREENSHOT]
+export const defaultFavoriteTools: ToolId[] = [...DEFAULT_FAVORITE_TOOL_IDS]
 
-const alwaysVisibleToolIds: ToolId[] = [TOOL_IDS.HOME, TOOL_IDS.MANAGEMENT, TOOL_IDS.SETTINGS]
+const alwaysVisibleToolIds = new Set<ToolId>(ALWAYS_VISIBLE_TOOL_IDS)
 
-// 规整工具排序，去重、过滤未知工具，并补齐缺失工具
+export function normalizeManageableTools(toolIds: string[]): ToolId[] {
+  return toolIds.filter((id): id is ToolId => isToolId(id) && manageableToolIds.includes(id))
+}
+
 export function normalizeToolOrder(toolOrder: string[], allTools = manageableToolIds): ToolId[] {
   const seen = new Set<string>()
   const ordered = toolOrder.filter((id): id is ToolId => {
-    if (!allTools.includes(id as ToolId) || seen.has(id)) return false
+    if (!isToolId(id) || !allTools.includes(id) || seen.has(id)) return false
     seen.add(id)
     return true
   })
@@ -28,7 +29,6 @@ export function normalizeToolOrder(toolOrder: string[], allTools = manageableToo
   return [...ordered, ...missing]
 }
 
-// 移动工具顺序
 export function moveToolInOrder(toolOrder: string[], toolId: ToolId, direction: -1 | 1): ToolId[] {
   const normalized = normalizeToolOrder(toolOrder)
   const index = normalized.indexOf(toolId)
@@ -43,27 +43,24 @@ export function moveToolInOrder(toolOrder: string[], toolId: ToolId, direction: 
   return nextOrder
 }
 
-// 设置工具启用状态
 export function setToolEnabled(enabledTools: string[], toolId: ToolId, enabled: boolean): ToolId[] {
-  const normalized = enabledTools.filter((id): id is ToolId => manageableToolIds.includes(id as ToolId))
+  const normalized = normalizeManageableTools(enabledTools)
   if (enabled) {
     return normalized.includes(toolId) ? normalized : [...normalized, toolId]
   }
   return normalized.filter((id) => id !== toolId)
 }
 
-// 切换首页常用工具，禁用工具不能加入常用
 export function toggleFavoriteTool(favoriteTools: string[], toolId: ToolId, enabledTools: string[]): ToolId[] {
   if (!enabledTools.includes(toolId)) {
-    return favoriteTools.filter((id): id is ToolId => manageableToolIds.includes(id as ToolId) && id !== toolId)
+    return normalizeManageableTools(favoriteTools).filter((id) => id !== toolId)
   }
-  const normalized = favoriteTools.filter((id): id is ToolId => manageableToolIds.includes(id as ToolId))
+  const normalized = normalizeManageableTools(favoriteTools)
   return normalized.includes(toolId)
     ? normalized.filter((id) => id !== toolId)
     : [...normalized, toolId]
 }
 
-// 更新工具使用记录
 export function updateToolUsage(
   records: ToolUsageRecord[],
   toolId: ToolId,
@@ -77,11 +74,10 @@ export function updateToolUsage(
   ].slice(0, limit)
 }
 
-// 解析启动页
 export function resolveStartTool(startPage: AppStartPage, lastActiveTool: ToolId, enabledTools: string[]): ToolId {
   const candidate = startPage === 'last' ? lastActiveTool : startPage
-  if (alwaysVisibleToolIds.includes(candidate as ToolId)) {
-    return candidate as ToolId
+  if (isToolId(candidate) && alwaysVisibleToolIds.has(candidate)) {
+    return candidate
   }
-  return enabledTools.includes(candidate) ? candidate as ToolId : TOOL_IDS.HOME
+  return isToolId(candidate) && enabledTools.includes(candidate) ? candidate : TOOL_IDS.HOME
 }

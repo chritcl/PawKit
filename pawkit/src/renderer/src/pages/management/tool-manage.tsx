@@ -1,5 +1,5 @@
 import { ArrowDown, ArrowUp, GripVertical, Star } from 'lucide-react'
-import { ToolId } from '../../../../shared/constants'
+import type { ToolId } from '../../../../shared/constants'
 import { useAppStore } from '../../stores/app-store'
 import { ExtendedToolMeta, getDisableableTools } from '../../utils/tool-registry'
 import {
@@ -9,7 +9,7 @@ import {
   toggleFavoriteTool
 } from '../../utils/tool-preferences'
 
-function getOrderedTools(toolOrder: string[]): ExtendedToolMeta[] {
+function getOrderedTools(toolOrder: ToolId[]): ExtendedToolMeta[] {
   const tools = getDisableableTools()
   const orderedIds = normalizeToolOrder(toolOrder)
   return orderedIds
@@ -17,7 +17,6 @@ function getOrderedTools(toolOrder: string[]): ExtendedToolMeta[] {
     .filter((tool): tool is ExtendedToolMeta => Boolean(tool))
 }
 
-// 工具管理组件
 export function ToolManage(): JSX.Element {
   const enabledTools = useAppStore((state) => state.enabledTools)
   const toolOrder = useAppStore((state) => state.toolOrder)
@@ -28,25 +27,25 @@ export function ToolManage(): JSX.Element {
 
   const orderedTools = getOrderedTools(toolOrder)
 
-  const toggleTool = (toolId: string): void => {
+  const toggleTool = (toolId: ToolId): void => {
     if (enabledTools.includes(toolId)) {
-      setEnabledTools(setToolEnabled(enabledTools, toolId as ToolId, false))
-      setFavoriteTools(toggleFavoriteTool(favoriteTools, toolId as ToolId, []))
+      setEnabledTools(setToolEnabled(enabledTools, toolId, false))
+      setFavoriteTools(toggleFavoriteTool(favoriteTools, toolId, []))
       return
     }
 
-    setEnabledTools(setToolEnabled(enabledTools, toolId as ToolId, true))
+    setEnabledTools(setToolEnabled(enabledTools, toolId, true))
     if (!toolOrder.includes(toolId)) {
       setToolOrder([...toolOrder, toolId])
     }
   }
 
-  const moveTool = (toolId: string, direction: -1 | 1): void => {
-    setToolOrder(moveToolInOrder(toolOrder, toolId as ToolId, direction))
+  const moveTool = (toolId: ToolId, direction: -1 | 1): void => {
+    setToolOrder(moveToolInOrder(toolOrder, toolId, direction))
   }
 
-  const toggleFavorite = (toolId: string): void => {
-    setFavoriteTools(toggleFavoriteTool(favoriteTools, toolId as ToolId, enabledTools))
+  const toggleFavorite = (toolId: ToolId): void => {
+    setFavoriteTools(toggleFavoriteTool(favoriteTools, toolId, enabledTools))
   }
 
   return (

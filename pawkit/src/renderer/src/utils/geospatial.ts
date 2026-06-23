@@ -1,7 +1,5 @@
 import { nanoid } from 'nanoid'
 import { Parser } from 'expr-eval'
-import geopackageSqlWasmUrl from '@ngageoint/geopackage/dist/sql-wasm.wasm?url'
-import type { Buffer } from 'buffer'
 import type {
   BBox,
   Feature,
@@ -21,23 +19,11 @@ import type {
   GeoOperationRequest,
   GeoOperationResult
 } from '../../../shared/types'
-import type { ColumnSource, KeyValue } from 'hyparquet-writer'
 
 type GeoFeature = Feature<Geometry, GeoJsonProperties>
 type GeoFeatureCollection = FeatureCollection<Geometry, GeoJsonProperties>
 type TurfModule = typeof import('@turf/turf')
 type TurfUnits = import('@turf/turf').Units
-type BrowserProcessLike = {
-  env: Record<string, string | undefined>
-  pid: number
-  browser: boolean
-  noDeprecation: boolean
-  nextTick: (callback: (...args: unknown[]) => void, ...args: unknown[]) => void
-}
-type WkxGeometryConstructor = {
-  parse: (value: string | Buffer) => { toGeoJSON: () => unknown }
-  parseGeoJSON: (value: object) => { toWkt: () => string }
-}
 
 export interface GeoExportPayload {
   fileName: string
@@ -71,13 +57,11 @@ const supportedReadExtensions: Record<string, GeoDataFormat> = {
   kml: 'kml',
   svg: 'svg',
   shp: 'shapefile',
-  fgb: 'flatgeobuf',
-  gpkg: 'geopackage',
-  parquet: 'geoparquet',
-  geoparquet: 'geoparquet',
-  tif: 'geotiff',
-  tiff: 'geotiff'
+  fgb: 'flatgeobuf'
 }
+
+const defaultGeoCrs = 'EPSG:4326'
+const mapFeatureProjection = 'EPSG:3857'
 
 export const geoDialogFilters = [
   {
@@ -96,16 +80,19 @@ export const geoDialogFilters = [
       'prj',
       'cpg',
       'fgb',
-      'gpkg',
-      'parquet',
-      'geoparquet',
-      'tif',
-      'tiff',
       'zip'
     ]
   },
   { name: '所有文件', extensions: ['*'] }
 ]
+
+function normalizeCrsCode(value: string | undefined): string {
+  return (value || defaultGeoCrs).trim().toUpperCase()
+}
+
+export function getMapDataProjection(layer: Pick<GeoLayer, 'crs'> | null | undefined): string {
+  return normalizeCrsCode(layer?.crs) === mapFeatureProjection ? mapFeatureProjection : defaultGeoCrs
+}
 
 function cloneCollection(collection: GeoFeatureCollection): GeoFeatureCollection {
   return JSON.parse(JSON.stringify(collection)) as GeoFeatureCollection
@@ -123,15 +110,6 @@ export function normalizeGeoBytes(bytes: GeoBinaryData): Uint8Array {
   throw new Error('地理空间文件不是有效二进制数据')
 }
 
-function bytesFromUnknown(value: unknown): Uint8Array {
-  if (isArrayBuffer(value)) return new Uint8Array(value)
-  if (ArrayBuffer.isView(value)) {
-    return new Uint8Array(value.buffer, value.byteOffset, value.byteLength)
-  }
-  if (Array.isArray(value)) return new Uint8Array(value)
-  throw new Error('导出结果不是有效二进制数据')
-}
-
 export function bytesToArrayBuffer(bytes: GeoBinaryData): ArrayBuffer {
   const normalized = normalizeGeoBytes(bytes)
   const buffer = new ArrayBuffer(normalized.byteLength)
@@ -145,29 +123,6 @@ function decodeText(bytes: GeoBinaryData): string {
 
 function encodeText(text: string): Uint8Array {
   return textEncoder.encode(text)
-}
-
-function ensureBrowserProcess(): void {
-  const globalScope = globalThis as unknown as { process?: Partial<BrowserProcessLike> }
-  if (globalScope.process) {
-    globalScope.process.env ??= {}
-    return
-  }
-  globalScope.process = {
-    env: {},
-    pid: 0,
-    browser: true,
-    noDeprecation: true,
-    nextTick: (callback, ...args) => {
-      queueMicrotask(() => callback(...args))
-    }
-  }
-}
-
-async function loadWkxGeometry(): Promise<WkxGeometryConstructor> {
-  ensureBrowserProcess()
-  const wkx = await import('wkx')
-  return wkx.Geometry as unknown as WkxGeometryConstructor
 }
 
 function extensionOf(name: string): string {
@@ -228,34 +183,12 @@ function createLayer(
   return {
     id: nanoid(),
     name,
-    kind: 'vector',
     format,
     visible: true,
     featureCount: collection.features.length,
     bbox: getCollectionBBox(collection),
     crs: 'EPSG:4326',
     collection,
-    warnings
-  }
-}
-
-function createRasterLayer(
-  name: string,
-  format: GeoDataFormat,
-  width: number,
-  height: number,
-  bbox?: BBox,
-  warnings: string[] = []
-): GeoLayer {
-  return {
-    id: nanoid(),
-    name,
-    kind: 'raster',
-    format,
-    visible: true,
-    featureCount: 0,
-    bbox,
-    raster: { width, height, bbox },
     warnings
   }
 }
@@ -309,7 +242,6 @@ function normalizeGeoJson(value: unknown): GeoFeatureCollection {
 export function updateGeoLayerCollection(layer: GeoLayer, collection: GeoFeatureCollection): GeoLayer {
   return {
     ...layer,
-    kind: 'vector',
     collection,
     featureCount: collection.features.length,
     bbox: getCollectionBBox(collection)
@@ -383,7 +315,12 @@ async function parseJsonLayer(file: GeoFilePayload): Promise<GeoLayer> {
   if (value?.type === 'Topology') {
     return createLayer(file.name, 'topojson', await topoJsonToCollection(value))
   }
-  return createLayer(file.name, 'geojson', normalizeGeoJson(value))
+  const collection = normalizeGeoJson(value)
+  const sourceFeatures = Array.isArray(value?.features) ? value.features.length : collection.features.length
+  const warnings = sourceFeatures > collection.features.length
+    ? [`已跳过 ${sourceFeatures - collection.features.length} 个无效 GeoJSON 要素`]
+    : []
+  return createLayer(file.name, 'geojson', collection, warnings)
 }
 
 async function topoJsonToCollection(value: unknown): Promise<GeoFeatureCollection> {
@@ -411,6 +348,105 @@ function findField(fields: string[], candidates: string[]): string | null {
   return null
 }
 
+function splitTopLevel(value: string): string[] {
+  const parts: string[] = []
+  let depth = 0
+  let start = 0
+  for (let index = 0; index < value.length; index += 1) {
+    const char = value[index]
+    if (char === '(') depth += 1
+    if (char === ')') depth -= 1
+    if (char === ',' && depth === 0) {
+      parts.push(value.slice(start, index).trim())
+      start = index + 1
+    }
+  }
+  parts.push(value.slice(start).trim())
+  return parts.filter(Boolean)
+}
+
+function unwrapParens(value: string): string {
+  const trimmed = value.trim()
+  return trimmed.startsWith('(') && trimmed.endsWith(')')
+    ? trimmed.slice(1, -1).trim()
+    : trimmed
+}
+
+function parseWktPosition(value: string): Position {
+  const numbers = value.trim().split(/\s+/).map(Number)
+  if (numbers.length < 2 || !Number.isFinite(numbers[0]) || !Number.isFinite(numbers[1])) {
+    throw new Error('WKT 坐标无效')
+  }
+  return [numbers[0], numbers[1]]
+}
+
+function parseWktLine(value: string): Position[] {
+  return splitTopLevel(unwrapParens(value)).map(parseWktPosition)
+}
+
+function parseWktPolygonBody(value: string): Position[][] {
+  return splitTopLevel(unwrapParens(value)).map(parseWktLine)
+}
+
+function parseWktGeometry(value: string): Geometry | null {
+  const text = value.trim().replace(/^SRID=\d+;/i, '')
+  const matched = /^([A-Za-z]+)\s*(?:ZM|Z|M)?\s*(EMPTY|\([\s\S]+\))$/i.exec(text)
+  if (!matched) throw new Error('WKT 格式无效')
+  const type = matched[1].toUpperCase()
+  const body = matched[2]
+  if (body.toUpperCase() === 'EMPTY') return null
+
+  if (type === 'POINT') {
+    return { type: 'Point', coordinates: parseWktPosition(unwrapParens(body)) }
+  }
+  if (type === 'MULTIPOINT') {
+    return { type: 'MultiPoint', coordinates: splitTopLevel(unwrapParens(body)).map((item) => parseWktPosition(unwrapParens(item))) }
+  }
+  if (type === 'LINESTRING') {
+    return { type: 'LineString', coordinates: parseWktLine(body) }
+  }
+  if (type === 'MULTILINESTRING') {
+    return { type: 'MultiLineString', coordinates: splitTopLevel(unwrapParens(body)).map(parseWktLine) }
+  }
+  if (type === 'POLYGON') {
+    return { type: 'Polygon', coordinates: parseWktPolygonBody(body) }
+  }
+  if (type === 'MULTIPOLYGON') {
+    return { type: 'MultiPolygon', coordinates: splitTopLevel(unwrapParens(body)).map(parseWktPolygonBody) }
+  }
+  if (type === 'GEOMETRYCOLLECTION') {
+    return {
+      type: 'GeometryCollection',
+      geometries: splitTopLevel(unwrapParens(body))
+        .map(parseWktGeometry)
+        .filter((geometry): geometry is Geometry => Boolean(geometry))
+    }
+  }
+  throw new Error('暂不支持该 WKT 几何类型')
+}
+
+function positionToWkt(position: Position): string {
+  return `${position[0]} ${position[1]}`
+}
+
+function lineToWkt(coordinates: Position[]): string {
+  return coordinates.map(positionToWkt).join(', ')
+}
+
+function polygonToWkt(coordinates: Position[][]): string {
+  return coordinates.map((ring) => `(${lineToWkt(ring)})`).join(', ')
+}
+
+function geometryToWkt(geometry: Geometry): string {
+  if (geometry.type === 'Point') return `POINT (${positionToWkt(geometry.coordinates)})`
+  if (geometry.type === 'MultiPoint') return `MULTIPOINT (${geometry.coordinates.map((position) => `(${positionToWkt(position)})`).join(', ')})`
+  if (geometry.type === 'LineString') return `LINESTRING (${lineToWkt(geometry.coordinates)})`
+  if (geometry.type === 'MultiLineString') return `MULTILINESTRING (${geometry.coordinates.map((line) => `(${lineToWkt(line)})`).join(', ')})`
+  if (geometry.type === 'Polygon') return `POLYGON (${polygonToWkt(geometry.coordinates)})`
+  if (geometry.type === 'MultiPolygon') return `MULTIPOLYGON (${geometry.coordinates.map((polygon) => `(${polygonToWkt(polygon)})`).join(', ')})`
+  return `GEOMETRYCOLLECTION (${geometry.geometries.map(geometryToWkt).join(', ')})`
+}
+
 async function parseGeometryValue(value: unknown): Promise<Geometry | null> {
   if (!value) return null
   if (typeof value === 'object') {
@@ -423,8 +459,7 @@ async function parseGeometryValue(value: unknown): Promise<Geometry | null> {
     const parsed = JSON.parse(text) as Geometry | GeoFeature
     return parsed.type === 'Feature' ? parsed.geometry : parsed as Geometry
   }
-  const WkxGeometry = await loadWkxGeometry()
-  return WkxGeometry.parse(text).toGeoJSON() as Geometry
+  return parseWktGeometry(text)
 }
 
 async function parseCsvLayer(file: GeoFilePayload): Promise<GeoLayer> {
@@ -465,6 +500,8 @@ async function parseCsvLayer(file: GeoFilePayload): Promise<GeoLayer> {
         const y = Number(row[latField])
         if (Number.isFinite(x) && Number.isFinite(y)) {
           geometry = { type: 'Point', coordinates: [x, y] }
+        } else {
+          warnings.push('部分 CSV 行的经纬度字段无效，已跳过')
         }
       }
       if (geometry) features.push({ type: 'Feature', properties, geometry })
@@ -618,68 +655,6 @@ async function parseFlatGeobufLayer(file: GeoFilePayload): Promise<GeoLayer> {
   return createLayer(file.name, 'flatgeobuf', { type: 'FeatureCollection', features })
 }
 
-function asyncBufferFromBytes(bytes: GeoBinaryData): { byteLength: number; slice: (start: number, end?: number) => Promise<ArrayBuffer> } {
-  const data = normalizeGeoBytes(bytes)
-  return {
-    byteLength: data.byteLength,
-    slice: async (start: number, end?: number) => bytesToArrayBuffer(data.slice(start, end))
-  }
-}
-
-async function parseParquetGeometry(value: unknown): Promise<Geometry | null> {
-  if (!value) return null
-  if (isArrayBuffer(value) || ArrayBuffer.isView(value)) {
-    const { Buffer } = await import('buffer')
-    const WkxGeometry = await loadWkxGeometry()
-    return WkxGeometry.parse(Buffer.from(bytesFromUnknown(value))).toGeoJSON() as Geometry
-  }
-  return parseGeometryValue(value)
-}
-
-async function parseGeoParquetLayer(file: GeoFilePayload): Promise<GeoLayer> {
-  const { parquetReadObjects } = await import('hyparquet')
-  const rows = await parquetReadObjects({ file: asyncBufferFromBytes(file.bytes) })
-  const geometryField = findField(Object.keys(rows[0] ?? {}), geometryFieldNames)
-  if (!geometryField) {
-    throw new Error('GeoParquet 未找到 geometry/WKB/WKT 几何列')
-  }
-  const featureResults = await Promise.all(rows.map(async (row): Promise<GeoFeature[]> => {
-    const properties = { ...row } as GeoJsonProperties
-    const geometry = await parseParquetGeometry(row[geometryField])
-    delete properties?.[geometryField]
-    return geometry ? [{ type: 'Feature', properties, geometry }] : []
-  }))
-  const features = featureResults.flat()
-  return createLayer(file.name, 'geoparquet', { type: 'FeatureCollection', features })
-}
-
-async function parseGeoPackageLayers(file: GeoFilePayload): Promise<GeoLayer[]> {
-  const { GeoPackageAPI, setSqljsWasmLocateFile } = await import('@ngageoint/geopackage')
-  setSqljsWasmLocateFile(() => geopackageSqlWasmUrl)
-  const geoPackage = await GeoPackageAPI.open(normalizeGeoBytes(file.bytes))
-  try {
-    const tables = geoPackage.getFeatureTables()
-    return tables.map((table) => {
-      const features = [...geoPackage.iterateGeoJSONFeatures(table)]
-        .filter((feature): feature is GeoFeature => Boolean(feature.geometry))
-      return createLayer(`${file.name} · ${table}`, 'geopackage', { type: 'FeatureCollection', features })
-    })
-  } finally {
-    geoPackage.close()
-  }
-}
-
-async function parseGeoTiffLayer(file: GeoFilePayload): Promise<GeoLayer> {
-  const { fromArrayBuffer } = await import('geotiff')
-  const tiff = await fromArrayBuffer(bytesToArrayBuffer(file.bytes))
-  const image = await tiff.getImage()
-  const rawBbox = image.getBoundingBox()
-  const bbox = rawBbox.length >= 4 && rawBbox.every(Number.isFinite) ? rawBbox.slice(0, 4) as BBox : undefined
-  return createRasterLayer(file.name, 'geotiff', image.getWidth(), image.getHeight(), bbox, [
-    'GeoTIFF 第一版仅支持范围展示，不参与矢量处理或写出'
-  ])
-}
-
 async function expandZipFiles(file: GeoFilePayload): Promise<GeoFilePayload[]> {
   const { unzipSync } = await import('fflate')
   const entries = unzipSync(normalizeGeoBytes(file.bytes))
@@ -736,9 +711,6 @@ export async function importGeoFiles(inputFiles: GeoFilePayload[]): Promise<GeoI
       else if (format === 'kml') layers.push(await parseKmlLayer(file))
       else if (format === 'svg') layers.push(parseSvgLayer(file))
       else if (format === 'flatgeobuf') layers.push(await parseFlatGeobufLayer(file))
-      else if (format === 'geoparquet') layers.push(await parseGeoParquetLayer(file))
-      else if (format === 'geotiff') layers.push(await parseGeoTiffLayer(file))
-      else if (format === 'geopackage') layers.push(...await parseGeoPackageLayers(file))
     } catch (error) {
       warnings.push(`${file.name}: ${error instanceof Error ? error.message : '导入失败'}`)
     }
@@ -749,10 +721,9 @@ export async function importGeoFiles(inputFiles: GeoFilePayload[]): Promise<GeoI
 
 async function collectionToCsv(collection: GeoFeatureCollection): Promise<string> {
   const Papa = await import('papaparse')
-  const WkxGeometry = await loadWkxGeometry()
   const rows = collection.features.map((feature) => ({
     ...(feature.properties ?? {}),
-    geometry: feature.geometry ? WkxGeometry.parseGeoJSON(feature.geometry).toWkt() : ''
+    geometry: feature.geometry ? geometryToWkt(feature.geometry) : ''
   }))
   return Papa.unparse(rows)
 }
@@ -784,150 +755,7 @@ function escapeXml(value: string): string {
     .replace(/"/g, '&quot;')
 }
 
-function sanitizeIdentifier(value: string, fallback: string): string {
-  const normalized = value
-    .trim()
-    .replace(/\W+/g, '_')
-    .replace(/^_+|_+$/g, '')
-    .slice(0, 58)
-  const candidate = normalized || fallback
-  return /^\d/.test(candidate) ? `f_${candidate}` : candidate
-}
-
-function uniqueIdentifier(base: string, used: Set<string>): string {
-  let candidate = base
-  let index = 2
-  while (used.has(candidate)) {
-    candidate = `${base}_${index}`
-    index += 1
-  }
-  used.add(candidate)
-  return candidate
-}
-
-function collectPropertyFields(collection: GeoFeatureCollection): string[] {
-  const fields = new Set<string>()
-  collection.features.forEach((feature) => {
-    Object.keys(feature.properties ?? {}).forEach((field) => fields.add(field))
-  })
-  return [...fields].sort((left, right) => left.localeCompare(right, 'zh-CN'))
-}
-
-function normalizeTabularValue(value: unknown): unknown {
-  if (value === null || value === undefined) return null
-  if (value instanceof Uint8Array) return value
-  if (value instanceof Date) return value.toISOString()
-  if (Array.isArray(value) || typeof value === 'object') return JSON.stringify(value)
-  return value
-}
-
-function inferGeoPackageDataType(values: unknown[]): string {
-  const sample = values.find((value) => value !== null && value !== undefined)
-  if (typeof sample === 'boolean') return 'BOOLEAN'
-  if (typeof sample === 'number') return Number.isInteger(sample) ? 'INTEGER' : 'DOUBLE'
-  if (sample instanceof Uint8Array) return 'BLOB'
-  return 'TEXT'
-}
-
-function inferParquetType(values: unknown[]): ColumnSource['type'] {
-  const sample = values.find((value) => value !== null && value !== undefined)
-  if (typeof sample === 'boolean') return 'BOOLEAN'
-  if (typeof sample === 'number') {
-    return Number.isInteger(sample) && sample >= -2147483648 && sample <= 2147483647 ? 'INT32' : 'DOUBLE'
-  }
-  if (sample instanceof Uint8Array) return 'BYTE_ARRAY'
-  return 'STRING'
-}
-
-function prepareGeoPackageFeatures(collection: GeoFeatureCollection): {
-  columns: Array<{ name: string; dataType: string }>
-  features: GeoFeature[]
-} {
-  const used = new Set(['id', 'geometry'])
-  const fields = collectPropertyFields(collection)
-  const fieldMap = fields.map((field, index) => ({
-    source: field,
-    target: uniqueIdentifier(sanitizeIdentifier(field, `field_${index + 1}`), used)
-  }))
-  const columns = fieldMap.map(({ source, target }) => ({
-    name: target,
-    dataType: inferGeoPackageDataType(collection.features.map((feature) => feature.properties?.[source]))
-  }))
-  const features = collection.features.map((feature) => {
-    const properties: Record<string, unknown> = {}
-    fieldMap.forEach(({ source, target }) => {
-      properties[target] = normalizeTabularValue(feature.properties?.[source])
-    })
-    return { ...feature, properties: properties as GeoJsonProperties }
-  })
-  return { columns, features }
-}
-
-async function collectionToGeoPackageBytes(collection: GeoFeatureCollection, fileName: string): Promise<Uint8Array> {
-  const { GeoPackageAPI, setSqljsWasmLocateFile } = await import('@ngageoint/geopackage')
-  setSqljsWasmLocateFile(() => geopackageSqlWasmUrl)
-  const geoPackage = await GeoPackageAPI.create()
-  try {
-    const tableName = sanitizeIdentifier(fileName.replace(/\.[^.]+$/, ''), 'pawkit_layer')
-    const prepared = prepareGeoPackageFeatures(collection)
-    geoPackage.createFeatureTableFromProperties(tableName, prepared.columns)
-    await geoPackage.addGeoJSONFeaturesToGeoPackage(prepared.features, tableName, false, 1000)
-    return bytesFromUnknown(await geoPackage.export())
-  } finally {
-    geoPackage.close()
-  }
-}
-
-function geoParquetMetadata(collection: GeoFeatureCollection): KeyValue[] {
-  const geometryTypes = [...new Set(collection.features
-    .map((feature) => feature.geometry?.type)
-    .filter((type): type is Geometry['type'] => Boolean(type)))]
-  return [{
-    key: 'geo',
-    value: JSON.stringify({
-      version: '1.1.0',
-      primary_column: 'geometry',
-      columns: {
-        geometry: {
-          encoding: 'WKB',
-          geometry_types: geometryTypes,
-          crs: null,
-          bbox: getCollectionBBox(collection)
-        }
-      }
-    })
-  }]
-}
-
-async function collectionToGeoParquetBytes(collection: GeoFeatureCollection): Promise<Uint8Array> {
-  const fields = collectPropertyFields(collection)
-  const columnData: ColumnSource[] = [
-    {
-      name: 'geometry',
-      data: collection.features.map((feature) => feature.geometry),
-      type: 'GEOMETRY'
-    },
-    ...fields.map((field) => {
-      const data = collection.features.map((feature) => normalizeTabularValue(feature.properties?.[field]))
-      return {
-        name: field,
-        data,
-        type: inferParquetType(data)
-      } satisfies ColumnSource
-    })
-  ]
-  const { parquetWriteBuffer } = await import('hyparquet-writer')
-  return new Uint8Array(parquetWriteBuffer({
-    columnData,
-    kvMetadata: geoParquetMetadata(collection)
-  }))
-}
-
 export async function exportGeoLayer(request: GeoExportRequest, layer: GeoLayer): Promise<GeoExportPayload> {
-  if (layer.kind === 'raster' || !layer.collection) {
-    throw new Error('GeoTIFF 第一版仅支持读取展示，不能导出为矢量格式')
-  }
-
   const collection = layer.collection
   if (request.format === 'geojson') {
     return {
@@ -967,28 +795,89 @@ export async function exportGeoLayer(request: GeoExportRequest, layer: GeoLayer)
     })
     return { fileName: request.fileName, bytes: zipBytes, mimeType: 'application/zip' }
   }
-  if (request.format === 'geoparquet') {
-    return {
-      fileName: request.fileName,
-      bytes: await collectionToGeoParquetBytes(collection),
-      mimeType: 'application/vnd.apache.parquet'
-    }
-  }
-  if (request.format === 'geopackage') {
-    return {
-      fileName: request.fileName,
-      bytes: await collectionToGeoPackageBytes(collection, request.fileName),
-      mimeType: 'application/geopackage+sqlite3'
-    }
-  }
   throw new Error('暂不支持该导出格式')
 }
 
 function ensureVectorCollection(layer: GeoLayer): GeoFeatureCollection {
-  if (layer.kind !== 'vector' || !layer.collection) {
-    throw new Error('当前操作只支持矢量图层')
-  }
   return layer.collection
+}
+
+function ensureFiniteNumber(value: unknown, message: string): number {
+  const numberValue = Number(value)
+  if (!Number.isFinite(numberValue)) throw new Error(message)
+  return numberValue
+}
+
+function ensureNonEmptyString(value: unknown, message: string): string {
+  const text = String(value ?? '').trim()
+  if (!text) throw new Error(message)
+  return text
+}
+
+function collectionHasPolygon(collection: GeoFeatureCollection): boolean {
+  return collection.features.some((feature) => {
+    const type = feature.geometry?.type
+    return type === 'Polygon' || type === 'MultiPolygon'
+  })
+}
+
+export function validateGeoOperationRequest(request: GeoOperationRequest): void {
+  if (!request.layer?.collection) throw new Error('请选择一个矢量图层')
+
+  if (request.type === 'simplify') {
+    const tolerance = ensureFiniteNumber(request.options.tolerance, '简化容差必须是有效数字')
+    if (tolerance < 0) throw new Error('简化容差不能小于 0')
+    return
+  }
+
+  if (request.type === 'buffer') {
+    const distance = ensureFiniteNumber(request.options.distance, '缓冲距离必须是有效数字')
+    if (distance <= 0) throw new Error('缓冲距离必须大于 0')
+    return
+  }
+
+  if (request.type === 'clip' || request.type === 'erase') {
+    if (!request.clipLayer?.collection) throw new Error('请选择一个面图层作为裁剪/擦除范围')
+    if (!collectionHasPolygon(request.clipLayer.collection)) throw new Error('裁剪/擦除范围需要包含面要素')
+    return
+  }
+
+  if (request.type === 'merge') {
+    ensureNonEmptyString(request.options.field, '请选择用于合并的字段')
+    return
+  }
+
+  if (request.type === 'filter') {
+    ensureNonEmptyString(request.options.expression, '请输入筛选表达式')
+    return
+  }
+
+  if (request.type === 'calculate') {
+    ensureNonEmptyString(request.options.field, '请输入要写入的字段名')
+    ensureNonEmptyString(request.options.expression, '请输入计算表达式')
+    return
+  }
+
+  if (request.type === 'rename-field') {
+    ensureNonEmptyString(request.options.from, '请选择原字段')
+    ensureNonEmptyString(request.options.to, '请输入新字段名')
+    return
+  }
+
+  if (request.type === 'drop-field') {
+    ensureNonEmptyString(request.options.field, '请选择要删除的字段')
+    return
+  }
+
+  if (request.type === 'sort') {
+    ensureNonEmptyString(request.options.field, '请选择排序字段')
+    return
+  }
+
+  if (request.type === 'project') {
+    ensureNonEmptyString(request.options.from, '请输入源坐标系')
+    ensureNonEmptyString(request.options.to, '请输入目标坐标系或 Proj4 字符串')
+  }
 }
 
 function featureCollectionOf(features: GeoFeature[]): GeoFeatureCollection {
@@ -1043,7 +932,6 @@ function createDerivedLayer(source: GeoLayer, suffix: string, collection: GeoFea
     ...source,
     id: nanoid(),
     name: `${source.name} · ${suffix}`,
-    kind: 'vector',
     collection,
     featureCount: collection.features.length,
     bbox: getCollectionBBox(collection),
@@ -1193,6 +1081,7 @@ async function runProject(request: GeoOperationRequest): Promise<GeoLayer> {
 
 export async function runGeoOperation(request: GeoOperationRequest): Promise<GeoOperationResult> {
   try {
+    validateGeoOperationRequest(request)
     const collection = ensureVectorCollection(request.layer)
     const turf = await import('@turf/turf')
     let layer: GeoLayer
@@ -1248,7 +1137,5 @@ export function getExportExtension(format: GeoDataFormat): string {
   if (format === 'shapefile') return 'zip'
   if (format === 'topojson') return 'topojson'
   if (format === 'flatgeobuf') return 'fgb'
-  if (format === 'geoparquet') return 'parquet'
-  if (format === 'geopackage') return 'gpkg'
   return format
 }

@@ -1,8 +1,8 @@
 import Store from 'electron-store'
 import { BrowserWindow } from 'electron'
 import { writeFile } from 'fs/promises'
-import { AppSettings, AppTheme, WindowBounds } from '../shared/types'
-import { TOOL_IDS } from '../shared/constants'
+import { AppSettings, WindowBounds } from '../shared/types'
+import { DEFAULT_ENABLED_TOOL_IDS, DEFAULT_FAVORITE_TOOL_IDS, DEFAULT_TOOL_ORDER, TOOL_IDS } from '../shared/constants'
 import { logger } from './logger'
 import { showSaveDialogSafe } from './dialog-utils'
 
@@ -40,32 +40,14 @@ const defaultSettings: AppSettings = {
       colorPicker: { accelerator: 'Alt+C', enabled: true }
     },
     windowBounds: null,
-    enabledTools: [
-      TOOL_IDS.CLIPBOARD,
-      TOOL_IDS.COLOR_PICKER,
-      TOOL_IDS.JSON_TOOL,
-      TOOL_IDS.TIMESTAMP_TOOL,
-      TOOL_IDS.SCREENSHOT,
-      TOOL_IDS.BASE64_TOOL,
-      TOOL_IDS.QRCODE,
-      TOOL_IDS.GEOSPATIAL
-    ],
+    enabledTools: [...DEFAULT_ENABLED_TOOL_IDS],
     startPage: TOOL_IDS.HOME,
     lastActiveTool: TOOL_IDS.HOME,
     toolUsage: []
   },
   management: {
-    toolOrder: [
-      TOOL_IDS.CLIPBOARD,
-      TOOL_IDS.COLOR_PICKER,
-      TOOL_IDS.JSON_TOOL,
-      TOOL_IDS.TIMESTAMP_TOOL,
-      TOOL_IDS.SCREENSHOT,
-      TOOL_IDS.BASE64_TOOL,
-      TOOL_IDS.QRCODE,
-      TOOL_IDS.GEOSPATIAL
-    ],
-    favoriteTools: [TOOL_IDS.CLIPBOARD, TOOL_IDS.JSON_TOOL, TOOL_IDS.SCREENSHOT],
+    toolOrder: [...DEFAULT_TOOL_ORDER],
+    favoriteTools: [...DEFAULT_FAVORITE_TOOL_IDS],
     autoUpdate: false,
     lastCheckUpdateTime: null
   },
@@ -163,16 +145,6 @@ export async function exportConfig(ownerWindow?: BrowserWindow | null): Promise<
   }
 }
 
-// 获取主题
-export function getTheme(): AppTheme {
-  return store.get('app.theme', 'dark') as AppTheme
-}
-
-// 设置主题
-export function setTheme(theme: AppTheme): void {
-  store.set('app.theme', theme)
-}
-
 // 获取窗口尺寸
 export function getWindowBounds(): WindowBounds | null {
   return store.get('app.windowBounds') as WindowBounds | null
@@ -181,14 +153,4 @@ export function getWindowBounds(): WindowBounds | null {
 // 设置窗口尺寸
 export function setWindowBounds(bounds: WindowBounds): void {
   store.set('app.windowBounds', bounds)
-}
-
-// 获取启用的工具列表
-export function getEnabledTools(): string[] {
-  return store.get('app.enabledTools', []) as string[]
-}
-
-// 设置启用的工具列表
-export function setEnabledTools(tools: string[]): void {
-  store.set('app.enabledTools', tools)
 }

@@ -33,11 +33,6 @@ const defaultGeoFilters: GeoFileDialogFilter[] = [
       'prj',
       'cpg',
       'fgb',
-      'gpkg',
-      'parquet',
-      'geoparquet',
-      'tif',
-      'tiff',
       'zip'
     ]
   },

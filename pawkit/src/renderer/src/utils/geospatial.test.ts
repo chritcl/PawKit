@@ -7,18 +7,17 @@ import {
   detectGeoFormat,
   dropPropertyField,
   exportGeoLayer,
+  getMapDataProjection,
   importGeoFiles,
   normalizeGeoBytes,
   normalizeGeoJsonInput,
   renamePropertyField,
   runGeoOperation,
   setFeatureProperty,
-  updateGeoLayerCollection
+  updateGeoLayerCollection,
+  validateGeoOperationRequest
 } from './geospatial'
-
-vi.mock('@ngageoint/geopackage', () => {
-  throw new Error('GeoJSON 不应加载 GeoPackage')
-})
+import { getNextActiveLayerAfterRemoval } from '../pages/tools/geospatial/page-helpers'
 
 vi.mock('flatgeobuf', () => {
   throw new Error('GeoJSON 不应加载 FlatGeobuf')
@@ -30,10 +29,6 @@ vi.mock('shapefile', () => {
 
 vi.mock('@mapbox/shp-write', () => {
   throw new Error('GeoJSON 不应加载 Shapefile 写出库')
-})
-
-vi.mock('geotiff', () => {
-  throw new Error('GeoJSON 不应加载 GeoTIFF')
 })
 
 const encoder = new TextEncoder()
@@ -52,7 +47,6 @@ function layer(collection: FeatureCollection): GeoLayer {
   return {
     id: 'layer-1',
     name: '测试图层',
-    kind: 'vector',
     format: 'geojson',
     visible: true,
     featureCount: collection.features.length,
@@ -112,7 +106,9 @@ describe('地理空间工具函数', () => {
     expect(detectGeoFormat('roads.geojson')).toBe('geojson')
     expect(detectGeoFormat('districts.topojson')).toBe('topojson')
     expect(detectGeoFormat('table.csv')).toBe('csv')
-    expect(detectGeoFormat('image.tiff')).toBe('geotiff')
+    expect(detectGeoFormat('roads.gpkg')).toBeNull()
+    expect(detectGeoFormat('cities.parquet')).toBeNull()
+    expect(detectGeoFormat('image.tiff')).toBeNull()
     expect(detectGeoFormat('unknown.bin')).toBeNull()
   })
 
@@ -195,6 +191,17 @@ describe('地理空间工具函数', () => {
     expect(result.layers[0].collection?.features[1].geometry?.type).toBe('Point')
   })
 
+  it('从 CSV WKT 字段导入几何', async () => {
+    const result = await importGeoFiles([
+      file('routes.csv', 'name,geometry\n一号线,"LINESTRING (116.1 39.1, 116.2 39.2)"')
+    ])
+
+    expect(result.warnings).toEqual([])
+    expect(result.layers[0].featureCount).toBe(1)
+    expect(result.layers[0].collection?.features[0].geometry?.type).toBe('LineString')
+    expect(result.layers[0].collection?.features[0].properties?.name).toBe('一号线')
+  })
+
   it('执行属性筛选、计算字段和投影转换', async () => {
     const source = layer(pointCollection)
     const filtered = await runGeoOperation({
@@ -227,6 +234,36 @@ describe('地理空间工具函数', () => {
       ? projected.layer.collection.features[0].geometry.coordinates
       : null
     expect(coordinates?.[0]).toBeGreaterThan(10000000)
+    expect(projected.layer?.crs).toBe('EPSG:3857')
+    expect(getMapDataProjection(projected.layer)).toBe('EPSG:3857')
+  })
+
+  it('前置校验地理处理参数', async () => {
+    const source = layer(pointCollection)
+
+    expect(() => validateGeoOperationRequest({
+      type: 'buffer',
+      layer: source,
+      options: { distance: Number.NaN, units: 'kilometers' }
+    })).toThrow('缓冲距离必须是有效数字')
+
+    expect((await runGeoOperation({
+      type: 'simplify',
+      layer: source,
+      options: { tolerance: -1 }
+    })).message).toBe('简化容差不能小于 0')
+
+    expect((await runGeoOperation({
+      type: 'calculate',
+      layer: source,
+      options: { field: '', expression: 'population * 2' }
+    })).message).toBe('请输入要写入的字段名')
+
+    expect((await runGeoOperation({
+      type: 'sort',
+      layer: source,
+      options: { field: '' }
+    })).message).toBe('请选择排序字段')
   })
 
   it('执行缓冲区和裁剪操作', async () => {
@@ -295,18 +332,47 @@ describe('地理空间工具函数', () => {
     expect(new TextDecoder().decode(svg.bytes)).toContain('<svg')
   })
 
-  it('导出 GeoParquet 后可以重新导入', async () => {
-    const source = layer(pointCollection)
-    const payload = await exportGeoLayer({ layerId: source.id, format: 'geoparquet', fileName: 'cities.parquet' }, source)
+  it('导入边界数据时保留可见提示', async () => {
+    const csv = await importGeoFiles([
+      file('mixed.csv', 'name,lon,lat\n有效,120,30\n无效,x,30')
+    ])
+    expect(csv.layers[0].featureCount).toBe(1)
+    expect(csv.layers[0].warnings).toContain('部分 CSV 行的经纬度字段无效，已跳过')
+
+    const geojson = await importGeoFiles([
+      file('mixed.geojson', JSON.stringify({
+        type: 'FeatureCollection',
+        features: [
+          pointCollection.features[0],
+          { type: 'Feature', properties: { name: '空几何' }, geometry: null }
+        ]
+      }))
+    ])
+    expect(geojson.layers[0].featureCount).toBe(1)
+    expect(geojson.layers[0].warnings).toContain('已跳过 1 个无效 GeoJSON 要素')
+  })
+
+  it('删除图层后选择相邻图层', () => {
+    const layers: GeoLayer[] = [
+      { ...layer(pointCollection), id: 'a', name: 'A' },
+      { ...layer(pointCollection), id: 'b', name: 'B' },
+      { ...layer(pointCollection), id: 'c', name: 'C' }
+    ]
+
+    expect(getNextActiveLayerAfterRemoval(layers, 'b', 'b')?.id).toBe('c')
+    expect(getNextActiveLayerAfterRemoval(layers, 'c', 'c')?.id).toBe('b')
+    expect(getNextActiveLayerAfterRemoval(layers, 'a', 'b')?.id).toBe('b')
+  })
+
+  it('重型地理格式不再导入', async () => {
     const result = await importGeoFiles([{
-      name: payload.fileName,
-      path: payload.fileName,
-      bytes: payload.bytes ?? new Uint8Array(),
-      size: payload.bytes?.byteLength ?? 0
+      name: 'cities.parquet',
+      path: 'cities.parquet',
+      bytes: encoder.encode('PAR1'),
+      size: 4
     }])
 
-    expect(result.warnings).toEqual([])
-    expect(result.layers[0].featureCount).toBe(2)
-    expect(result.layers[0].collection?.features[0].properties?.name).toBe('北京')
+    expect(result.layers).toEqual([])
+    expect(result.warnings).toEqual(['cities.parquet 格式暂不支持'])
   })
 })

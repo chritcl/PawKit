@@ -1,4 +1,5 @@
 import { useAppStore } from '../../stores/app-store'
+import { TOOL_IDS, type ToolId } from '../../../../shared/constants'
 import { getToolMeta } from '../../utils/tool-registry'
 import { HomePage } from '../../pages/home'
 import { ManagementPage } from '../../pages/management'
@@ -12,44 +13,27 @@ import { Base64ToolPage } from '../../pages/tools/base64-tool'
 import { QRCodeToolPage } from '../../pages/tools/qrcode-tool'
 import { GeospatialPage } from '../../pages/tools/geospatial'
 
-// 内容区组件
+const toolPages: Record<ToolId, () => JSX.Element> = {
+  [TOOL_IDS.HOME]: HomePage,
+  [TOOL_IDS.CLIPBOARD]: ClipboardPage,
+  [TOOL_IDS.COLOR_PICKER]: ColorPickerPage,
+  [TOOL_IDS.SCREENSHOT]: ScreenshotPage,
+  [TOOL_IDS.JSON_TOOL]: JsonToolPage,
+  [TOOL_IDS.TIMESTAMP_TOOL]: TimestampToolPage,
+  [TOOL_IDS.BASE64_TOOL]: Base64ToolPage,
+  [TOOL_IDS.QRCODE]: QRCodeToolPage,
+  [TOOL_IDS.GEOSPATIAL]: GeospatialPage,
+  [TOOL_IDS.MANAGEMENT]: ManagementPage,
+  [TOOL_IDS.SETTINGS]: SettingsPage
+}
+
 export function ContentArea(): JSX.Element {
   const activeTool = useAppStore((state) => state.activeTool)
   const toolMeta = getToolMeta(activeTool)
-
-  // 根据当前激活的工具渲染对应的页面
-  const renderPage = (): JSX.Element => {
-    switch (activeTool) {
-      case 'home':
-        return <HomePage />
-      case 'clipboard':
-        return <ClipboardPage />
-      case 'color-picker':
-        return <ColorPickerPage />
-      case 'screenshot':
-        return <ScreenshotPage />
-      case 'json-tool':
-        return <JsonToolPage />
-      case 'timestamp-tool':
-        return <TimestampToolPage />
-      case 'base64-tool':
-        return <Base64ToolPage />
-      case 'qrcode':
-        return <QRCodeToolPage />
-      case 'geospatial':
-        return <GeospatialPage />
-      case 'management':
-        return <ManagementPage />
-      case 'settings':
-        return <SettingsPage />
-      default:
-        return <HomePage />
-    }
-  }
+  const Page = toolPages[activeTool] ?? HomePage
 
   return (
     <main className="flex min-w-0 flex-1 flex-col overflow-hidden bg-[var(--app-bg-deep)]">
-      {/* 工具标题 */}
       <div className="border-b border-[var(--glass-border)] bg-[var(--window-surface)] px-5 py-3">
         <h1 className="text-base font-semibold tracking-normal text-[color:var(--text-primary)]">
           {toolMeta?.name ?? '未知工具'}
@@ -59,8 +43,7 @@ export function ContentArea(): JSX.Element {
         </p>
       </div>
 
-      {/* 页面内容 */}
-      <div key={activeTool} className="content-scroll">{renderPage()}</div>
+      <div key={activeTool} className="content-scroll"><Page /></div>
     </main>
   )
 }
