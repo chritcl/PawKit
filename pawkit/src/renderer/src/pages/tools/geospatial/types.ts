@@ -1,4 +1,4 @@
-export type DrawMode = 'select' | 'point' | 'line' | 'polygon' | 'box'
+export type DrawMode = 'select' | 'modify' | 'draw-point' | 'draw-line' | 'draw-polygon' | 'draw-rectangle'
 export type StatusKind = 'idle' | 'success' | 'warning' | 'error'
 export type OperationPanelId = 'geometry' | 'attributes' | 'projection'
 export type AttributePanelMode = 'table' | 'json'

@@ -275,6 +275,211 @@ export interface GeoOperationResult {
   layer?: GeoLayer
 }
 
+// 串流代理协议
+export type StreamProxyProtocol = 'ws' | 'wss' | 'rtsp'
+
+// 串流代理事件类型
+export type StreamProxyEventType = 'connected' | 'reconnecting' | 'error' | 'stopped'
+
+// 串流代理启动请求
+export interface StreamProxyStartRequest {
+  sourceUrl: string
+  protocol: StreamProxyProtocol
+  title?: string
+}
+
+// 串流代理启动响应
+export interface StreamProxyStartResponse {
+  success: boolean
+  status: 'started' | 'error'
+  message: string
+  sessionId?: string
+  localUrl?: string
+}
+
+// 串流代理操作响应
+export interface StreamProxyActionResult {
+  success: boolean
+  message: string
+}
+
+// 串流代理事件
+export interface StreamProxyEvent {
+  sessionId: string
+  type: StreamProxyEventType
+  message: string
+  sourceUrl?: string
+  localUrl?: string
+  retryCount?: number
+  createdAt: string
+}
+
+// HTTP API 请求方法
+export type HttpApiMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
+
+// HTTP API 键值项
+export interface HttpApiKeyValueItem {
+  id: string
+  key: string
+  value: string
+  enabled: boolean
+}
+
+// HTTP API 表单数据项
+export interface HttpApiFormDataItem extends HttpApiKeyValueItem {
+  type: 'text' | 'file'
+  fileName?: string
+  fileType?: string
+  fileSize?: number
+  fileBytes?: ArrayBuffer
+  needsReselect?: boolean
+}
+
+// HTTP API 文件请求体
+export interface HttpApiFileBody {
+  name: string
+  type: string
+  size: number
+  bytes?: ArrayBuffer
+  needsReselect?: boolean
+}
+
+// HTTP API 请求体类型
+export type HttpApiBodyMode = 'none' | 'json' | 'form-data' | 'urlencoded' | 'text' | 'file'
+
+// HTTP API 请求体
+export interface HttpApiRequestBody {
+  mode: HttpApiBodyMode
+  text: string
+  json: string
+  urlencoded: HttpApiKeyValueItem[]
+  formData: HttpApiFormDataItem[]
+  file: HttpApiFileBody | null
+}
+
+// HTTP API 鉴权配置
+export type HttpApiAuthConfig =
+  | { type: 'none' }
+  | { type: 'bearer'; token: string }
+  | { type: 'basic'; username: string; password: string }
+
+// HTTP API Cookie 项
+export interface HttpApiCookieItem extends HttpApiKeyValueItem {
+  domain?: string
+  path?: string
+}
+
+// HTTP API 请求草稿
+export interface HttpApiRequestDraft {
+  id: string
+  name: string
+  method: HttpApiMethod
+  url: string
+  queryParams: HttpApiKeyValueItem[]
+  headers: HttpApiKeyValueItem[]
+  auth: HttpApiAuthConfig
+  cookies: HttpApiCookieItem[]
+  body: HttpApiRequestBody
+  timeoutMs: number
+  sslVerify: boolean
+  followRedirects: boolean
+  maxRedirects: number
+  environmentId: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+// HTTP API 发送请求
+export interface HttpApiSendRequest {
+  requestId: string
+  request: HttpApiRequestDraft
+}
+
+// HTTP API 重定向记录
+export interface HttpApiRedirectRecord {
+  statusCode: number
+  statusText: string
+  fromUrl: string
+  toUrl: string
+  durationMs: number
+}
+
+// HTTP API 响应预览类型
+export type HttpApiResponsePreviewKind = 'json' | 'html' | 'text' | 'image' | 'binary'
+
+// HTTP API 响应
+export interface HttpApiResponse {
+  url: string
+  statusCode: number
+  statusText: string
+  headers: HttpApiKeyValueItem[]
+  durationMs: number
+  sizeBytes: number
+  contentType: string
+  previewKind: HttpApiResponsePreviewKind
+  bodyText: string
+  bodyBase64?: string
+  bodyTruncated?: boolean
+  bodyUnavailable?: boolean
+  bodyUnavailableReason?: string
+  redirected: boolean
+  redirectChain: HttpApiRedirectRecord[]
+  completedAt: string
+}
+
+// HTTP API 发送结果
+export interface HttpApiSendResult {
+  success: boolean
+  status: 'completed' | 'cancelled' | 'timeout' | 'error'
+  message: string
+  requestId: string
+  response?: HttpApiResponse
+}
+
+// HTTP API 操作结果
+export interface HttpApiActionResult {
+  success: boolean
+  message: string
+}
+
+// HTTP API 历史项
+export interface HttpApiHistoryItem {
+  id: string
+  request: HttpApiRequestDraft
+  sentRequest?: HttpApiRequestDraft
+  response: HttpApiResponse | null
+  success: boolean
+  message: string
+  createdAt: string
+}
+
+// HTTP API 收藏项
+export interface HttpApiFavoriteItem {
+  id: string
+  name: string
+  request: HttpApiRequestDraft
+  createdAt: string
+  updatedAt: string
+}
+
+// HTTP API 环境变量
+export interface HttpApiEnvironment {
+  id: string
+  name: string
+  variables: HttpApiKeyValueItem[]
+  createdAt: string
+  updatedAt: string
+}
+
+// HTTP API Cookie 管理
+export interface HttpApiCookieJar {
+  id: string
+  name: string
+  cookies: HttpApiCookieItem[]
+  createdAt: string
+  updatedAt: string
+}
+
 // 应用配置
 export interface AppSettings {
   app: {
@@ -296,6 +501,12 @@ export interface AppSettings {
   }
   qrcode: {
     history: QrCodeHistoryItem[]
+  }
+  httpApi: {
+    history: HttpApiHistoryItem[]
+    favorites: HttpApiFavoriteItem[]
+    environments: HttpApiEnvironment[]
+    cookies: HttpApiCookieJar[]
   }
   screenshot: {
     preferences: ScreenshotPreferences
@@ -534,6 +745,16 @@ export interface ElectronAPI {
     openFiles: (filters: GeoFileDialogFilter[]) => Promise<GeoFilePayload[]>
     saveFile: (request: GeoSaveFileRequest) => Promise<GeoSaveFileResult>
     saveArchive: (request: GeoSaveArchiveRequest) => Promise<GeoSaveFileResult>
+  }
+  streamProxy: {
+    start: (request: StreamProxyStartRequest) => Promise<StreamProxyStartResponse>
+    stop: (sessionId: string) => Promise<StreamProxyActionResult>
+    retry: (sessionId: string) => Promise<StreamProxyActionResult>
+    onEvent: (callback: (event: StreamProxyEvent) => void) => () => void
+  }
+  httpApi: {
+    send: (request: HttpApiSendRequest) => Promise<HttpApiSendResult>
+    cancel: (requestId: string) => Promise<HttpApiActionResult>
   }
   clipboard: {
     readText: () => Promise<string>

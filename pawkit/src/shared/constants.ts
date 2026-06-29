@@ -12,6 +12,8 @@ export const TOOL_IDS = {
   TIMESTAMP_TOOL: 'timestamp-tool',
   BASE64_TOOL: 'base64-tool',
   QRCODE: 'qrcode',
+  MEDIA_PLAYER: 'media-player',
+  HTTP_API_TOOL: 'http-api-tool',
   MANAGEMENT: 'management',
   SETTINGS: 'settings'
 } as const
@@ -32,6 +34,8 @@ export const MANAGEABLE_TOOL_IDS = [
   TOOL_IDS.SCREENSHOT,
   TOOL_IDS.BASE64_TOOL,
   TOOL_IDS.QRCODE,
+  TOOL_IDS.MEDIA_PLAYER,
+  TOOL_IDS.HTTP_API_TOOL,
   TOOL_IDS.GEOSPATIAL
 ] as const satisfies readonly ToolId[]
 

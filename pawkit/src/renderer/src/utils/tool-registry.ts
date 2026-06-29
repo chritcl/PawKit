@@ -10,6 +10,8 @@ import {
   Binary,
   Map,
   QrCode,
+  Video,
+  SendHorizontal,
   Settings,
   Sliders
 } from 'lucide-react'
@@ -85,6 +87,22 @@ export const toolRegistry: ExtendedToolMeta[] = [
     name: '二维码',
     icon: QrCode,
     description: '文本、URL、WiFi 和名片二维码',
+    phase: 5,
+    canDisable: true
+  },
+  {
+    id: TOOL_IDS.MEDIA_PLAYER,
+    name: '媒体播放器',
+    icon: Video,
+    description: '本地音视频与 HTTP/HLS 串流调试',
+    phase: 5,
+    canDisable: true
+  },
+  {
+    id: TOOL_IDS.HTTP_API_TOOL,
+    name: 'API 调试',
+    icon: SendHorizontal,
+    description: 'HTTP 请求、响应预览、历史收藏与代码生成',
     phase: 5,
     canDisable: true
   },

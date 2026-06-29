@@ -20,6 +20,16 @@ export const IPC_CHANNELS = {
   GEO_SAVE_FILE: 'geo:save-file',
   GEO_SAVE_ARCHIVE: 'geo:save-archive',
 
+  // 串流代理相关
+  STREAM_PROXY_START: 'stream-proxy:start',
+  STREAM_PROXY_STOP: 'stream-proxy:stop',
+  STREAM_PROXY_RETRY: 'stream-proxy:retry',
+  STREAM_PROXY_EVENT: 'stream-proxy:event',
+
+  // HTTP API 调试相关
+  HTTP_API_SEND: 'http-api:send',
+  HTTP_API_CANCEL: 'http-api:cancel',
+
   // 剪贴板相关
   CLIPBOARD_READ_TEXT: 'clipboard:read-text',
   CLIPBOARD_WRITE_TEXT: 'clipboard:write-text',

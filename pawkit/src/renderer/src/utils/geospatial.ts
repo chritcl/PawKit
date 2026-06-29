@@ -266,6 +266,62 @@ export function setFeatureProperty(
   return next
 }
 
+export function setFeatureGeometry(
+  collection: GeoFeatureCollection,
+  featureIndex: number,
+  geometry: Geometry
+): GeoFeatureCollection {
+  if (!isGeoJsonGeometry(geometry)) throw new Error('几何不是有效的 GeoJSON Geometry')
+  const next = cloneCollection(collection)
+  const feature = next.features[featureIndex]
+  if (!feature) throw new Error('要素不存在')
+  feature.geometry = geometry
+  return next
+}
+
+export function formatPropertyCellValue(value: unknown): string {
+  if (value === null || value === undefined) return ''
+  if (typeof value === 'object') return JSON.stringify(value)
+  return String(value)
+}
+
+export function parsePropertyCellValue(text: string, originalValue: unknown): unknown {
+  const trimmed = text.trim()
+  if (!trimmed) return ''
+  if (trimmed === 'null') return null
+  if (trimmed === 'true') return true
+  if (trimmed === 'false') return false
+
+  if (typeof originalValue === 'number') {
+    const numberValue = Number(trimmed)
+    return Number.isFinite(numberValue) ? numberValue : text
+  }
+
+  if (typeof originalValue === 'boolean') {
+    if (trimmed === '1') return true
+    if (trimmed === '0') return false
+    return text
+  }
+
+  if (Array.isArray(originalValue) || (originalValue !== null && typeof originalValue === 'object')) {
+    try {
+      return JSON.parse(trimmed)
+    } catch {
+      throw new Error('对象或数组属性必须输入有效 JSON')
+    }
+  }
+
+  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+    try {
+      return JSON.parse(trimmed)
+    } catch {
+      throw new Error('对象或数组属性必须输入有效 JSON')
+    }
+  }
+
+  return text
+}
+
 export function addPropertyField(
   collection: GeoFeatureCollection,
   field: string,
@@ -445,6 +501,19 @@ function geometryToWkt(geometry: Geometry): string {
   if (geometry.type === 'Polygon') return `POLYGON (${polygonToWkt(geometry.coordinates)})`
   if (geometry.type === 'MultiPolygon') return `MULTIPOLYGON (${geometry.coordinates.map((polygon) => `(${polygonToWkt(polygon)})`).join(', ')})`
   return `GEOMETRYCOLLECTION (${geometry.geometries.map(geometryToWkt).join(', ')})`
+}
+
+export function formatGeometryCellValue(geometry: Geometry | null | undefined): string {
+  return geometry ? geometryToWkt(geometry) : ''
+}
+
+export function parseGeometryCellValue(text: string): Geometry {
+  const trimmed = text.trim()
+  if (!trimmed) throw new Error('几何不能为空')
+  const geometry = parseWktGeometry(trimmed)
+  if (!geometry) throw new Error('几何不能为空')
+  if (!isGeoJsonGeometry(geometry)) throw new Error('几何不是有效的 GeoJSON Geometry')
+  return geometry
 }
 
 async function parseGeometryValue(value: unknown): Promise<Geometry | null> {
@@ -1127,7 +1196,7 @@ export async function runGeoOperation(request: GeoOperationRequest): Promise<Geo
 export function getLayerFields(layer: GeoLayer | null): string[] {
   if (!layer?.collection) return []
   const fields = new Set<string>()
-  layer.collection.features.slice(0, 200).forEach((feature) => {
+  layer.collection.features.forEach((feature) => {
     Object.keys(feature.properties ?? {}).forEach((field) => fields.add(field))
   })
   return [...fields].sort((left, right) => left.localeCompare(right, 'zh-CN'))

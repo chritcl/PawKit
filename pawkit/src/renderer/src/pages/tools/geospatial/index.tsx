@@ -2,8 +2,8 @@ import 'ol/ol.css'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   BoxSelect,
-  ChevronDown,
-  ChevronUp,
+  ChevronLeft,
+  ChevronRight,
   CircleDot,
   Database,
   Download,
@@ -15,6 +15,7 @@ import {
   Loader2,
   Map as MapIcon,
   MousePointer2,
+  Pencil,
   PenLine,
   Plus,
   Sparkles,
@@ -58,6 +59,7 @@ import {
   getMapDataProjection,
   normalizeGeoJsonInput,
   renamePropertyField,
+  setFeatureGeometry,
   setFeatureProperty,
   updateGeoLayerCollection,
   validateGeoOperationRequest
@@ -166,6 +168,19 @@ function featureKey(layerId: string, featureIndex: number): string {
   return `${layerId}:${featureIndex}`
 }
 
+function areStringArraysEqual(left: string[], right: string[]): boolean {
+  return left.length === right.length && left.every((item, index) => item === right[index])
+}
+
+function validFeatureSelectionKeys(layerId: string, keys: string[], featureCount: number): string[] {
+  const prefix = `${layerId}:`
+  return keys.filter((key) => {
+    if (!key.startsWith(prefix)) return false
+    const index = Number(key.slice(prefix.length))
+    return Number.isInteger(index) && index >= 0 && index < featureCount
+  })
+}
+
 function geometryLabel(geometry: Geometry | null | undefined): string {
   return geometry?.type ?? '无几何'
 }
@@ -185,7 +200,8 @@ export function GeospatialPage(): JSX.Element {
   const [drawMode, setDrawMode] = useState<DrawMode>('select')
   const [operationPanel, setOperationPanel] = useState<OperationPanelId>('geometry')
   const [attributePanelMode, setAttributePanelMode] = useState<AttributePanelMode>('table')
-  const [attributePanelCollapsed, setAttributePanelCollapsed] = useState(false)
+  const [rightPanelMode, setRightPanelMode] = useState<'operation' | 'attribute'>('attribute')
+  const [rightPanelCollapsed, setRightPanelCollapsed] = useState(false)
   const [basemapMode, setBasemapMode] = useState<BasemapMode>('osm')
   const [busy, setBusy] = useState(false)
   const [busyStartedAt, setBusyStartedAt] = useState<number | null>(null)
@@ -219,6 +235,7 @@ export function GeospatialPage(): JSX.Element {
   const drawRef = useRef<Draw | null>(null)
   const snapRef = useRef<Snap | null>(null)
   const activeLayerIdRef = useRef<string | null>(null)
+  const selectedFeatureIdsRef = useRef<string[]>([])
   const fitAfterRenderRef = useRef(false)
   const taskTokenRef = useRef(0)
   const { callWorker, cancelWorker } = useGeoWorker()
@@ -255,6 +272,35 @@ export function GeospatialPage(): JSX.Element {
       })
   }, [activeCollection, activeLayer?.id, attributeFilter])
 
+  const setSelectedFeatureIdsStable = useCallback((nextIds: string[]): void => {
+    setSelectedFeatureIds((currentIds) => (
+      areStringArraysEqual(currentIds, nextIds) ? currentIds : nextIds
+    ))
+  }, [])
+
+  const syncMapSelectionFromKeys = useCallback((keys: string[]): void => {
+    const select = selectRef.current
+    const source = vectorSourceRef.current
+    if (!select || !source) return
+    const keySet = new Set(keys)
+    const nextFeatures = source.getFeatures().filter((feature) => {
+      const key = feature.get('__pawkitFeatureKey') as string | undefined
+      return Boolean(key && keySet.has(key))
+    })
+    const nextKeys = nextFeatures
+      .map((feature) => feature.get('__pawkitFeatureKey') as string | undefined)
+      .filter((key): key is string => Boolean(key))
+    const selectedFeatures = select.getFeatures()
+    const currentKeys = selectedFeatures.getArray()
+      .map((feature) => feature.get('__pawkitFeatureKey') as string | undefined)
+      .filter((key): key is string => Boolean(key))
+    if (!areStringArraysEqual(currentKeys, nextKeys)) {
+      selectedFeatures.clear()
+      nextFeatures.forEach((feature) => selectedFeatures.push(feature))
+    }
+    setSelectedFeatureIdsStable(nextKeys)
+  }, [setSelectedFeatureIdsStable])
+
   const syncJsonEditorFromLayer = useCallback((layer: GeoLayer | null): void => {
     setJsonText(stringifyLayerCollection(layer))
     setJsonDirty(false)
@@ -263,10 +309,10 @@ export function GeospatialPage(): JSX.Element {
 
   const activateLayer = useCallback((layer: GeoLayer | null): void => {
     setActiveLayerId(layer?.id ?? null)
-    setSelectedFeatureIds([])
+    setSelectedFeatureIdsStable([])
     if (layer?.crs) setSourceCrs(layer.crs)
     syncJsonEditorFromLayer(layer)
-  }, [syncJsonEditorFromLayer])
+  }, [setSelectedFeatureIdsStable, syncJsonEditorFromLayer])
 
   const beginTask = useCallback((message: string): number => {
     const token = taskTokenRef.current + 1
@@ -322,7 +368,7 @@ export function GeospatialPage(): JSX.Element {
   const applyCollectionToActiveLayer = useCallback((
     collection: FeatureCollection,
     message: string,
-    options: { fit?: boolean } = {}
+    options: { fit?: boolean; selectedKeys?: string[] } = {}
   ): void => {
     const targetId = activeLayerIdRef.current
     if (!targetId) return
@@ -331,15 +377,20 @@ export function GeospatialPage(): JSX.Element {
         ? updateGeoLayerCollection(layer, collection)
         : layer
     )))
-    setSelectedFeatureIds([])
+    const nextSelectedKeys = options.selectedKeys
+      ?? validFeatureSelectionKeys(targetId, selectedFeatureIdsRef.current, collection.features.length)
+    setSelectedFeatureIdsStable(nextSelectedKeys)
     setJsonText(JSON.stringify(collection, null, 2))
     setJsonDirty(false)
     setJsonError('')
     if (options.fit) fitAfterRenderRef.current = true
     setStatus({ kind: 'success', message })
-  }, [])
+  }, [setSelectedFeatureIdsStable])
 
-  const syncActiveVectorLayer = useCallback((nextMessage = '地图编辑已同步'): void => {
+  const syncActiveVectorLayer = useCallback((
+    nextMessage = '地图编辑已同步',
+    options: { selectedKeys?: string[] } = {}
+  ): void => {
     const source = vectorSourceRef.current
     const targetId = activeLayerIdRef.current
     if (!source || !targetId) return
@@ -354,12 +405,14 @@ export function GeospatialPage(): JSX.Element {
       if (layer.id !== targetId) return layer
       return updateGeoLayerCollection(layer, collection)
     }))
-    setSelectedFeatureIds([])
+    const nextSelectedKeys = options.selectedKeys
+      ?? validFeatureSelectionKeys(targetId, selectedFeatureIdsRef.current, collection.features.length)
+    setSelectedFeatureIdsStable(nextSelectedKeys)
     setJsonText(JSON.stringify(collection, null, 2))
     setJsonDirty(false)
     setJsonError('')
     setStatus({ kind: 'success', message: nextMessage })
-  }, [activeLayer])
+  }, [activeLayer, setSelectedFeatureIdsStable])
 
   const focusFeature = useCallback((featureIndex: number): void => {
     if (!activeLayerId) return
@@ -372,7 +425,7 @@ export function GeospatialPage(): JSX.Element {
     if (!feature) return
     select.getFeatures().clear()
     select.getFeatures().push(feature)
-    setSelectedFeatureIds([key])
+    setSelectedFeatureIdsStable([key])
     const geometry = feature.getGeometry()
     if (geometry) {
       map.getView().fit(geometry.getExtent(), {
@@ -381,17 +434,31 @@ export function GeospatialPage(): JSX.Element {
         duration: 180
       })
     }
-  }, [activeLayerId])
+  }, [activeLayerId, setSelectedFeatureIdsStable])
 
-  const editFeatureProperty = useCallback((featureIndex: number, field: string, value: string): void => {
+  const editFeatureProperty = useCallback((featureIndex: number, field: string, value: unknown): void => {
     if (!activeCollection) return
     try {
       applyCollectionToActiveLayer(
         setFeatureProperty(activeCollection, featureIndex, field, value),
-        '属性单元格已更新'
+        '属性单元格已更新',
+        { selectedKeys: selectedFeatureIdsRef.current }
       )
     } catch (error) {
       setStatus({ kind: 'error', message: error instanceof Error ? error.message : '属性更新失败' })
+    }
+  }, [activeCollection, applyCollectionToActiveLayer])
+
+  const editFeatureGeometry = useCallback((featureIndex: number, geometry: Geometry): void => {
+    if (!activeCollection) return
+    try {
+      applyCollectionToActiveLayer(
+        setFeatureGeometry(activeCollection, featureIndex, geometry),
+        '几何单元格已更新',
+        { selectedKeys: selectedFeatureIdsRef.current }
+      )
+    } catch (error) {
+      setStatus({ kind: 'error', message: error instanceof Error ? error.message : '几何更新失败' })
     }
   }, [activeCollection, applyCollectionToActiveLayer])
 
@@ -440,6 +507,19 @@ export function GeospatialPage(): JSX.Element {
     }
   }, [activeLayer, applyCollectionToActiveLayer, jsonText])
 
+  const formatJsonEditor = useCallback((): void => {
+    try {
+      const formatted = JSON.stringify(JSON.parse(jsonText), null, 2)
+      setJsonText(formatted)
+      setJsonDirty((dirty) => dirty || formatted !== jsonText)
+      setJsonError('')
+      setStatus({ kind: 'success', message: 'JSON 已格式化' })
+    } catch {
+      setJsonError('JSON 格式化失败：请输入有效 JSON')
+      setStatus({ kind: 'error', message: 'JSON 格式化失败：请输入有效 JSON' })
+    }
+  }, [jsonText])
+
   const resetJsonEditor = useCallback((): void => {
     const collection = activeCollection ?? { type: 'FeatureCollection', features: [] }
     setJsonText(JSON.stringify(collection, null, 2))
@@ -450,6 +530,10 @@ export function GeospatialPage(): JSX.Element {
   useEffect(() => {
     activeLayerIdRef.current = activeLayerId
   }, [activeLayerId])
+
+  useEffect(() => {
+    selectedFeatureIdsRef.current = selectedFeatureIds
+  }, [selectedFeatureIds])
 
   useEffect(() => {
     if (!busyStartedAt) return undefined
@@ -505,7 +589,7 @@ export function GeospatialPage(): JSX.Element {
 
   useEffect(() => {
     mapRef.current?.updateSize()
-  }, [attributePanelCollapsed, operationPanel])
+  }, [operationPanel, rightPanelCollapsed, rightPanelMode])
 
   useEffect(() => {
     const map = mapRef.current
@@ -523,32 +607,49 @@ export function GeospatialPage(): JSX.Element {
     modifyRef.current = null
     drawRef.current = null
     snapRef.current = null
-    setSelectedFeatureIds([])
 
     if (!canEditMapLayer || !activeLayerId) return
 
-    const select = new Select({
-      filter: (feature) => feature.get('__pawkitLayerId') === activeLayerId
-    })
-    select.getFeatures().on(['add', 'remove'], () => {
-      const keys = select.getFeatures().getArray()
-        .map((feature) => feature.get('__pawkitFeatureKey') as string | undefined)
-        .filter((key): key is string => Boolean(key))
-      setSelectedFeatureIds(keys)
-    })
-    map.addInteraction(select)
-    selectRef.current = select
+    if (drawMode === 'select' || drawMode === 'modify') {
+      const select = new Select({
+        filter: (feature) => feature.get('__pawkitLayerId') === activeLayerId
+      })
+      select.getFeatures().on(['add', 'remove'], () => {
+        const keys = select.getFeatures().getArray()
+          .map((feature) => feature.get('__pawkitFeatureKey') as string | undefined)
+          .filter((key): key is string => Boolean(key))
+        setSelectedFeatureIdsStable(keys)
+      })
+      map.addInteraction(select)
+      selectRef.current = select
 
-    if (drawMode === 'select') {
-      const modify = new Modify({ features: select.getFeatures() })
-      modify.on('modifyend', () => syncActiveVectorLayer())
+      const currentSelection = validFeatureSelectionKeys(
+        activeLayerId,
+        selectedFeatureIdsRef.current,
+        activeLayer?.featureCount ?? 0
+      )
+      if (currentSelection.length > 0) {
+        window.requestAnimationFrame(() => syncMapSelectionFromKeys(currentSelection))
+      }
+    }
+
+    if (drawMode === 'modify' && selectRef.current) {
+      const modify = new Modify({ features: selectRef.current.getFeatures() })
+      modify.on('modifyend', () => {
+        syncActiveVectorLayer('地图几何已修改', { selectedKeys: selectedFeatureIdsRef.current })
+      })
+      const snap = new Snap({ source })
       map.addInteraction(modify)
+      map.addInteraction(snap)
       modifyRef.current = modify
-    } else {
+      snapRef.current = snap
+    }
+
+    if (drawMode.startsWith('draw-')) {
       const draw = new Draw({
         source,
-        type: drawMode === 'box' ? 'Circle' : drawMode === 'point' ? 'Point' : drawMode === 'line' ? 'LineString' : 'Polygon',
-        geometryFunction: drawMode === 'box' ? createBox() : undefined
+        type: drawMode === 'draw-rectangle' ? 'Circle' : drawMode === 'draw-point' ? 'Point' : drawMode === 'draw-line' ? 'LineString' : 'Polygon',
+        geometryFunction: drawMode === 'draw-rectangle' ? createBox() : undefined
       })
       draw.on('drawend', (event) => {
         event.feature.set('__pawkitLayerId', activeLayerId)
@@ -567,7 +668,22 @@ export function GeospatialPage(): JSX.Element {
       removeInteraction(drawRef.current)
       removeInteraction(snapRef.current)
     }
-  }, [activeLayerId, canEditMapLayer, drawMode, syncActiveVectorLayer])
+  }, [activeLayer, activeLayerId, canEditMapLayer, drawMode, setSelectedFeatureIdsStable, syncActiveVectorLayer, syncMapSelectionFromKeys])
+
+  useEffect(() => {
+    if (drawMode !== 'select' && drawMode !== 'modify') return undefined
+    const keys = selectedFeatureIdsRef.current
+    if (keys.length === 0) return undefined
+    const frameId = window.requestAnimationFrame(() => syncMapSelectionFromKeys(keys))
+    return () => window.cancelAnimationFrame(frameId)
+  }, [drawMode, layers, syncMapSelectionFromKeys])
+
+  const changeDrawMode = (mode: DrawMode): void => {
+    setDrawMode(mode)
+    if (mode !== 'select' && mode !== 'modify') {
+      setSelectedFeatureIdsStable([])
+    }
+  }
 
   const importFiles = async (): Promise<void> => {
     if (busy) return
@@ -607,7 +723,7 @@ export function GeospatialPage(): JSX.Element {
     const layer = createEmptyLayer(`绘制图层 ${layers.length + 1}`)
     setLayers((current) => [...current, layer])
     activateLayer(layer)
-    setDrawMode('polygon')
+    changeDrawMode('draw-polygon')
     setStatus({ kind: 'success', message: '已创建空白绘制图层' })
   }
 
@@ -625,7 +741,7 @@ export function GeospatialPage(): JSX.Element {
     setLayers((current) => current.map((layer) => (
       layer.id === layerId ? { ...layer, visible: !layer.visible } : layer
     )))
-    if (layerId === activeLayerId) setSelectedFeatureIds([])
+    if (layerId === activeLayerId) setSelectedFeatureIdsStable([])
   }
 
   const deleteSelectedFeatures = (): void => {
@@ -634,8 +750,8 @@ export function GeospatialPage(): JSX.Element {
     if (!select || !source || selectedFeatureIds.length === 0) return
     select.getFeatures().forEach((feature) => source.removeFeature(feature as OlFeature<OlGeometry>))
     select.getFeatures().clear()
-    setSelectedFeatureIds([])
-    syncActiveVectorLayer('选中要素已删除')
+    setSelectedFeatureIdsStable([])
+    syncActiveVectorLayer('选中要素已删除', { selectedKeys: [] })
   }
 
   const runOperation = async (type: GeoOperationRequest['type']): Promise<void> => {
@@ -808,7 +924,7 @@ export function GeospatialPage(): JSX.Element {
         </div>
       </div>
 
-      <div className={`geo-workbench ${attributePanelCollapsed ? 'geo-workbench-attribute-collapsed' : ''}`}>
+      <div className={`geo-workbench ${rightPanelCollapsed ? 'geo-workbench-right-collapsed' : ''}`}>
         <aside className="glass-panel geo-layer-panel">
           <section className="min-h-0 flex-1 overflow-hidden">
             <div className="mb-2 flex items-center justify-between">
@@ -922,19 +1038,20 @@ export function GeospatialPage(): JSX.Element {
           <div ref={mapElementRef} className="h-full w-full" />
           <div className="geo-map-draw-toolbar">
             {([
-              ['select', MousePointer2, '选择/修改'],
-              ['point', CircleDot, '点'],
-              ['line', PenLine, '线'],
-              ['polygon', Sparkles, '面'],
-              ['box', BoxSelect, '框选范围']
-            ] as const).map(([mode, Icon, label]) => (
+              ['select', MousePointer2, '选择', '点击要素并同步表格高亮'],
+              ['modify', Pencil, '编辑几何', '先点击要素，再拖动顶点修改'],
+              ['draw-point', CircleDot, '点', '绘制点要素'],
+              ['draw-line', PenLine, '线', '绘制线要素'],
+              ['draw-polygon', Sparkles, '面', '绘制面要素'],
+              ['draw-rectangle', BoxSelect, '矩形面', '拖拽绘制矩形面要素']
+            ] as const).map(([mode, Icon, label, title]) => (
               <button
                 type="button"
                 key={mode}
                 className={`segmented-item ${drawMode === mode ? 'segmented-item-active' : ''}`}
-                onClick={() => setDrawMode(mode)}
+                onClick={() => changeDrawMode(mode)}
                 disabled={!canEditMapLayer}
-                title={canEditMapLayer ? label : '当前图层隐藏或未选择，无法在地图上编辑'}
+                title={canEditMapLayer ? title : '当前图层隐藏或未选择，无法在地图上编辑'}
               >
                 <Icon className="h-4 w-4" />
                 {label}
@@ -950,117 +1067,173 @@ export function GeospatialPage(): JSX.Element {
           </div>
         </main>
 
-        <aside className="glass-panel geo-operation-panel">
-          <div className="flex items-center gap-1 rounded-lg border border-[var(--glass-border)] bg-[var(--input-surface)] p-1">
-            {operationTabs.map((tab) => (
-              <button
-                type="button"
-                key={tab.id}
-                className={`segmented-item flex-1 justify-center ${operationPanel === tab.id ? 'segmented-item-active' : ''}`}
-                onClick={() => setOperationPanel(tab.id)}
-                title={tab.description}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-          <div className="sr-only" aria-live="polite">{activeOperationTab.title}</div>
-          <OperationPanel
-            panel={operationPanel}
-            busy={busy}
-            canEditActiveLayer={canEditActiveLayer}
-            vectorLayers={vectorLayers}
-            activeFields={activeFields}
-            activeLayerId={activeLayerId}
-            clipLayerId={clipLayerId}
-            setClipLayerId={setClipLayerId}
-            simplifyTolerance={simplifyTolerance}
-            setSimplifyTolerance={setSimplifyTolerance}
-            bufferDistance={bufferDistance}
-            setBufferDistance={setBufferDistance}
-            bufferUnits={bufferUnits}
-            setBufferUnits={setBufferUnits}
-            fieldName={fieldName}
-            setFieldName={setFieldName}
-            newFieldName={newFieldName}
-            setNewFieldName={setNewFieldName}
-            expression={expression}
-            setExpression={setExpression}
-            sortDirection={sortDirection}
-            setSortDirection={setSortDirection}
-            sourceCrs={sourceCrs}
-            setSourceCrs={setSourceCrs}
-            targetCrs={targetCrs}
-            setTargetCrs={setTargetCrs}
-            runOperation={runOperation}
-          />
-        </aside>
-
-        <section className="glass-panel geo-attribute-panel">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex min-w-0 items-center gap-2">
-              <MapIcon className="h-4 w-4 text-[color:var(--text-muted)]" />
-              <div className="min-w-0">
-                <h2 className="truncate text-sm font-semibold text-[color:var(--text-primary)]">
-                  属性数据 {activeLayer ? `· ${activeLayer.name}` : ''}
-                </h2>
-                <p className="text-xs text-[color:var(--text-muted)]">
-                  {activeLayer ? `${activeLayer.featureCount} 条记录，选中 ${selectedFeatureIds.length} 条` : '矢量图层支持表格和 JSON 编辑'}
-                </p>
+        <aside className={`glass-panel geo-right-panel ${rightPanelCollapsed ? 'geo-right-panel-collapsed' : ''}`}>
+          {rightPanelCollapsed ? (
+            <button
+              type="button"
+              className="icon-button geo-right-panel-expand"
+              onClick={() => setRightPanelCollapsed(false)}
+              title="展开右侧面板"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              <span className="sr-only">展开右侧面板</span>
+            </button>
+          ) : (
+            <>
+              <div className="geo-right-panel-header">
+                <div className="min-w-0">
+                  <h2 className="truncate text-sm font-semibold text-[color:var(--text-primary)]">
+                    {rightPanelMode === 'attribute' ? '属性数据' : '空间操作'}
+                  </h2>
+                  <p className="text-xs text-[color:var(--text-muted)]">
+                    {rightPanelMode === 'attribute'
+                      ? activeLayer ? `${activeLayer.featureCount} 条记录，选中 ${selectedFeatureIds.length} 条` : '矢量图层支持表格和 JSON 编辑'
+                      : activeOperationTab.title}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="icon-button h-8 min-h-8 w-8 min-w-8"
+                  onClick={() => setRightPanelCollapsed(true)}
+                  title="收起右侧面板"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
               </div>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                className={`segmented-item ${attributePanelMode === 'table' ? 'segmented-item-active' : ''}`}
-                onClick={() => setAttributePanelMode('table')}
-              >
-                <Table2 className="h-4 w-4" />
-                表格
-              </button>
-              <button
-                type="button"
-                className={`segmented-item ${attributePanelMode === 'json' ? 'segmented-item-active' : ''}`}
-                onClick={() => setAttributePanelMode('json')}
-              >
-                <FileJson className="h-4 w-4" />
-                JSON
-              </button>
-              <button type="button" className="icon-button h-8 min-h-8 w-8 min-w-8" onClick={() => setAttributePanelCollapsed((value) => !value)} title={attributePanelCollapsed ? '展开属性面板' : '收起属性面板'}>
-                {attributePanelCollapsed ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-              </button>
-            </div>
-          </div>
-          {!attributePanelCollapsed && (
-            <AttributePanel
-              activeLayer={activeLayer}
-              mode={attributePanelMode}
-              jsonText={jsonText}
-              setJsonText={setJsonText}
-              jsonDirty={jsonDirty}
-              setJsonDirty={setJsonDirty}
-              jsonError={jsonError}
-              setJsonError={setJsonError}
-              resetJsonEditor={resetJsonEditor}
-              saveJsonEditor={saveJsonEditor}
-              canEditActiveLayer={canEditActiveLayer}
-              attributeFilter={attributeFilter}
-              setAttributeFilter={setAttributeFilter}
-              tableFieldName={tableFieldName}
-              setTableFieldName={setTableFieldName}
-              addTableField={addTableField}
-              renameTableField={renameTableField}
-              dropTableField={dropTableField}
-              activeFields={activeFields}
-              setFieldName={setFieldName}
-              filteredRows={filteredRows}
-              selectedFeatureSet={selectedFeatureSet}
-              featureKey={featureKey}
-              focusFeature={focusFeature}
-              editFeatureProperty={editFeatureProperty}
-            />
+
+              <div className="geo-right-panel-tabs">
+                <button
+                  type="button"
+                  className={`segmented-item justify-center ${rightPanelMode === 'operation' ? 'segmented-item-active' : ''}`}
+                  onClick={() => setRightPanelMode('operation')}
+                >
+                  操作
+                </button>
+                <button
+                  type="button"
+                  className={`segmented-item justify-center ${rightPanelMode === 'attribute' ? 'segmented-item-active' : ''}`}
+                  onClick={() => setRightPanelMode('attribute')}
+                >
+                  属性数据
+                </button>
+              </div>
+
+              <div className="geo-right-panel-body">
+                {rightPanelMode === 'operation' ? (
+                  <section className="geo-operation-panel">
+                    <div className="flex items-center gap-1 rounded-lg border border-[var(--glass-border)] bg-[var(--input-surface)] p-1">
+                      {operationTabs.map((tab) => (
+                        <button
+                          type="button"
+                          key={tab.id}
+                          className={`segmented-item flex-1 justify-center ${operationPanel === tab.id ? 'segmented-item-active' : ''}`}
+                          onClick={() => setOperationPanel(tab.id)}
+                          title={tab.description}
+                        >
+                          {tab.label}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="sr-only" aria-live="polite">{activeOperationTab.title}</div>
+                    <OperationPanel
+                      panel={operationPanel}
+                      busy={busy}
+                      canEditActiveLayer={canEditActiveLayer}
+                      vectorLayers={vectorLayers}
+                      activeFields={activeFields}
+                      activeLayerId={activeLayerId}
+                      clipLayerId={clipLayerId}
+                      setClipLayerId={setClipLayerId}
+                      simplifyTolerance={simplifyTolerance}
+                      setSimplifyTolerance={setSimplifyTolerance}
+                      bufferDistance={bufferDistance}
+                      setBufferDistance={setBufferDistance}
+                      bufferUnits={bufferUnits}
+                      setBufferUnits={setBufferUnits}
+                      fieldName={fieldName}
+                      setFieldName={setFieldName}
+                      newFieldName={newFieldName}
+                      setNewFieldName={setNewFieldName}
+                      expression={expression}
+                      setExpression={setExpression}
+                      sortDirection={sortDirection}
+                      setSortDirection={setSortDirection}
+                      sourceCrs={sourceCrs}
+                      setSourceCrs={setSourceCrs}
+                      targetCrs={targetCrs}
+                      setTargetCrs={setTargetCrs}
+                      runOperation={runOperation}
+                    />
+                  </section>
+                ) : (
+                  <section className="geo-attribute-panel">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <MapIcon className="h-4 w-4 text-[color:var(--text-muted)]" />
+                        <div className="min-w-0">
+                          <h2 className="truncate text-sm font-semibold text-[color:var(--text-primary)]">
+                            {activeLayer ? activeLayer.name : '属性数据'}
+                          </h2>
+                          <p className="text-xs text-[color:var(--text-muted)]">
+                            {activeLayer ? `${activeLayer.featureCount} 条记录，选中 ${selectedFeatureIds.length} 条` : '矢量图层支持表格和 JSON 编辑'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          className={`segmented-item ${attributePanelMode === 'table' ? 'segmented-item-active' : ''}`}
+                          onClick={() => setAttributePanelMode('table')}
+                        >
+                          <Table2 className="h-4 w-4" />
+                          表格
+                        </button>
+                        <button
+                          type="button"
+                          className={`segmented-item ${attributePanelMode === 'json' ? 'segmented-item-active' : ''}`}
+                          onClick={() => setAttributePanelMode('json')}
+                        >
+                          <FileJson className="h-4 w-4" />
+                          JSON
+                        </button>
+                      </div>
+                    </div>
+                    <AttributePanel
+                      key={activeLayer?.id ?? 'no-active-layer'}
+                      activeLayer={activeLayer}
+                      mode={attributePanelMode}
+                      jsonText={jsonText}
+                      setJsonText={setJsonText}
+                      jsonDirty={jsonDirty}
+                      setJsonDirty={setJsonDirty}
+                      jsonError={jsonError}
+                      setJsonError={setJsonError}
+                      resetJsonEditor={resetJsonEditor}
+                      formatJsonEditor={formatJsonEditor}
+                      saveJsonEditor={saveJsonEditor}
+                      canEditActiveLayer={canEditActiveLayer}
+                      attributeFilter={attributeFilter}
+                      setAttributeFilter={setAttributeFilter}
+                      tableFieldName={tableFieldName}
+                      setTableFieldName={setTableFieldName}
+                      addTableField={addTableField}
+                      renameTableField={renameTableField}
+                      dropTableField={dropTableField}
+                      activeFields={activeFields}
+                      setFieldName={setFieldName}
+                      filteredRows={filteredRows}
+                      selectedFeatureSet={selectedFeatureSet}
+                      featureKey={featureKey}
+                      focusFeature={focusFeature}
+                      editFeatureProperty={editFeatureProperty}
+                      editFeatureGeometry={editFeatureGeometry}
+                    />
+                  </section>
+                )}
+              </div>
+            </>
           )}
-        </section>
+        </aside>
       </div>
     </div>
   )

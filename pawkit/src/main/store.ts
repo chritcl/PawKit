@@ -23,6 +23,10 @@ const ALLOWED_KEYS = [
   'color.favorites',
   'color.recent',
   'qrcode.history',
+  'httpApi.history',
+  'httpApi.favorites',
+  'httpApi.environments',
+  'httpApi.cookies',
   'screenshot.preferences',
   'privacy.qrcodeHistoryLimit'
 ] as const
@@ -60,6 +64,12 @@ const defaultSettings: AppSettings = {
   },
   qrcode: {
     history: []
+  },
+  httpApi: {
+    history: [],
+    favorites: [],
+    environments: [],
+    cookies: []
   },
   screenshot: {
     preferences: {

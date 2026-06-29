@@ -4,6 +4,7 @@ import { createTray } from './tray'
 import { initShortcuts, unregisterAllShortcuts } from './shortcuts'
 import { registerIpcHandlers } from './ipc'
 import { startClipboardWatch, stopClipboardWatch } from './services/clipboard-service'
+import { stopAllStreamProxySessions } from './services/stream-proxy'
 
 // 主窗口实例
 let mainWindow: BrowserWindow | null = null
@@ -66,4 +67,6 @@ app.on('before-quit', () => {
   unregisterAllShortcuts()
   // 停止剪贴板监听
   stopClipboardWatch()
+  // 停止所有串流代理
+  stopAllStreamProxySessions()
 })

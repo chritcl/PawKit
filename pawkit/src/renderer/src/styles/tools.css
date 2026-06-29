@@ -1144,20 +1144,18 @@
   display: grid;
   min-height: 0;
   flex: 1 1 auto;
-  grid-template-columns: minmax(220px, 260px) minmax(360px, 1fr) minmax(280px, 320px);
-  grid-template-rows: minmax(320px, 1fr) minmax(220px, 36%);
+  grid-template-columns: minmax(220px, 260px) minmax(360px, 1fr) minmax(320px, 380px);
   gap: 0.75rem;
   overflow: hidden;
 }
 
-.geo-workbench-attribute-collapsed {
-  grid-template-rows: minmax(0, 1fr) auto;
+.geo-workbench-right-collapsed {
+  grid-template-columns: minmax(220px, 260px) minmax(360px, 1fr) 3rem;
 }
 
 .geo-layer-panel {
   display: flex;
   min-height: 0;
-  grid-row: 1 / 3;
   flex-direction: column;
   gap: 0.75rem;
   overflow: hidden;
@@ -1247,12 +1245,71 @@
   font-size: 0.75rem;
 }
 
-.geo-operation-panel {
+.geo-right-panel {
   display: flex;
   min-height: 0;
   flex-direction: column;
   gap: 0.75rem;
+  overflow: hidden;
+}
+
+.geo-right-panel-collapsed {
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0.5rem;
+}
+
+.geo-right-panel-expand {
+  width: 100%;
+  min-width: 2rem;
+  height: 2rem;
+  min-height: 2rem;
+}
+
+.geo-right-panel-header {
+  display: flex;
+  flex-shrink: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.geo-right-panel-header p {
+  margin-top: 0.15rem;
+  line-height: 1.45;
+}
+
+.geo-right-panel-tabs {
+  display: grid;
+  flex-shrink: 0;
+  gap: 0.25rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  background: var(--input-surface);
+  padding: 0.25rem;
+}
+
+.geo-right-panel-tabs .segmented-item {
+  min-width: 0;
+}
+
+.geo-right-panel-body {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.geo-operation-panel {
+  display: flex;
+  width: 100%;
+  min-height: 0;
+  flex-direction: column;
+  gap: 0.75rem;
   overflow: auto;
+  padding-right: 0.15rem;
+  scrollbar-gutter: stable;
 }
 
 .geo-operation-header {
@@ -1289,11 +1346,17 @@
 
 .geo-attribute-panel {
   display: flex;
+  width: 100%;
   min-height: 0;
-  grid-column: 2 / 4;
+  flex: 1 1 auto;
   flex-direction: column;
   gap: 0.75rem;
   overflow: hidden;
+}
+
+.geo-attribute-content {
+  min-height: 0;
+  flex: 1 1 auto;
 }
 
 .tool-toolbar {
@@ -1900,28 +1963,30 @@ button.encoding-detail-card:hover {
   .geo-workbench {
     min-height: auto;
     grid-template-columns: minmax(220px, 260px) minmax(0, 1fr);
-    grid-template-rows: minmax(360px, auto) minmax(260px, auto) minmax(240px, auto);
+    grid-template-rows: minmax(360px, auto) minmax(30rem, auto);
     overflow: visible;
   }
 
+  .geo-workbench-right-collapsed {
+    grid-template-rows: minmax(360px, auto) auto;
+  }
+
   .geo-layer-panel {
-    grid-row: 1 / 4;
+    grid-row: 1 / 3;
   }
 
   .geo-map-panel {
     min-height: 360px;
   }
 
-  .geo-operation-panel {
+  .geo-right-panel {
     grid-column: 2;
     grid-row: 2;
-    min-height: 16rem;
+    min-height: 30rem;
   }
 
-  .geo-attribute-panel {
-    grid-column: 2;
-    grid-row: 3;
-    min-height: 18rem;
+  .geo-right-panel-collapsed {
+    min-height: auto;
   }
 
   .tool-grid-editor,
@@ -2004,21 +2069,30 @@ button.encoding-detail-card:hover {
 
   .geo-workbench {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto minmax(360px, auto) auto auto;
+    grid-template-rows: auto minmax(360px, auto) auto;
   }
 
   .geo-layer-panel,
   .geo-map-panel,
-  .geo-operation-panel,
-  .geo-attribute-panel {
+  .geo-right-panel {
     grid-column: 1;
     grid-row: auto;
   }
 
   .geo-layer-panel,
+  .geo-right-panel,
+  .geo-right-panel-body,
   .geo-operation-panel,
   .geo-attribute-panel {
     overflow: visible;
+  }
+
+  .geo-right-panel {
+    min-height: 30rem;
+  }
+
+  .geo-right-panel-collapsed {
+    min-height: auto;
   }
 
   .geo-map-draw-toolbar {
@@ -3003,5 +3077,969 @@ button.encoding-detail-card:hover {
 
   .json-result-actions {
     grid-column: 1 / -1;
+  }
+}
+
+/* HTTP API 调试工具 */
+.http-api-tool-page {
+  min-height: 0;
+}
+
+.http-api-toolbar,
+.http-toolbar-title,
+.http-toolbar-actions,
+.http-toolbar-meta,
+.http-request-top,
+.http-request-meta,
+.http-response-tabs,
+.http-file-body {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+}
+
+.http-api-toolbar {
+  justify-content: space-between;
+  background: var(--window-surface-strong);
+  box-shadow: none;
+}
+
+.http-toolbar-title {
+  min-width: 0;
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+}
+
+.http-toolbar-actions {
+  min-width: 0;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.http-toolbar-meta {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.http-toolbar-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.http-mobile-resource-button,
+.http-mobile-pane-tabs,
+.http-mobile-backdrop {
+  display: none;
+}
+
+.http-api-workbench {
+  position: relative;
+  display: grid;
+  min-height: 0;
+  flex: 1 1 auto;
+  gap: 0.75rem;
+  grid-template-columns: minmax(13rem, 0.46fr) minmax(22rem, 0.9fr) minmax(32rem, 1.68fr);
+}
+
+.http-api-workbench-collapsed {
+  grid-template-columns: 3.75rem minmax(22rem, 0.82fr) minmax(34rem, 1.72fr);
+}
+
+.http-side-panel,
+.http-request-panel,
+.http-response-panel {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--window-surface-strong);
+  box-shadow: none;
+}
+
+.http-side-header {
+  display: flex;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--glass-border);
+  padding: 0.5rem 0.65rem;
+}
+
+.http-side-header strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 0.8125rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.http-left-tabs {
+  display: grid;
+  gap: 0.25rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-bottom: 1px solid var(--glass-border);
+  padding: 0.5rem;
+}
+
+.http-left-tabs button,
+.http-response-tabs button {
+  display: inline-flex;
+  min-height: 2rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.http-left-tabs button:hover,
+.http-left-tab-active,
+.http-response-tabs button:hover,
+.http-response-tab-active {
+  background: var(--glass-surface-hover);
+  color: var(--text-primary);
+}
+
+.http-side-panel-collapsed .http-side-header {
+  justify-content: center;
+  padding-inline: 0.4rem;
+}
+
+.http-side-panel-collapsed .http-left-tabs {
+  grid-template-columns: minmax(0, 1fr);
+  padding: 0.4rem;
+}
+
+.http-side-panel-collapsed .http-left-tabs button span,
+.http-side-panel-collapsed .http-side-body {
+  display: none;
+}
+
+.http-side-body,
+.http-request-tab-body,
+.http-response-body {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: auto;
+  scrollbar-gutter: stable;
+}
+
+.http-side-body {
+  padding: 0.75rem;
+}
+
+.http-sensitive-note {
+  margin-bottom: 0.75rem;
+  border: 1px solid var(--tone-warning-border);
+  border-radius: 7px;
+  background: var(--tone-warning-soft);
+  padding: 0.5rem 0.6rem;
+  color: var(--tone-warning);
+  font-size: 0.6875rem;
+}
+
+.http-list-stack,
+.http-kv-editor,
+.http-body-editor,
+.http-code-panel,
+.http-env-card {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.http-list-row {
+  display: grid;
+  min-width: 0;
+  gap: 0.25rem;
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  background: var(--input-surface);
+  padding: 0.65rem;
+  text-align: left;
+}
+
+.http-list-main {
+  display: grid;
+  min-width: 0;
+  gap: 0.25rem;
+  color: inherit;
+  text-align: left;
+}
+
+.http-list-actions,
+.http-resource-heading,
+.http-response-actions,
+.http-header-actions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.http-list-actions {
+  flex-wrap: wrap;
+  border-top: 1px solid var(--glass-border);
+  padding-top: 0.5rem;
+}
+
+.http-resource-heading {
+  align-items: stretch;
+}
+
+.http-resource-heading .field-input {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.http-list-row:hover {
+  border-color: var(--glass-border-strong);
+  background: var(--glass-surface-hover);
+}
+
+.http-list-row span,
+.http-list-row strong,
+.http-list-row small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.http-list-row strong {
+  color: var(--text-primary);
+  font-size: 0.8125rem;
+}
+
+.http-list-row small {
+  color: var(--text-muted);
+  font-size: 0.6875rem;
+}
+
+.http-env-card {
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  background: var(--input-surface);
+  padding: 0.7rem;
+}
+
+.http-request-top {
+  border-bottom: 1px solid var(--glass-border);
+  padding: 0.7rem;
+}
+
+.http-method-select {
+  width: 7rem;
+  flex: 0 0 auto;
+  font-weight: 700;
+}
+
+.http-url-input {
+  min-width: 0;
+  flex: 1 1 auto;
+  font-family: Consolas, "Cascadia Code", "Microsoft YaHei UI", monospace;
+}
+
+.http-request-meta {
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--glass-border);
+  padding: 0.6rem 0.7rem;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.http-request-meta .field-input {
+  min-width: 12rem;
+  flex: 1 1 auto;
+}
+
+.http-request-tabs,
+.http-body-tabs,
+.http-code-tabs {
+  margin: 0.65rem;
+  overflow-x: auto;
+}
+
+.http-request-tab-body {
+  padding: 0 0.7rem 0.7rem;
+}
+
+.http-kv-row,
+.http-form-row,
+.http-cookie-row {
+  display: grid;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.http-kv-row {
+  grid-template-columns: auto minmax(7rem, 0.8fr) minmax(9rem, 1fr) auto;
+}
+
+.http-form-row {
+  grid-template-columns: auto minmax(6rem, 0.65fr) 7rem minmax(9rem, 1fr) auto;
+}
+
+.http-cookie-row {
+  grid-template-columns: auto minmax(6rem, 0.7fr) minmax(7rem, 1fr) minmax(6rem, 0.8fr) minmax(5rem, 0.65fr) auto;
+}
+
+.http-auth-grid,
+.http-options-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.http-options-grid label {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.4rem;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.http-check-row {
+  min-height: 2.5rem;
+  align-items: center;
+  flex-direction: row !important;
+  color: var(--text-secondary) !important;
+}
+
+.http-body-editor {
+  min-height: 100%;
+}
+
+.http-plain-textarea {
+  min-height: 18rem;
+  flex: 1 1 auto;
+  resize: vertical;
+  font-family: Consolas, "Cascadia Code", "Microsoft YaHei UI", monospace;
+}
+
+.http-file-picker,
+.http-file-body label {
+  position: relative;
+  overflow: hidden;
+}
+
+.http-file-picker input,
+.http-file-body input {
+  position: absolute;
+  inset: 0;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.http-response-summary {
+  display: grid;
+  gap: 0.4rem;
+  border-bottom: 1px solid var(--glass-border);
+  padding: 0.55rem;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.http-response-notice {
+  border-bottom: 1px solid var(--glass-border);
+  background: var(--tone-info-soft);
+  padding: 0.45rem 0.7rem;
+  color: var(--tone-info);
+  font-size: 0.75rem;
+}
+
+.http-response-notice-warning {
+  background: var(--tone-warning-soft);
+  color: var(--tone-warning);
+}
+
+.http-response-summary > div {
+  min-width: 0;
+  border: 1px solid var(--glass-border);
+  border-radius: 7px;
+  background: var(--input-surface);
+  padding: 0.42rem 0.5rem;
+}
+
+.http-response-summary span,
+.http-response-summary strong {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.http-response-summary span {
+  color: var(--text-muted);
+  font-size: 0.625rem;
+}
+
+.http-response-summary strong {
+  margin-top: 0.15rem;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+}
+
+.http-response-summary-wide {
+  grid-column: span 2;
+}
+
+.http-response-tabs {
+  border-bottom: 1px solid var(--glass-border);
+  padding: 0.38rem 0.55rem;
+}
+
+.http-response-tabs button {
+  padding: 0 0.65rem;
+  font-size: 0.75rem;
+}
+
+.http-response-body {
+  display: flex;
+  flex-direction: column;
+}
+
+.http-json-view-stack,
+.http-json-preview {
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.http-json-view-stack {
+  display: flex;
+  flex-direction: column;
+}
+
+.http-response-actions {
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--glass-border);
+  padding: 0.55rem 0.7rem;
+}
+
+.http-json-preview {
+  display: flex;
+  overflow: hidden;
+  background: var(--input-surface);
+  flex-direction: column;
+}
+
+.http-json-tree-panel,
+.http-json-source-panel {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.http-json-preview-tabs {
+  margin: 0.55rem;
+  flex: 0 0 auto;
+  align-self: flex-start;
+}
+
+.http-json-preview-tabs .segmented-item {
+  min-width: 4.25rem;
+  min-height: 1.85rem;
+  padding: 0.25rem 0.7rem;
+  font-size: 0.75rem;
+}
+
+.http-json-tree,
+.http-header-list {
+  min-height: 0;
+  overflow: auto;
+  scrollbar-gutter: stable;
+}
+
+.http-json-tree {
+  flex: 1 1 auto;
+  background: transparent;
+}
+
+.http-json-tree-row {
+  display: grid;
+  min-width: 34rem;
+  align-items: start;
+  gap: 0.4rem;
+  grid-template-columns: 1.25rem minmax(6rem, 0.42fr) 4.5rem minmax(12rem, 1fr) auto;
+  border-bottom: 1px solid var(--glass-border);
+  padding-block: 0.42rem;
+  padding-right: 0.55rem;
+}
+
+.http-json-tree-row > button:first-child {
+  margin-top: 0.1rem;
+}
+
+.http-json-tree-row code,
+.http-header-list code,
+.http-header-list span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.http-json-tree-row strong {
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.http-json-tree-row code,
+.http-header-list code {
+  color: var(--text-primary);
+  font-family: Consolas, "Cascadia Code", monospace;
+  font-size: 0.6875rem;
+}
+
+.http-json-tree-row span {
+  color: var(--tone-info);
+  font-size: 0.625rem;
+}
+
+.http-header-list span {
+  color: var(--text-muted);
+  font-size: 0.6875rem;
+  font-weight: 500;
+}
+
+.http-json-row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  justify-content: flex-end;
+}
+
+.http-json-row-actions .icon-button {
+  width: 1.75rem;
+  min-width: 1.75rem;
+  height: 1.75rem;
+  min-height: 1.75rem;
+  border-color: var(--glass-border);
+  background: var(--glass-muted);
+}
+
+.http-json-code-editor {
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.http-json-code-editor .cm-editor,
+.http-json-code-editor .cm-scroller {
+  min-width: 0;
+}
+
+.http-json-code-editor .cm-scroller {
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+}
+
+.http-json-code-editor .cm-content {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.http-json-code-editor .cm-line {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.http-header-list {
+  padding: 0.7rem;
+}
+
+.http-header-actions {
+  justify-content: flex-start;
+  border-bottom: 1px solid var(--glass-border);
+  padding-bottom: 0.65rem;
+}
+
+.http-header-list > div {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: minmax(9rem, 0.45fr) minmax(12rem, 1fr);
+  border-bottom: 1px solid var(--glass-border);
+  padding: 0.55rem 0.25rem;
+}
+
+.http-image-preview {
+  display: flex;
+  min-height: 100%;
+  align-items: center;
+  justify-content: center;
+  background: var(--input-surface);
+  padding: 1rem;
+}
+
+.http-image-preview img {
+  max-width: 100%;
+  max-height: 100%;
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  object-fit: contain;
+}
+
+.http-html-preview {
+  width: 100%;
+  min-height: 100%;
+  flex: 1 1 auto;
+  border: 0;
+  background: #ffffff;
+}
+
+.http-code-panel {
+  min-height: 0;
+  flex: 1 1 auto;
+  padding-bottom: 0.7rem;
+}
+
+.http-code-panel .toolbar-button {
+  margin: 0 0.7rem;
+  align-self: flex-start;
+}
+
+.http-empty {
+  display: flex;
+  min-height: 8rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed var(--glass-border);
+  border-radius: 8px;
+  background: var(--glass-muted);
+  padding: 1rem;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  text-align: center;
+}
+
+.http-response-error-state {
+  min-height: 100%;
+  flex-direction: column;
+  gap: 0.45rem;
+  border-color: var(--tone-danger-border);
+  background: var(--tone-danger-soft);
+  color: var(--tone-danger);
+}
+
+.http-response-warning-state {
+  min-height: 100%;
+  flex-direction: column;
+  gap: 0.45rem;
+  border-color: var(--tone-warning-border);
+  background: var(--tone-warning-soft);
+  color: var(--tone-warning);
+}
+
+.http-response-error-state strong {
+  color: currentColor;
+  font-size: 0.875rem;
+}
+
+.http-response-error-state span,
+.http-response-warning-state span {
+  max-width: min(32rem, 100%);
+  overflow-wrap: anywhere;
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+
+.http-request-edit-lock {
+  position: absolute;
+  inset: 3.6rem 0 0;
+  z-index: 8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  background: color-mix(in srgb, var(--window-surface-strong) 78%, transparent);
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  backdrop-filter: blur(8px);
+}
+
+.http-modal-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.http-modal-backdrop {
+  position: absolute;
+  inset: 0;
+}
+
+.http-curl-modal {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  width: min(42rem, calc(100vw - 2rem));
+  max-height: min(42rem, calc(100vh - 2rem));
+  min-height: 28rem;
+  flex-direction: column;
+  gap: 0.75rem;
+  border-radius: 10px;
+  background: var(--window-surface-strong);
+  padding: 1rem;
+}
+
+.http-modal-heading,
+.http-modal-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.http-modal-heading > div {
+  display: grid;
+  min-width: 0;
+  gap: 0.2rem;
+}
+
+.http-modal-heading strong,
+.http-modal-heading span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.http-modal-heading strong {
+  color: var(--text-primary);
+  font-size: 0.9375rem;
+}
+
+.http-modal-heading span {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.http-curl-textarea {
+  min-height: 12rem;
+  flex: 1 1 auto;
+  resize: vertical;
+  font-family: Consolas, "Cascadia Code", "Microsoft YaHei UI", monospace;
+}
+
+.http-inline-alert {
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  padding: 0.6rem 0.7rem;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
+.http-inline-alert-danger {
+  border-color: var(--tone-danger-border);
+  background: var(--tone-danger-soft);
+  color: var(--tone-danger);
+}
+
+.http-curl-preview {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.http-curl-preview > div {
+  min-width: 0;
+  border: 1px solid var(--glass-border);
+  border-radius: 7px;
+  background: var(--input-surface);
+  padding: 0.55rem 0.65rem;
+}
+
+.http-curl-preview span,
+.http-curl-preview strong {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.http-curl-preview span {
+  color: var(--text-muted);
+  font-size: 0.6875rem;
+}
+
+.http-curl-preview strong {
+  margin-top: 0.2rem;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+}
+
+@media (max-width: 1320px) {
+  .http-mobile-resource-button {
+    display: inline-flex;
+  }
+
+  .http-api-workbench {
+    grid-template-columns: minmax(20rem, 0.76fr) minmax(30rem, 1.24fr);
+  }
+
+  .http-api-workbench-collapsed {
+    grid-template-columns: minmax(20rem, 0.76fr) minmax(30rem, 1.24fr);
+  }
+
+  .http-side-panel {
+    position: absolute;
+    inset: 0 auto 0 0;
+    z-index: 50;
+    width: min(21rem, calc(100vw - 2rem));
+    min-height: 100%;
+    transform: translateX(calc(-100% - 1rem));
+    transition: transform 180ms ease;
+  }
+
+  .http-resource-open .http-side-panel {
+    transform: translateX(0);
+  }
+
+  .http-side-panel-collapsed {
+    width: min(21rem, calc(100vw - 2rem));
+  }
+
+  .http-side-panel-collapsed .http-side-header {
+    justify-content: space-between;
+    padding-inline: 0.65rem;
+  }
+
+  .http-side-panel-collapsed .http-left-tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: 0.5rem;
+  }
+
+  .http-side-panel-collapsed .http-left-tabs button span {
+    display: inline;
+  }
+
+  .http-side-panel-collapsed .http-side-body {
+    display: block;
+  }
+
+  .http-mobile-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 45;
+    background: rgba(0, 0, 0, 0.22);
+  }
+
+  .http-resource-open .http-mobile-backdrop {
+    display: block;
+  }
+
+  .http-response-summary {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 920px) {
+  .http-api-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .http-toolbar-actions {
+    justify-content: flex-start;
+    overflow-x: auto;
+    padding-bottom: 0.1rem;
+  }
+
+  .http-toolbar-actions .toolbar-button,
+  .http-toolbar-actions .icon-button {
+    flex: 0 0 auto;
+  }
+
+  .http-mobile-pane-tabs {
+    display: flex;
+    flex: 0 0 auto;
+  }
+
+  .http-api-workbench,
+  .http-json-preview {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .http-api-workbench {
+    display: block;
+  }
+
+  .http-request-panel,
+  .http-response-panel {
+    min-height: 24rem;
+  }
+
+  .http-side-panel {
+    width: min(20rem, calc(100vw - 2rem));
+  }
+
+  .http-side-panel-collapsed {
+    width: min(20rem, calc(100vw - 2rem));
+  }
+
+  .http-mobile-pane-request .http-response-panel,
+  .http-mobile-pane-response .http-request-panel {
+    display: none;
+  }
+
+  .http-mobile-pane-response .http-response-panel {
+    grid-column: auto;
+  }
+
+  .http-json-tree {
+    max-height: 18rem;
+    border-bottom: 1px solid var(--glass-border);
+  }
+
+  .http-json-source-panel {
+    border-left: 0;
+  }
+
+  .http-kv-row,
+  .http-form-row,
+  .http-cookie-row,
+  .http-auth-grid,
+  .http-options-grid,
+  .http-header-list > div {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .http-response-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .http-request-top {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .http-method-select {
+    width: 100%;
   }
 }

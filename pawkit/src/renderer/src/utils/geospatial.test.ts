@@ -7,12 +7,18 @@ import {
   detectGeoFormat,
   dropPropertyField,
   exportGeoLayer,
+  formatGeometryCellValue,
+  formatPropertyCellValue,
+  getLayerFields,
   getMapDataProjection,
   importGeoFiles,
   normalizeGeoBytes,
   normalizeGeoJsonInput,
+  parseGeometryCellValue,
+  parsePropertyCellValue,
   renamePropertyField,
   runGeoOperation,
+  setFeatureGeometry,
   setFeatureProperty,
   updateGeoLayerCollection,
   validateGeoOperationRequest
@@ -180,6 +186,56 @@ describe('地理空间工具函数', () => {
     expect(droppedField.features[0].properties?.population).toBeUndefined()
     expect(nextLayer.featureCount).toBe(2)
     expect(nextLayer.bbox).toEqual([116.4074, 31.2304, 121.4737, 39.9042])
+  })
+
+  it('扫描完整图层字段而不是只扫描前 200 条', () => {
+    const collection: FeatureCollection = {
+      type: 'FeatureCollection',
+      features: Array.from({ length: 205 }, (_, index) => ({
+        type: 'Feature',
+        properties: index === 204 ? { lateField: '后置字段' } : { name: `记录 ${index + 1}` },
+        geometry: { type: 'Point', coordinates: [index, index] }
+      }))
+    }
+
+    expect(getLayerFields(layer(collection))).toContain('lateField')
+  })
+
+  it('格式化和解析属性单元格时尽量保留 JSON 类型', () => {
+    expect(formatPropertyCellValue({ parent: { adcode: 39916 } })).toBe('{"parent":{"adcode":39916}}')
+    expect(parsePropertyCellValue('42.5', 1)).toBe(42.5)
+    expect(parsePropertyCellValue('false', true)).toBe(false)
+    expect(parsePropertyCellValue('[1,2,3]', [])).toEqual([1, 2, 3])
+    expect(parsePropertyCellValue('{"adcode":39916}', { adcode: 0 })).toEqual({ adcode: 39916 })
+    expect(parsePropertyCellValue('001', '原始字符串')).toBe('001')
+    expect(() => parsePropertyCellValue('{bad}', {})).toThrow('对象或数组属性必须输入有效 JSON')
+  })
+
+  it('格式化和解析几何 WKT 单元格', () => {
+    const pointText = formatGeometryCellValue(pointCollection.features[0].geometry)
+    const line = parseGeometryCellValue('LINESTRING (120 30, 121 31)')
+    const polygon = parseGeometryCellValue('POLYGON ((0 0, 1 0, 1 1, 0 0))')
+    const multiPolygonText = formatGeometryCellValue(multiPolygonCollection.features[0].geometry)
+
+    expect(pointText).toBe('POINT (116.4074 39.9042)')
+    expect(parseGeometryCellValue(pointText)).toEqual(pointCollection.features[0].geometry)
+    expect(formatGeometryCellValue(line)).toBe('LINESTRING (120 30, 121 31)')
+    expect(formatGeometryCellValue(polygon)).toBe('POLYGON ((0 0, 1 0, 1 1, 0 0))')
+    expect(parseGeometryCellValue(multiPolygonText)).toEqual(multiPolygonCollection.features[0].geometry)
+    expect(() => parseGeometryCellValue('NOT_A_WKT')).toThrow('WKT 格式无效')
+    expect(() => parseGeometryCellValue('POINT EMPTY')).toThrow('几何不能为空')
+  })
+
+  it('编辑几何单元格并同步图层边界', () => {
+    const changedGeometry = setFeatureGeometry(pointCollection, 0, parseGeometryCellValue('POINT (100 20)'))
+    const geometry = changedGeometry.features[0].geometry
+    const nextLayer = updateGeoLayerCollection(layer(pointCollection), changedGeometry)
+
+    if (geometry?.type !== 'Point') throw new Error('应该是点几何')
+    expect(geometry.coordinates).toEqual([100, 20])
+    expect(pointCollection.features[0].geometry).toEqual({ type: 'Point', coordinates: [116.4074, 39.9042] })
+    expect(nextLayer.featureCount).toBe(2)
+    expect(nextLayer.bbox).toEqual([100, 20, 121.4737, 31.2304])
   })
 
   it('从 CSV 自动识别经纬度列', async () => {

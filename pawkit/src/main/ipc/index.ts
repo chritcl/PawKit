@@ -7,6 +7,8 @@ import { registerShortcutIpcHandlers } from './shortcut'
 import { registerScreenCaptureIpcHandlers } from './screen-capture'
 import { registerPinnedWindowIpcHandlers } from './pinned-window'
 import { registerGeoIpcHandlers } from './geo'
+import { registerStreamProxyIpcHandlers } from './stream-proxy'
+import { registerHttpApiIpcHandlers } from './http-api'
 
 // 注册所有 IPC 处理器
 export function registerIpcHandlers(mainWindow: BrowserWindow): void {
@@ -15,6 +17,8 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   registerClipboardIpcHandlers()
   registerScreenshotIpcHandlers()
   registerGeoIpcHandlers()
+  registerStreamProxyIpcHandlers(mainWindow)
+  registerHttpApiIpcHandlers()
   registerScreenCaptureIpcHandlers()
   registerPinnedWindowIpcHandlers()
   registerShortcutIpcHandlers()

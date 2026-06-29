@@ -11,6 +11,8 @@ import { JsonToolPage } from '../../pages/tools/json-tool'
 import { TimestampToolPage } from '../../pages/tools/timestamp-tool'
 import { Base64ToolPage } from '../../pages/tools/base64-tool'
 import { QRCodeToolPage } from '../../pages/tools/qrcode-tool'
+import { MediaPlayerPage } from '../../pages/tools/media-player'
+import { HttpApiToolPage } from '../../pages/tools/http-api-tool'
 import { GeospatialPage } from '../../pages/tools/geospatial'
 
 const toolPages: Record<ToolId, () => JSX.Element> = {
@@ -22,6 +24,8 @@ const toolPages: Record<ToolId, () => JSX.Element> = {
   [TOOL_IDS.TIMESTAMP_TOOL]: TimestampToolPage,
   [TOOL_IDS.BASE64_TOOL]: Base64ToolPage,
   [TOOL_IDS.QRCODE]: QRCodeToolPage,
+  [TOOL_IDS.MEDIA_PLAYER]: MediaPlayerPage,
+  [TOOL_IDS.HTTP_API_TOOL]: HttpApiToolPage,
   [TOOL_IDS.GEOSPATIAL]: GeospatialPage,
   [TOOL_IDS.MANAGEMENT]: ManagementPage,
   [TOOL_IDS.SETTINGS]: SettingsPage

@@ -22,6 +22,7 @@ describe('工具偏好函数', () => {
     expect(order[1]).toBe(TOOL_IDS.JSON_TOOL)
     expect(new Set(order).size).toBe(order.length)
     expect(order).toContain(TOOL_IDS.CLIPBOARD)
+    expect(order).toContain(TOOL_IDS.MEDIA_PLAYER)
   })
 
   it('支持工具上移下移', () => {
@@ -66,6 +67,7 @@ describe('工具偏好函数', () => {
   it('解析默认页面策略', () => {
     expect(resolveStartTool('last', TOOL_IDS.JSON_TOOL, [TOOL_IDS.JSON_TOOL])).toBe(TOOL_IDS.JSON_TOOL)
     expect(resolveStartTool(TOOL_IDS.QRCODE, TOOL_IDS.JSON_TOOL, [])).toBe(TOOL_IDS.HOME)
+    expect(resolveStartTool(TOOL_IDS.MEDIA_PLAYER, TOOL_IDS.JSON_TOOL, [TOOL_IDS.MEDIA_PLAYER])).toBe(TOOL_IDS.MEDIA_PLAYER)
     expect(resolveStartTool(TOOL_IDS.SETTINGS, TOOL_IDS.JSON_TOOL, [])).toBe(TOOL_IDS.SETTINGS)
   })
 })

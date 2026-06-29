@@ -6,6 +6,7 @@ import type {
   GeoSaveArchiveRequest,
   GeoSaveFileRequest,
   ElectronAPI,
+  HttpApiSendRequest,
   PinnedWindowActionRequest,
   PinnedWindowCreateRequest,
   PinnedWindowData,
@@ -14,7 +15,9 @@ import type {
   ScreenColorPickerPayload,
   ScreenCaptureActionRequest,
   ScreenCaptureDisplayPayload,
-  ScreenCaptureSessionState
+  ScreenCaptureSessionState,
+  StreamProxyEvent,
+  StreamProxyStartRequest
 } from '../shared/types'
 
 const electronAPI: ElectronAPI = {
@@ -51,6 +54,30 @@ const electronAPI: ElectronAPI = {
     saveFile: (request: GeoSaveFileRequest) => ipcRenderer.invoke(IPC_CHANNELS.GEO_SAVE_FILE, request),
     // 保存多文件地理空间压缩包
     saveArchive: (request: GeoSaveArchiveRequest) => ipcRenderer.invoke(IPC_CHANNELS.GEO_SAVE_ARCHIVE, request)
+  },
+  streamProxy: {
+    // 启动串流代理会话
+    start: (request: StreamProxyStartRequest) => ipcRenderer.invoke(IPC_CHANNELS.STREAM_PROXY_START, request),
+    // 停止串流代理会话
+    stop: (sessionId: string) => ipcRenderer.invoke(IPC_CHANNELS.STREAM_PROXY_STOP, sessionId),
+    // 重试串流代理会话
+    retry: (sessionId: string) => ipcRenderer.invoke(IPC_CHANNELS.STREAM_PROXY_RETRY, sessionId),
+    // 监听串流代理事件
+    onEvent: (callback: (event: StreamProxyEvent) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, payload: StreamProxyEvent) => {
+        callback(payload)
+      }
+      ipcRenderer.on(IPC_CHANNELS.STREAM_PROXY_EVENT, listener)
+      return () => {
+        ipcRenderer.removeListener(IPC_CHANNELS.STREAM_PROXY_EVENT, listener)
+      }
+    }
+  },
+  httpApi: {
+    // 发送 HTTP API 调试请求
+    send: (request: HttpApiSendRequest) => ipcRenderer.invoke(IPC_CHANNELS.HTTP_API_SEND, request),
+    // 取消 HTTP API 调试请求
+    cancel: (requestId: string) => ipcRenderer.invoke(IPC_CHANNELS.HTTP_API_CANCEL, requestId)
   },
   clipboard: {
     // 读取系统剪贴板文本
