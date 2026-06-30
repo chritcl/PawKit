@@ -53,8 +53,15 @@ export class StreamProxyHttpServer {
     this.port = null
     if (!server) return
 
-    await new Promise<void>((resolve) => {
-      server.close(() => resolve())
+    server.closeAllConnections?.()
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => {
+        if (error) {
+          reject(error)
+          return
+        }
+        resolve()
+      })
     })
   }
 

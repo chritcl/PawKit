@@ -16,6 +16,15 @@ export interface DetectedStreamProtocol {
   needsProxy: boolean
 }
 
+export interface MediaIdentityItem {
+  id: string
+}
+
+export interface ProxySessionItem extends MediaIdentityItem {
+  sessionId?: string
+  proxyUrl?: string
+}
+
 const SUPPORTED_NETWORK_PROTOCOLS: Record<string, StreamProtocolType> = {
   'http:': 'http',
   'https:': 'https',
@@ -133,4 +142,51 @@ export function formatMediaBytes(bytes: number): string {
 export function clampMediaVolume(value: number): number {
   if (!Number.isFinite(value)) return 1
   return Math.max(0, Math.min(1, value))
+}
+
+export function getNextActiveMediaIdAfterRemoval<T extends MediaIdentityItem>(
+  items: readonly T[],
+  activeId: string | null,
+  removedId: string
+): string | null {
+  const nextItems = items.filter((item) => item.id !== removedId)
+  if (activeId !== removedId) {
+    return nextItems.some((item) => item.id === activeId) ? activeId : nextItems[0]?.id ?? null
+  }
+
+  const removedIndex = items.findIndex((item) => item.id === removedId)
+  return nextItems[removedIndex]?.id ?? nextItems[removedIndex - 1]?.id ?? null
+}
+
+export function shouldApplyProxyStartResult<T extends MediaIdentityItem>(
+  items: readonly T[],
+  itemId: string,
+  activeId: string | null
+): boolean {
+  return activeId === itemId && items.some((item) => item.id === itemId)
+}
+
+export function clearProxySessionForItem<T extends ProxySessionItem>(
+  items: T[],
+  itemId: string,
+  sessionId?: string
+): T[] {
+  let changed = false
+  const nextItems = items.map((item) => {
+    if (item.id !== itemId) return item
+    if (sessionId && item.sessionId !== sessionId) return item
+    if (!item.sessionId && !item.proxyUrl) return item
+    changed = true
+    return { ...item, sessionId: undefined, proxyUrl: undefined }
+  })
+  return changed ? nextItems : items
+}
+
+export function isCurrentProxySessionEvent<T extends ProxySessionItem>(
+  items: readonly T[],
+  activeId: string | null,
+  sessionId: string
+): boolean {
+  if (!activeId) return false
+  return items.some((item) => item.id === activeId && item.sessionId === sessionId)
 }

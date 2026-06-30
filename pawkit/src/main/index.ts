@@ -68,5 +68,5 @@ app.on('before-quit', () => {
   // 停止剪贴板监听
   stopClipboardWatch()
   // 停止所有串流代理
-  stopAllStreamProxySessions()
+  void stopAllStreamProxySessions()
 })

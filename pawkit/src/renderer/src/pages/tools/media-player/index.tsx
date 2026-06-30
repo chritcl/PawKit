@@ -23,10 +23,14 @@ import {
 } from 'lucide-react'
 import {
   clampMediaVolume,
+  clearProxySessionForItem,
   createMediaTitle,
   detectStreamProtocol,
   formatMediaBytes,
   formatPlaybackTime,
+  getNextActiveMediaIdAfterRemoval,
+  isCurrentProxySessionEvent,
+  shouldApplyProxyStartResult,
   validateNetworkMediaUrl,
   type ResolvedStreamType,
   type StreamInputMode
@@ -105,11 +109,16 @@ function revokeMediaItem(item: MediaItem): void {
   }
 }
 
-function stopProxyMediaItem(item: MediaItem): void {
-  if (item.kind !== 'proxy' || !item.sessionId) return
+function stopProxySessionId(sessionId?: string): void {
+  if (!sessionId) return
   const api = window.electronAPI?.streamProxy
   if (!api) return
-  api.stop(item.sessionId).catch(() => {})
+  api.stop(sessionId).catch(() => {})
+}
+
+function stopProxyMediaItem(item: MediaItem): void {
+  if (item.kind !== 'proxy') return
+  stopProxySessionId(item.sessionId)
 }
 
 function clearVideoSource(video: HTMLVideoElement): void {
@@ -191,12 +200,12 @@ export function MediaPlayerPage(): JSX.Element {
   const activeIdRef = useRef<string | null>(null)
   const activeItemRef = useRef<MediaItem | null>(null)
   const startingProxyIdsRef = useRef<Set<string>>(new Set())
+  const disposedRef = useRef(false)
 
   const [playlist, setPlaylist] = useState<MediaItem[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
   const [streamUrl, setStreamUrl] = useState('')
   const [streamMode, setStreamMode] = useState<StreamInputMode>('auto')
-  const [isAddingStream, setIsAddingStream] = useState(false)
   const [status, setStatus] = useState<PlayerStatus>('idle')
   const [message, setMessage] = useState('拖入媒体文件，或输入 HTTP/HLS/WS/RTSP 地址开始调试')
   const [logs, setLogs] = useState<PlayerLog[]>([])
@@ -240,9 +249,18 @@ export function MediaPlayerPage(): JSX.Element {
     }
   }, [])
 
+  const resetPlaybackSnapshot = useCallback((): void => {
+    setCurrentTime(0)
+    setBufferedEnd(0)
+    setDuration(0)
+    setVideoMeta(null)
+    setHlsInfo(null)
+  }, [])
+
   const startProxyForItem = useCallback(async (item: MediaItem): Promise<void> => {
     if (item.kind !== 'proxy' || !isProxyStreamType(item.streamType)) return
     if (startingProxyIdsRef.current.has(item.id)) return
+    if (!shouldApplyProxyStartResult(playlistRef.current, item.id, activeIdRef.current)) return
 
     const api = window.electronAPI?.streamProxy
     if (!api) {
@@ -264,9 +282,16 @@ export function MediaPlayerPage(): JSX.Element {
       })
 
       if (!response.success || !response.sessionId || !response.localUrl) {
-        setStatus('error')
-        setMessage(response.message)
-        appendLog(`串流代理启动失败：${response.message}`, 'danger')
+        if (shouldApplyProxyStartResult(playlistRef.current, item.id, activeIdRef.current) && !disposedRef.current) {
+          setStatus('error')
+          setMessage(response.message)
+          appendLog(`串流代理启动失败：${response.message}`, 'danger')
+        }
+        return
+      }
+
+      if (disposedRef.current || !shouldApplyProxyStartResult(playlistRef.current, item.id, activeIdRef.current)) {
+        stopProxySessionId(response.sessionId)
         return
       }
 
@@ -279,9 +304,11 @@ export function MediaPlayerPage(): JSX.Element {
       appendLog(`串流代理已启动：${item.streamType.toUpperCase()}`, 'success')
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : '未知错误'
-      setStatus('error')
-      setMessage(`串流代理启动失败：${errorMessage}`)
-      appendLog(`串流代理启动失败：${errorMessage}`, 'danger')
+      if (shouldApplyProxyStartResult(playlistRef.current, item.id, activeIdRef.current) && !disposedRef.current) {
+        setStatus('error')
+        setMessage(`串流代理启动失败：${errorMessage}`)
+        appendLog(`串流代理启动失败：${errorMessage}`, 'danger')
+      }
     } finally {
       startingProxyIdsRef.current.delete(item.id)
     }
@@ -296,7 +323,9 @@ export function MediaPlayerPage(): JSX.Element {
   }, [activeId])
 
   useEffect(() => {
+    disposedRef.current = false
     return () => {
+      disposedRef.current = true
       destroyHls()
       playlistRef.current.forEach((item) => {
         stopProxyMediaItem(item)
@@ -309,11 +338,7 @@ export function MediaPlayerPage(): JSX.Element {
     const previousItem = activeItemRef.current
     if (previousItem?.kind === 'proxy' && previousItem.id !== activeItem?.id && previousItem.sessionId) {
       stopProxyMediaItem(previousItem)
-      setPlaylist((current) => current.map((item) => (
-        item.id === previousItem.id
-          ? { ...item, sessionId: undefined, proxyUrl: undefined }
-          : item
-      )))
+      setPlaylist((current) => clearProxySessionForItem(current, previousItem.id, previousItem.sessionId))
     }
     activeItemRef.current = activeItem
   }, [activeItem])
@@ -324,9 +349,14 @@ export function MediaPlayerPage(): JSX.Element {
 
     return api.onEvent((event: StreamProxyEvent) => {
       const relatedItem = playlistRef.current.find((item) => item.sessionId === event.sessionId)
-      appendLog(event.message, event.type === 'error' ? 'danger' : event.type === 'connected' ? 'success' : 'info')
+      if (!relatedItem) return
 
-      if (!relatedItem || relatedItem.id !== activeIdRef.current) return
+      appendLog(event.message, event.type === 'error' ? 'danger' : event.type === 'connected' ? 'success' : 'info')
+      if (event.type === 'stopped') {
+        setPlaylist((current) => clearProxySessionForItem(current, relatedItem.id, event.sessionId))
+      }
+
+      if (!isCurrentProxySessionEvent(playlistRef.current, activeIdRef.current, event.sessionId)) return
 
       if (event.type === 'connected') {
         setStatus('ready')
@@ -336,6 +366,9 @@ export function MediaPlayerPage(): JSX.Element {
         setMessage(event.message)
       } else if (event.type === 'error') {
         setStatus('error')
+        setMessage(event.message)
+      } else if (event.type === 'stopped') {
+        setStatus('paused')
         setMessage(event.message)
       }
     })
@@ -359,11 +392,7 @@ export function MediaPlayerPage(): JSX.Element {
     destroyHls()
     hlsRetryRef.current = 0
     queueMicrotask(() => {
-      setCurrentTime(0)
-      setBufferedEnd(0)
-      setDuration(0)
-      setVideoMeta(null)
-      setHlsInfo(null)
+      resetPlaybackSnapshot()
     })
 
     if (!video || !activeItem) {
@@ -468,7 +497,7 @@ export function MediaPlayerPage(): JSX.Element {
     video.load()
     queueMicrotask(() => appendLog(activeItem.kind === 'file' ? '本地媒体已载入' : `${getStreamLabel(activeItem)}已载入`, 'info'))
     return () => destroyHls()
-  }, [activeItem, appendLog, destroyHls, startProxyForItem])
+  }, [activeItem, appendLog, destroyHls, resetPlaybackSnapshot, startProxyForItem])
 
   const addFileItems = useCallback((files: FileList | File[]): void => {
     const accepted = Array.from(files).filter(isPlayableFile)
@@ -486,8 +515,6 @@ export function MediaPlayerPage(): JSX.Element {
   }, [appendLog])
 
   const addNetworkStream = useCallback(async (): Promise<void> => {
-    if (isAddingStream) return
-
     const result = validateNetworkMediaUrl(streamUrl)
     if (!result.valid) {
       setMessage(result.message)
@@ -529,51 +556,12 @@ export function MediaPlayerPage(): JSX.Element {
       return
     }
 
-    const api = window.electronAPI?.streamProxy
-    if (!api) {
-      setMessage('串流代理不可用，请确认 preload 已正确加载')
-      appendLog('串流代理不可用', 'danger')
-      return
-    }
-
-    setIsAddingStream(true)
+    setPlaylist((current) => [baseItem, ...current])
+    setActiveId(baseItem.id)
     setStatus('loading')
-    setMessage(`正在启动 ${detected.streamType.toUpperCase()} 串流代理`)
-
-    try {
-      const response = await api.start({
-        sourceUrl: result.url,
-        protocol: detected.streamType,
-        title
-      })
-
-      if (!response.success || !response.sessionId || !response.localUrl) {
-        setStatus('error')
-        setMessage(response.message)
-        appendLog(`串流代理启动失败：${response.message}`, 'danger')
-        return
-      }
-
-      const proxyItem: MediaItem = {
-        ...baseItem,
-        kind: 'proxy',
-        sessionId: response.sessionId,
-        proxyUrl: response.localUrl
-      }
-
-      setPlaylist((current) => [proxyItem, ...current])
-      setActiveId(proxyItem.id)
-      setMessage(`${detected.streamType.toUpperCase()} 串流代理已加入当前会话`)
-      appendLog(`已加入 ${detected.streamType.toUpperCase()} 代理串流`, 'success')
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : '未知错误'
-      setStatus('error')
-      setMessage(`串流代理启动失败：${errorMessage}`)
-      appendLog(`串流代理启动失败：${errorMessage}`, 'danger')
-    } finally {
-      setIsAddingStream(false)
-    }
-  }, [appendLog, isAddingStream, streamMode, streamUrl])
+    setMessage(`${detected.streamType.toUpperCase()} 代理串流已加入，正在准备代理`)
+    appendLog(`已加入 ${detected.streamType.toUpperCase()} 代理串流`, 'success')
+  }, [appendLog, streamMode, streamUrl])
 
   const selectPrevious = useCallback((): void => {
     if (!activeId || playlist.length === 0) return
@@ -621,6 +609,7 @@ export function MediaPlayerPage(): JSX.Element {
       await startProxyForItem(activeItem)
       return
     }
+    const retrySessionId = activeItem.sessionId
 
     const api = window.electronAPI?.streamProxy
     if (!api) {
@@ -631,20 +620,27 @@ export function MediaPlayerPage(): JSX.Element {
     }
 
     try {
-      const response = await api.retry(activeItem.sessionId)
+      const response = await api.retry(retrySessionId)
       if (!response.success) {
-        setStatus('error')
-        setMessage(response.message)
-        appendLog(`串流代理重试失败：${response.message}`, 'danger')
+        if (isCurrentProxySessionEvent(playlistRef.current, activeIdRef.current, retrySessionId)) {
+          setPlaylist((current) => clearProxySessionForItem(current, activeItem.id, retrySessionId))
+          setStatus('error')
+          setMessage(response.message)
+          appendLog(`串流代理重试失败：${response.message}`, 'danger')
+        }
         return
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : '未知错误'
-      setStatus('error')
-      setMessage(`串流代理重试失败：${errorMessage}`)
-      appendLog(`串流代理重试失败：${errorMessage}`, 'danger')
+      if (isCurrentProxySessionEvent(playlistRef.current, activeIdRef.current, retrySessionId)) {
+        setStatus('error')
+        setMessage(`串流代理重试失败：${errorMessage}`)
+        appendLog(`串流代理重试失败：${errorMessage}`, 'danger')
+      }
       return
     }
+
+    if (!isCurrentProxySessionEvent(playlistRef.current, activeIdRef.current, retrySessionId)) return
 
     const video = videoRef.current
     if (video) {
@@ -691,6 +687,7 @@ export function MediaPlayerPage(): JSX.Element {
       const video = videoRef.current
       if (video) clearVideoSource(video)
       destroyHls()
+      resetPlaybackSnapshot()
     }
 
     stopProxyMediaItem(target)
@@ -698,15 +695,18 @@ export function MediaPlayerPage(): JSX.Element {
     const nextItems = playlist.filter((item) => item.id !== id)
     setPlaylist(nextItems)
     if (activeId === id) {
-      setActiveId(nextItems[index]?.id ?? nextItems[index - 1]?.id ?? null)
+      const nextActiveId = getNextActiveMediaIdAfterRemoval(playlist, activeId, id)
+      setActiveId(nextActiveId)
+      if (!nextActiveId) setStatus('idle')
     }
     setMessage('已从当前会话移除')
-  }, [activeId, destroyHls, playlist])
+  }, [activeId, destroyHls, playlist, resetPlaybackSnapshot])
 
   const clearPlaylist = useCallback((): void => {
     const video = videoRef.current
     if (video) clearVideoSource(video)
     destroyHls()
+    resetPlaybackSnapshot()
     playlist.forEach((item) => {
       stopProxyMediaItem(item)
       revokeMediaItem(item)
@@ -714,8 +714,9 @@ export function MediaPlayerPage(): JSX.Element {
     setPlaylist([])
     setActiveId(null)
     setLogs([])
+    setStatus('idle')
     setMessage('当前会话已清空')
-  }, [destroyHls, playlist])
+  }, [destroyHls, playlist, resetPlaybackSnapshot])
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>): void => {
     if (event.currentTarget.files) {
@@ -850,9 +851,9 @@ export function MediaPlayerPage(): JSX.Element {
               </button>
             ))}
           </div>
-          <button className="toolbar-button" disabled={isAddingStream} onClick={() => void addNetworkStream()}>
+          <button className="toolbar-button" onClick={() => void addNetworkStream()}>
             <Plus className="h-4 w-4" />
-            {isAddingStream ? '加入中' : '加入'}
+            加入
           </button>
         </div>
 

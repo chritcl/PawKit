@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto'
 import type { IncomingMessage, ServerResponse } from 'http'
 import type { BrowserWindow } from 'electron'
+import type { Writable } from 'stream'
 import { IPC_CHANNELS } from '../../../shared/ipc-channels'
 import type {
   StreamProxyActionResult,
@@ -13,6 +14,30 @@ import { logger } from '../../logger'
 import { FfmpegRunner } from './ffmpeg-runner'
 import { buildStreamHeaders, StreamProxyHttpServer } from './http-server'
 
+export interface StreamProxyRunnerCallbacks {
+  onStart: () => void
+  onError: (message: string) => void
+  onExit: (code: number | null, signal: NodeJS.Signals | null, stopped: boolean, message: string) => void
+}
+
+export interface StreamProxyRunner {
+  start: () => void
+  stop: () => void
+}
+
+export type StreamProxyRunnerFactory = (
+  sourceUrl: string,
+  protocol: StreamProxyProtocol,
+  output: Writable,
+  callbacks: StreamProxyRunnerCallbacks
+) => StreamProxyRunner
+
+export interface StreamProxySessionManagerOptions {
+  createRunner?: StreamProxyRunnerFactory
+  maxRetryCount?: number
+  retryDelayMs?: number
+}
+
 interface StreamProxySession {
   id: string
   sourceUrl: string
@@ -23,19 +48,38 @@ interface StreamProxySession {
   stopped: boolean
   createdAt: string
   response: ServerResponse | null
-  runner: FfmpegRunner | null
+  runner: StreamProxyRunner | null
   retryTimer: NodeJS.Timeout | null
+  streamToken: number
 }
 
-const maxRetryCount = 3
-const retryDelayMs = 1200
+const defaultMaxRetryCount = 3
+const defaultRetryDelayMs = 1200
+
+function createDefaultRunner(
+  sourceUrl: string,
+  protocol: StreamProxyProtocol,
+  output: Writable,
+  callbacks: StreamProxyRunnerCallbacks
+): StreamProxyRunner {
+  return new FfmpegRunner(sourceUrl, protocol, output, callbacks)
+}
 
 export class StreamProxySessionManager {
   private readonly sessions = new Map<string, StreamProxySession>()
   private readonly server = new StreamProxyHttpServer((sessionId, request, response) => {
     this.handleStreamRequest(sessionId, request, response)
   })
+  private readonly createRunner: StreamProxyRunnerFactory
+  private readonly maxRetryCount: number
+  private readonly retryDelayMs: number
   private mainWindow: BrowserWindow | null = null
+
+  constructor(options: StreamProxySessionManagerOptions = {}) {
+    this.createRunner = options.createRunner ?? createDefaultRunner
+    this.maxRetryCount = options.maxRetryCount ?? defaultMaxRetryCount
+    this.retryDelayMs = options.retryDelayMs ?? defaultRetryDelayMs
+  }
 
   setMainWindow(window: BrowserWindow): void {
     this.mainWindow = window
@@ -64,7 +108,8 @@ export class StreamProxySessionManager {
       createdAt,
       response: null,
       runner: null,
-      retryTimer: null
+      retryTimer: null,
+      streamToken: 0
     })
 
     return {
@@ -92,30 +137,24 @@ export class StreamProxySessionManager {
       return { success: false, message: '串流代理会话不存在，请重新加入该流' }
     }
 
-    this.clearRetryTimer(session)
+    this.closeActiveStream(session)
     session.stopped = false
     session.retryCount = 0
 
-    if (session.runner) {
-      session.runner.stop()
-      session.runner = null
-    }
-
-    this.emitEvent(session, 'reconnecting', '正在重新启动串流代理')
-    if (session.response && !session.response.destroyed) {
-      this.startRunner(session, session.response)
-    }
+    this.emitEvent(session, 'reconnecting', '正在重新启动串流代理，请求播放器重新连接')
 
     return { success: true, message: '已请求重新连接串流代理' }
   }
 
-  stopAllSessions(): void {
-    for (const session of this.sessions.values()) {
+  async stopAllSessions(): Promise<void> {
+    for (const session of Array.from(this.sessions.values())) {
       this.destroySession(session, '应用退出，串流代理已清理')
     }
-    void this.server.close().catch((error) => {
+    try {
+      await this.server.close()
+    } catch (error) {
       logger.warn('关闭本地串流服务失败:', error)
-    })
+    }
   }
 
   private handleStreamRequest(
@@ -131,48 +170,37 @@ export class StreamProxySessionManager {
       return
     }
 
-    this.clearRetryTimer(session)
+    this.closeActiveStream(session)
     session.stopped = false
     session.retryCount = 0
 
-    if (session.runner) {
-      session.runner.stop()
-      session.runner = null
-    }
-
+    const streamToken = session.streamToken
     session.response = response
     response.writeHead(200, buildStreamHeaders())
     response.once('close', () => {
-      if (session.response === response) {
-        session.response = null
-      }
-      if (session.runner) {
-        session.runner.stop()
-        session.runner = null
-      }
-      this.clearRetryTimer(session)
+      this.handleResponseClosed(session, response, streamToken)
     })
 
-    this.startRunner(session, response)
+    this.startRunner(session, response, streamToken)
   }
 
-  private startRunner(session: StreamProxySession, response: ServerResponse): void {
-    const runner = new FfmpegRunner(session.sourceUrl, session.protocol, response, {
+  private startRunner(session: StreamProxySession, response: ServerResponse, streamToken: number): void {
+    const runner = this.createRunner(session.sourceUrl, session.protocol, response, {
       onStart: () => {
+        if (!this.isCurrentStream(session, response, runner, streamToken)) return
         this.emitEvent(session, 'connected', `串流代理已连接：${session.protocol.toUpperCase()}`)
       },
       onError: (message) => {
-        if (session.runner === runner) {
-          session.runner = null
-        }
-        this.handleRunnerFailure(session, response, message)
+        if (!this.isCurrentStream(session, response, runner, streamToken)) return
+        runner.stop()
+        session.runner = null
+        this.handleRunnerFailure(session, response, streamToken, message)
       },
       onExit: (_code, _signal, stopped, message) => {
-        if (session.runner === runner) {
-          session.runner = null
-        }
+        if (!this.isCurrentStream(session, response, runner, streamToken)) return
+        session.runner = null
         if (stopped || session.stopped || response.destroyed) return
-        this.handleRunnerFailure(session, response, message)
+        this.handleRunnerFailure(session, response, streamToken, message)
       }
     })
 
@@ -180,26 +208,39 @@ export class StreamProxySessionManager {
     runner.start()
   }
 
-  private handleRunnerFailure(session: StreamProxySession, response: ServerResponse, message: string): void {
-    if (session.stopped || response.destroyed) return
+  private handleRunnerFailure(
+    session: StreamProxySession,
+    response: ServerResponse,
+    streamToken: number,
+    message: string
+  ): void {
+    if (session.stopped || response.destroyed || !this.isCurrentStream(session, response, null, streamToken)) return
 
-    if (session.retryCount < maxRetryCount) {
+    if (session.retryCount < this.maxRetryCount) {
       session.retryCount += 1
       this.emitEvent(session, 'reconnecting', `串流中断，正在第 ${session.retryCount} 次重连`, session.retryCount)
       session.retryTimer = setTimeout(() => {
         session.retryTimer = null
-        if (session.stopped || response.destroyed || !this.sessions.has(session.id)) return
-        this.startRunner(session, response)
-      }, retryDelayMs)
+        if (session.stopped || response.destroyed || !this.isCurrentStream(session, response, null, streamToken)) return
+        this.startRunner(session, response, streamToken)
+      }, this.retryDelayMs)
       return
     }
 
     this.emitEvent(session, 'error', `串流代理失败：${message}`, session.retryCount)
-    response.end()
+    this.closeActiveStream(session)
   }
 
   private destroySession(session: StreamProxySession, message: string): void {
+    if (!this.sessions.has(session.id)) return
     session.stopped = true
+    this.closeActiveStream(session)
+    this.sessions.delete(session.id)
+    this.emitEvent(session, 'stopped', message)
+  }
+
+  private closeActiveStream(session: StreamProxySession): void {
+    session.streamToken += 1
     this.clearRetryTimer(session)
 
     if (session.runner) {
@@ -212,8 +253,28 @@ export class StreamProxySessionManager {
     }
 
     session.response = null
-    this.sessions.delete(session.id)
-    this.emitEvent(session, 'stopped', message)
+  }
+
+  private handleResponseClosed(
+    session: StreamProxySession,
+    response: ServerResponse,
+    streamToken: number
+  ): void {
+    if (!this.isCurrentStream(session, response, null, streamToken)) return
+    this.closeActiveStream(session)
+  }
+
+  private isCurrentStream(
+    session: StreamProxySession,
+    response: ServerResponse,
+    runner: StreamProxyRunner | null,
+    streamToken: number
+  ): boolean {
+    if (this.sessions.get(session.id) !== session) return false
+    if (session.streamToken !== streamToken) return false
+    if (session.response !== response) return false
+    if (runner && session.runner !== runner) return false
+    return true
   }
 
   private clearRetryTimer(session: StreamProxySession): void {

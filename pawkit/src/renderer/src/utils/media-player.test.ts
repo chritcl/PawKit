@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import {
   clampMediaVolume,
+  clearProxySessionForItem,
   createMediaTitle,
   detectStreamProtocol,
   formatMediaBytes,
   formatPlaybackTime,
+  getNextActiveMediaIdAfterRemoval,
   inferStreamType,
+  isCurrentProxySessionEvent,
+  shouldApplyProxyStartResult,
   validateNetworkMediaUrl
 } from './media-player'
 
@@ -97,5 +101,48 @@ describe('媒体播放器工具函数', () => {
     expect(clampMediaVolume(0.42)).toBe(0.42)
     expect(clampMediaVolume(2)).toBe(1)
     expect(clampMediaVolume(Number.NaN)).toBe(1)
+  })
+
+  it('移除当前播放项后选择相邻播放项', () => {
+    const items = [{ id: 'a' }, { id: 'b' }, { id: 'c' }]
+
+    expect(getNextActiveMediaIdAfterRemoval(items, 'b', 'b')).toBe('c')
+    expect(getNextActiveMediaIdAfterRemoval(items, 'c', 'c')).toBe('b')
+    expect(getNextActiveMediaIdAfterRemoval(items, 'a', 'b')).toBe('a')
+    expect(getNextActiveMediaIdAfterRemoval([{ id: 'a' }], 'a', 'a')).toBeNull()
+  })
+
+  it('只允许仍存在且仍激活的代理启动结果写回播放项', () => {
+    const items = [{ id: 'proxy-1' }, { id: 'proxy-2' }]
+
+    expect(shouldApplyProxyStartResult(items, 'proxy-1', 'proxy-1')).toBe(true)
+    expect(shouldApplyProxyStartResult(items, 'proxy-1', 'proxy-2')).toBe(false)
+    expect(shouldApplyProxyStartResult(items, 'missing', 'missing')).toBe(false)
+    expect(shouldApplyProxyStartResult(items, 'proxy-1', null)).toBe(false)
+  })
+
+  it('代理停止事件只清理匹配会话的播放项', () => {
+    const items = [
+      { id: 'proxy-1', sessionId: 'session-1', proxyUrl: 'http://127.0.0.1/one' },
+      { id: 'proxy-2', sessionId: 'session-2', proxyUrl: 'http://127.0.0.1/two' }
+    ]
+
+    const cleared = clearProxySessionForItem(items, 'proxy-1', 'session-1')
+
+    expect(cleared[0]).toEqual({ id: 'proxy-1', sessionId: undefined, proxyUrl: undefined })
+    expect(cleared[1]).toEqual(items[1])
+    expect(clearProxySessionForItem(items, 'proxy-1', 'old-session')).toBe(items)
+  })
+
+  it('过期代理事件不会影响当前播放状态', () => {
+    const items = [
+      { id: 'proxy-1', sessionId: 'session-1' },
+      { id: 'proxy-2', sessionId: 'session-2' }
+    ]
+
+    expect(isCurrentProxySessionEvent(items, 'proxy-1', 'session-1')).toBe(true)
+    expect(isCurrentProxySessionEvent(items, 'proxy-1', 'session-2')).toBe(false)
+    expect(isCurrentProxySessionEvent(items, 'proxy-1', 'old-session')).toBe(false)
+    expect(isCurrentProxySessionEvent(items, null, 'session-1')).toBe(false)
   })
 })

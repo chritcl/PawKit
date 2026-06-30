@@ -24,6 +24,6 @@ export function retryStreamProxySession(sessionId: string): StreamProxyActionRes
   return manager.retrySession(sessionId)
 }
 
-export function stopAllStreamProxySessions(): void {
-  manager.stopAllSessions()
+export function stopAllStreamProxySessions(): Promise<void> {
+  return manager.stopAllSessions()
 }
