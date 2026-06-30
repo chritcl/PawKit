@@ -14,6 +14,7 @@ import {
   SendHorizontal,
   Regex,
   FileDiff,
+  CaseSensitive,
   Settings,
   Sliders
 } from 'lucide-react'
@@ -129,6 +130,14 @@ export const toolRegistry: ExtendedToolMeta[] = [
     name: '文本 Diff',
     icon: FileDiff,
     description: '文本对比、差异高亮与补丁生成',
+    phase: 5,
+    canDisable: true
+  },
+  {
+    id: TOOL_IDS.TEXT_TOOLBOX,
+    name: '文本处理',
+    icon: CaseSensitive,
+    description: '大小写、命名、行处理、提取和模板替换',
     phase: 5,
     canDisable: true
   },

@@ -16,6 +16,7 @@ import { HttpApiToolPage } from '../../pages/tools/http-api-tool'
 import { GeospatialPage } from '../../pages/tools/geospatial'
 import { RegexToolPage } from '../../pages/tools/regex-tool'
 import { TextDiffPage } from '../../pages/tools/text-diff'
+import { TextToolboxPage } from '../../pages/tools/text-toolbox'
 
 const toolPages: Record<ToolId, () => JSX.Element> = {
   [TOOL_IDS.HOME]: HomePage,
@@ -31,6 +32,7 @@ const toolPages: Record<ToolId, () => JSX.Element> = {
   [TOOL_IDS.GEOSPATIAL]: GeospatialPage,
   [TOOL_IDS.REGEX_TOOL]: RegexToolPage,
   [TOOL_IDS.TEXT_DIFF]: TextDiffPage,
+  [TOOL_IDS.TEXT_TOOLBOX]: TextToolboxPage,
   [TOOL_IDS.MANAGEMENT]: ManagementPage,
   [TOOL_IDS.SETTINGS]: SettingsPage
 }

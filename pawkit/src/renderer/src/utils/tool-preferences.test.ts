@@ -23,6 +23,7 @@ describe('工具偏好函数', () => {
     expect(new Set(order).size).toBe(order.length)
     expect(order).toContain(TOOL_IDS.CLIPBOARD)
     expect(order).toContain(TOOL_IDS.MEDIA_PLAYER)
+    expect(order).toContain(TOOL_IDS.TEXT_TOOLBOX)
   })
 
   it('支持工具上移下移', () => {

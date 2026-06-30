@@ -16,6 +16,7 @@ export const TOOL_IDS = {
   HTTP_API_TOOL: 'http-api-tool',
   REGEX_TOOL: 'regex-tool',
   TEXT_DIFF: 'text-diff',
+  TEXT_TOOLBOX: 'text-toolbox',
   MANAGEMENT: 'management',
   SETTINGS: 'settings'
 } as const
@@ -40,7 +41,8 @@ export const MANAGEABLE_TOOL_IDS = [
   TOOL_IDS.HTTP_API_TOOL,
   TOOL_IDS.GEOSPATIAL,
   TOOL_IDS.REGEX_TOOL,
-  TOOL_IDS.TEXT_DIFF
+  TOOL_IDS.TEXT_DIFF,
+  TOOL_IDS.TEXT_TOOLBOX
 ] as const satisfies readonly ToolId[]
 
 export const DEFAULT_ENABLED_TOOL_IDS = [...MANAGEABLE_TOOL_IDS]
