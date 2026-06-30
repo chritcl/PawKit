@@ -14,6 +14,8 @@ import { QRCodeToolPage } from '../../pages/tools/qrcode-tool'
 import { MediaPlayerPage } from '../../pages/tools/media-player'
 import { HttpApiToolPage } from '../../pages/tools/http-api-tool'
 import { GeospatialPage } from '../../pages/tools/geospatial'
+import { RegexToolPage } from '../../pages/tools/regex-tool'
+import { TextDiffPage } from '../../pages/tools/text-diff'
 
 const toolPages: Record<ToolId, () => JSX.Element> = {
   [TOOL_IDS.HOME]: HomePage,
@@ -27,6 +29,8 @@ const toolPages: Record<ToolId, () => JSX.Element> = {
   [TOOL_IDS.MEDIA_PLAYER]: MediaPlayerPage,
   [TOOL_IDS.HTTP_API_TOOL]: HttpApiToolPage,
   [TOOL_IDS.GEOSPATIAL]: GeospatialPage,
+  [TOOL_IDS.REGEX_TOOL]: RegexToolPage,
+  [TOOL_IDS.TEXT_DIFF]: TextDiffPage,
   [TOOL_IDS.MANAGEMENT]: ManagementPage,
   [TOOL_IDS.SETTINGS]: SettingsPage
 }

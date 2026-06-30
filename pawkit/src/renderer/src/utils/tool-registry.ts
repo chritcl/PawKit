@@ -12,6 +12,8 @@ import {
   QrCode,
   Video,
   SendHorizontal,
+  Regex,
+  FileDiff,
   Settings,
   Sliders
 } from 'lucide-react'
@@ -111,6 +113,22 @@ export const toolRegistry: ExtendedToolMeta[] = [
     name: '地理空间',
     icon: Map,
     description: '地理数据读写、地图编辑与空间处理',
+    phase: 5,
+    canDisable: true
+  },
+  {
+    id: TOOL_IDS.REGEX_TOOL,
+    name: '正则表达式',
+    icon: Regex,
+    description: '正则匹配、捕获组、替换预览与模板',
+    phase: 5,
+    canDisable: true
+  },
+  {
+    id: TOOL_IDS.TEXT_DIFF,
+    name: '文本 Diff',
+    icon: FileDiff,
+    description: '文本对比、差异高亮与补丁生成',
     phase: 5,
     canDisable: true
   },
