@@ -7,6 +7,8 @@ import { SettingsPage } from '../../pages/settings'
 import { ClipboardPage } from '../../pages/tools/clipboard'
 import { ColorPickerPage } from '../../pages/tools/color-picker'
 import { ScreenshotPage } from '../../pages/tools/screenshot'
+import { ImageToolPage } from '../../pages/tools/image-tool'
+import { OcrToolPage } from '../../pages/tools/ocr-tool'
 import { JsonToolPage } from '../../pages/tools/json-tool'
 import { TimestampToolPage } from '../../pages/tools/timestamp-tool'
 import { Base64ToolPage } from '../../pages/tools/base64-tool'
@@ -23,6 +25,8 @@ const toolPages: Record<ToolId, () => JSX.Element> = {
   [TOOL_IDS.CLIPBOARD]: ClipboardPage,
   [TOOL_IDS.COLOR_PICKER]: ColorPickerPage,
   [TOOL_IDS.SCREENSHOT]: ScreenshotPage,
+  [TOOL_IDS.IMAGE_TOOL]: ImageToolPage,
+  [TOOL_IDS.OCR_TOOL]: OcrToolPage,
   [TOOL_IDS.JSON_TOOL]: JsonToolPage,
   [TOOL_IDS.TIMESTAMP_TOOL]: TimestampToolPage,
   [TOOL_IDS.BASE64_TOOL]: Base64ToolPage,

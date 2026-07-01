@@ -7,6 +7,16 @@ import type {
   GeoSaveFileRequest,
   ElectronAPI,
   HttpApiSendRequest,
+  ImageToolBatchProgress,
+  ImageToolBatchRequest,
+  ImageToolProcessRequest,
+  ImageToolSendRequest,
+  ImageToolSourceRef,
+  OcrQuickResult,
+  OcrRecognizeRequest,
+  OcrRecognizeResult,
+  OcrSendRequest,
+  OcrSourceRef,
   PinnedWindowActionRequest,
   PinnedWindowCreateRequest,
   PinnedWindowData,
@@ -138,6 +148,71 @@ const electronAPI: ElectronAPI = {
       ipcRenderer.on(IPC_CHANNELS.SCREENSHOT_COLOR_PICKER_DATA, listener)
       return () => {
         ipcRenderer.removeListener(IPC_CHANNELS.SCREENSHOT_COLOR_PICKER_DATA, listener)
+      }
+    }
+  },
+  imageTool: {
+    // 打开本地图片文件
+    openImages: () => ipcRenderer.invoke(IPC_CHANNELS.IMAGE_TOOL_OPEN_IMAGES),
+    // 导入当前剪贴板图片
+    importClipboard: () => ipcRenderer.invoke(IPC_CHANNELS.IMAGE_TOOL_IMPORT_CLIPBOARD),
+    // 导入剪贴板历史图片
+    importClipboardHistory: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.IMAGE_TOOL_IMPORT_CLIPBOARD_HISTORY, { id }),
+    // 导入 Data URL 图片
+    importDataUrl: (dataUrl: string, name?: string) => ipcRenderer.invoke(IPC_CHANNELS.IMAGE_TOOL_IMPORT_DATA_URL, { dataUrl, name }),
+    // 从其他工具发送图片到图片处理工作台
+    sendToTool: (request: ImageToolSendRequest) => ipcRenderer.invoke(IPC_CHANNELS.IMAGE_TOOL_SEND_TO_TOOL, request),
+    // 处理单张图片
+    process: (request: ImageToolProcessRequest) => ipcRenderer.invoke(IPC_CHANNELS.IMAGE_TOOL_PROCESS, request),
+    // 批量处理图片
+    processBatch: (request: ImageToolBatchRequest) => ipcRenderer.invoke(IPC_CHANNELS.IMAGE_TOOL_PROCESS_BATCH, request),
+    // 复制处理结果到剪贴板
+    copyResult: (resultId: string) => ipcRenderer.invoke(IPC_CHANNELS.IMAGE_TOOL_COPY_RESULT, { resultId }),
+    // 保存处理结果
+    saveResult: (resultId: string) => ipcRenderer.invoke(IPC_CHANNELS.IMAGE_TOOL_SAVE_RESULT, { resultId }),
+    // 导出处理结果为 Data URL
+    exportDataUrl: (resultId: string) => ipcRenderer.invoke(IPC_CHANNELS.IMAGE_TOOL_EXPORT_DATA_URL, { resultId }),
+    // 监听跨工具打开图片源
+    onOpenSource: (callback: (source: ImageToolSourceRef) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, source: ImageToolSourceRef) => callback(source)
+      ipcRenderer.on(IPC_CHANNELS.IMAGE_TOOL_OPEN_SOURCE, listener)
+      return () => {
+        ipcRenderer.removeListener(IPC_CHANNELS.IMAGE_TOOL_OPEN_SOURCE, listener)
+      }
+    },
+    // 监听批量处理进度
+    onBatchProgress: (callback: (progress: ImageToolBatchProgress) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, progress: ImageToolBatchProgress) => callback(progress)
+      ipcRenderer.on(IPC_CHANNELS.IMAGE_TOOL_BATCH_PROGRESS, listener)
+      return () => {
+        ipcRenderer.removeListener(IPC_CHANNELS.IMAGE_TOOL_BATCH_PROGRESS, listener)
+      }
+    }
+  },
+  ocr: {
+    // 执行 OCR 识别
+    recognize: (request: OcrRecognizeRequest): Promise<OcrRecognizeResult> =>
+      ipcRenderer.invoke(IPC_CHANNELS.OCR_RECOGNIZE, request),
+    // 识别当前剪贴板图片
+    recognizeClipboard: (): Promise<OcrRecognizeResult> =>
+      ipcRenderer.invoke(IPC_CHANNELS.OCR_RECOGNIZE_CLIPBOARD),
+    // 仅识别二维码
+    detectQr: (request: OcrRecognizeRequest): Promise<OcrQuickResult> =>
+      ipcRenderer.invoke(IPC_CHANNELS.OCR_DETECT_QR, request),
+    // 仅提取颜色
+    extractColors: (request: OcrRecognizeRequest): Promise<OcrQuickResult> =>
+      ipcRenderer.invoke(IPC_CHANNELS.OCR_EXTRACT_COLORS, request),
+    // 复制识别文本
+    copyText: (text: string) => ipcRenderer.invoke(IPC_CHANNELS.OCR_COPY_TEXT, { text }),
+    // 从其他工具发送图片到 OCR 工具
+    sendToTool: (request: OcrSendRequest): Promise<OcrSourceRef | null> =>
+      ipcRenderer.invoke(IPC_CHANNELS.OCR_SEND_TO_TOOL, request),
+    // 监听跨工具打开 OCR 图片源
+    onOpenSource: (callback: (source: OcrSourceRef) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, source: OcrSourceRef) => callback(source)
+      ipcRenderer.on(IPC_CHANNELS.OCR_OPEN_SOURCE, listener)
+      return () => {
+        ipcRenderer.removeListener(IPC_CHANNELS.OCR_OPEN_SOURCE, listener)
       }
     }
   },

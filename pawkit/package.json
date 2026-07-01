@@ -20,7 +20,13 @@
     "productName": "PawKit",
     "asarUnpack": [
       "node_modules/ffmpeg-static/ffmpeg",
-      "node_modules/ffmpeg-static/ffmpeg.exe"
+      "node_modules/ffmpeg-static/ffmpeg.exe",
+      "node_modules/sharp/**/*",
+      "node_modules/@img/**/*",
+      "node_modules/tesseract.js/**/*",
+      "node_modules/tesseract.js-core/**/*",
+      "node_modules/@tesseract.js-data/**/*",
+      "node_modules/wasm-feature-detect/**/*"
     ],
     "directories": {
       "output": "release"
@@ -51,6 +57,8 @@
     "@mapbox/togeojson": "^0.16.2",
     "@placemarkio/tokml": "^0.3.9",
     "@tailwindcss/vite": "^4.3.0",
+    "@tesseract.js-data/chi_sim": "^1.0.0",
+    "@tesseract.js-data/eng": "^1.0.0",
     "@turf/turf": "^7.3.5",
     "@uiw/react-codemirror": "^4.25.10",
     "d3-geo": "^3.1.1",
@@ -63,6 +71,7 @@
     "flatgeobuf": "^4.4.0",
     "hls.js": "^1.6.16",
     "jsonc-parser": "^3.3.1",
+    "jsqr": "^1.4.0",
     "lucide-react": "^0.468.0",
     "nanoid": "^5.1.11",
     "ol": "^10.9.0",
@@ -72,7 +81,9 @@
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "shapefile": "^0.6.6",
+    "sharp": "^0.35.2",
     "tailwindcss": "^4.3.0",
+    "tesseract.js": "^7.0.0",
     "topojson-client": "^3.1.0",
     "topojson-server": "^3.0.1",
     "zustand": "^5.0.2"
@@ -104,12 +115,5 @@
     "typescript-eslint": "^8.60.0",
     "vite": "^7.3.3",
     "vitest": "^4.1.7"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "electron",
-      "esbuild",
-      "ffmpeg-static"
-    ]
   }
 }

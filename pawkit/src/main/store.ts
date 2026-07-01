@@ -28,6 +28,8 @@ const ALLOWED_KEYS = [
   'httpApi.environments',
   'httpApi.cookies',
   'screenshot.preferences',
+  'imageTool.preferences',
+  'ocr.preferences',
   'privacy.qrcodeHistoryLimit'
 ] as const
 
@@ -75,6 +77,19 @@ const defaultSettings: AppSettings = {
     preferences: {
       annotationColor: '#ff4d4f',
       strokeWidth: 4
+    }
+  },
+  imageTool: {
+    preferences: {
+      defaultFormat: 'png',
+      quality: 82,
+      metadataStrategy: 'strip'
+    }
+  },
+  ocr: {
+    preferences: {
+      mode: 'auto',
+      languages: 'eng+chi_sim'
     }
   },
   privacy: {

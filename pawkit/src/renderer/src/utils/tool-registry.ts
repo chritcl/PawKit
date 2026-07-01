@@ -5,6 +5,8 @@ import {
   Clipboard,
   Palette,
   Camera,
+  Image as ImageIcon,
+  ScanText,
   Braces,
   Clock,
   Binary,
@@ -59,6 +61,22 @@ export const toolRegistry: ExtendedToolMeta[] = [
     icon: Camera,
     description: '屏幕截图工具',
     phase: 5,
+    canDisable: true
+  },
+  {
+    id: TOOL_IDS.IMAGE_TOOL,
+    name: '图片处理',
+    icon: ImageIcon,
+    description: '压缩、裁剪、格式转换、图标生成和色板提取',
+    phase: 6,
+    canDisable: true
+  },
+  {
+    id: TOOL_IDS.OCR_TOOL,
+    name: 'OCR 识别',
+    icon: ScanText,
+    description: '本地图片文字识别、二维码、URL 和颜色提取',
+    phase: 6,
     canDisable: true
   },
   {

@@ -3,9 +3,12 @@ allowBuilds:
   electron-winstaller: true
   esbuild: true
   ffmpeg-static: true
+  sharp: true
+  tesseract.js: true
 
 onlyBuiltDependencies:
   - electron
   - electron-winstaller
   - esbuild
   - ffmpeg-static
+  - sharp

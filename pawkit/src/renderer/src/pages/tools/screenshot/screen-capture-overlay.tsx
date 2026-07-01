@@ -6,11 +6,15 @@ import {
   Bold,
   Check,
   Clipboard,
+  Image as ImageIcon,
   PaintBucket,
+  Palette,
   Pin,
+  QrCode,
   RotateCcw,
   RotateCw,
   Save,
+  ScanText,
   SquareDashed,
   X
 } from 'lucide-react'
@@ -278,6 +282,77 @@ export function ScreenCaptureOverlay(): JSX.Element {
       setMessage('创建置顶截图失败')
     }
   }, [exportCurrent, payload, state.selection])
+
+  const sendCurrentToImageTool = useCallback(async (): Promise<void> => {
+    const exported = exportCurrent()
+    if (!exported) return
+    try {
+      const source = await window.electronAPI.imageTool.sendToTool({
+        dataUrl: exported.dataUrl,
+        name: `screenshot-${Date.now()}.png`,
+        sourceKind: 'screenshot'
+      })
+      setMessage(source ? '已发送到图片处理' : '发送到图片处理失败')
+    } catch {
+      setMessage('发送到图片处理失败')
+    }
+  }, [exportCurrent])
+
+  const sendCurrentToOcrTool = useCallback(async (): Promise<void> => {
+    const exported = exportCurrent()
+    if (!exported) return
+    try {
+      const source = await window.electronAPI.ocr.sendToTool({
+        dataUrl: exported.dataUrl,
+        name: `screenshot-${Date.now()}.png`,
+        sourceKind: 'screenshot',
+        mode: 'auto'
+      })
+      if (source) {
+        window.electronAPI.screenCapture.cancel()
+      } else {
+        setMessage('发送到 OCR 识别失败')
+      }
+    } catch {
+      setMessage('发送到 OCR 识别失败')
+    }
+  }, [exportCurrent])
+
+  const detectCurrentQrCode = useCallback(async (): Promise<void> => {
+    const exported = exportCurrent()
+    if (!exported) return
+    try {
+      const result = await window.electronAPI.ocr.detectQr({
+        source: { kind: 'screenshot', dataUrl: exported.dataUrl },
+        mode: 'auto'
+      })
+      const text = result.qrCodes?.map((item) => item.text).join('\n') ?? ''
+      if (text) {
+        await window.electronAPI.ocr.copyText(text)
+      }
+      setMessage(result.success ? '二维码内容已复制' : result.message)
+    } catch {
+      setMessage('二维码识别失败')
+    }
+  }, [exportCurrent])
+
+  const extractCurrentColors = useCallback(async (): Promise<void> => {
+    const exported = exportCurrent()
+    if (!exported) return
+    try {
+      const result = await window.electronAPI.ocr.extractColors({
+        source: { kind: 'screenshot', dataUrl: exported.dataUrl },
+        mode: 'auto'
+      })
+      const text = result.colors?.map((color) => color.hex).join('\n') ?? ''
+      if (text) {
+        await window.electronAPI.ocr.copyText(text)
+      }
+      setMessage(result.success ? '颜色已复制' : result.message)
+    } catch {
+      setMessage('颜色提取失败')
+    }
+  }, [exportCurrent])
 
   const beginTextInputAtPoint = useCallback((point: CapturePoint, annotation?: TextAnnotation): void => {
     const style = annotation
@@ -1056,8 +1131,12 @@ export function ScreenCaptureOverlay(): JSX.Element {
             <div className="mx-1 h-6 w-px bg-white/15" />
             <ToolbarButton title="撤销 Ctrl+Z" disabled={state.past.length === 0} onClick={() => dispatch({ type: 'undo' })}><RotateCcw className="h-4 w-4" /></ToolbarButton>
             <ToolbarButton title="重做 Ctrl+Y" disabled={state.future.length === 0} onClick={() => dispatch({ type: 'redo' })}><RotateCw className="h-4 w-4" /></ToolbarButton>
-            <ToolbarButton title="复制 Ctrl+C" onClick={() => void performOutput('copy')}><Clipboard className="h-4 w-4" /></ToolbarButton>
+            <ToolbarButton title="复制图片 Ctrl+C" onClick={() => void performOutput('copy')}><Clipboard className="h-4 w-4" /></ToolbarButton>
+            <ToolbarButton title="OCR 识别" onClick={() => void sendCurrentToOcrTool()}><ScanText className="h-4 w-4" /></ToolbarButton>
+            <ToolbarButton title="识别二维码" onClick={() => void detectCurrentQrCode()}><QrCode className="h-4 w-4" /></ToolbarButton>
+            <ToolbarButton title="提取颜色" onClick={() => void extractCurrentColors()}><Palette className="h-4 w-4" /></ToolbarButton>
             <ToolbarButton title="钉在桌面" onClick={() => void pinCurrent()}><Pin className="h-4 w-4" /></ToolbarButton>
+            <ToolbarButton title="发送到图片处理" onClick={() => void sendCurrentToImageTool()}><ImageIcon className="h-4 w-4" /></ToolbarButton>
             <ToolbarButton title="保存 Ctrl+S" onClick={() => void performOutput('save')}><Save className="h-4 w-4" /></ToolbarButton>
             <ToolbarButton title="取消 Esc" onClick={() => window.electronAPI.screenCapture.cancel()}><X className="h-4 w-4" /></ToolbarButton>
             <button className="flex h-8 items-center gap-1 rounded-md bg-[#3f8cff] px-3 text-sm hover:bg-[#277bf5]" onClick={() => void performOutput('complete')} title="复制并关闭 Enter">

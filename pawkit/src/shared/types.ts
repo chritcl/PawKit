@@ -116,7 +116,7 @@ export interface ColorRecord {
   updatedAt?: string
   name?: string
   tags?: string[]
-  source?: 'manual' | 'screen' | 'recent' | 'favorite'
+  source?: 'manual' | 'screen' | 'recent' | 'favorite' | 'image'
 }
 
 // 管理配置
@@ -511,6 +511,12 @@ export interface AppSettings {
   screenshot: {
     preferences: ScreenshotPreferences
   }
+  imageTool: {
+    preferences: ImageToolPreferences
+  }
+  ocr: {
+    preferences: OcrPreferences
+  }
   privacy: {
     qrcodeHistoryLimit: number
   }
@@ -640,6 +646,309 @@ export interface ImageSaveResult {
   status: ImageSaveStatus
   path?: string
   message?: string
+}
+
+// 图片处理格式
+export type ImageToolFormat = 'png' | 'jpeg' | 'webp' | 'avif' | 'ico'
+
+// 图片处理来源
+export type ImageToolSourceKind =
+  | 'file'
+  | 'clipboard'
+  | 'clipboard-history'
+  | 'screenshot'
+  | 'data-url'
+  | 'result'
+
+// 图片处理任务状态
+export type ImageToolTaskStatus = 'success' | 'cancelled' | 'error'
+
+// 图片处理元信息
+export interface ImageToolMetadata {
+  format: string
+  mimeType: string
+  width: number
+  height: number
+  size: number
+  density?: number
+  colorSpace?: string
+  channels?: number
+  hasAlpha?: boolean
+  orientation?: number
+  createdAt: string
+}
+
+// 图片色板颜色
+export interface ImagePaletteColor {
+  hex: string
+  rgb: RGB
+  hsl: HSL
+  ratio: number
+  count: number
+}
+
+// 图片处理源引用
+export interface ImageToolSourceRef {
+  id: string
+  name: string
+  kind: ImageToolSourceKind
+  format: string
+  mimeType: string
+  width: number
+  height: number
+  size: number
+  previewDataUrl: string
+  path?: string
+  metadata: ImageToolMetadata
+  dominantColor?: ImagePaletteColor
+  palette: ImagePaletteColor[]
+  createdAt: string
+}
+
+// 图片尺寸调整模式
+export type ImageToolResizeMode = 'inside' | 'cover' | 'contain' | 'fill'
+
+// 图片水印位置
+export type ImageToolWatermarkPosition =
+  | 'top-left'
+  | 'top-right'
+  | 'bottom-left'
+  | 'bottom-right'
+  | 'center'
+
+// 图片处理参数
+export interface ImageToolProcessOptions {
+  format: ImageToolFormat
+  quality: number
+  metadataStrategy: 'strip' | 'keep'
+  crop?: {
+    enabled: boolean
+    left: number
+    top: number
+    width: number
+    height: number
+  }
+  resize?: {
+    enabled: boolean
+    width?: number
+    height?: number
+    mode: ImageToolResizeMode
+    withoutEnlargement: boolean
+  }
+  rotate?: number
+  flip?: boolean
+  flop?: boolean
+  background?: {
+    enabled: boolean
+    color: string
+  }
+  roundedCorners?: {
+    enabled: boolean
+    radius: number
+  }
+  watermark?: {
+    enabled: boolean
+    text: string
+    position: ImageToolWatermarkPosition
+    opacity: number
+    fontSize: number
+    color: string
+  }
+  icon?: {
+    sizes: number[]
+    exportPngSet: boolean
+  }
+}
+
+// 图片处理结果引用
+export interface ImageToolResultRef {
+  id: string
+  sourceId: string
+  name: string
+  format: ImageToolFormat
+  mimeType: string
+  width: number
+  height: number
+  size: number
+  previewDataUrl: string
+  metadata: ImageToolMetadata
+  dominantColor?: ImagePaletteColor
+  palette: ImagePaletteColor[]
+  createdAt: string
+}
+
+// 图片处理请求
+export interface ImageToolProcessRequest {
+  sourceId: string
+  options: ImageToolProcessOptions
+}
+
+// 图片处理响应
+export interface ImageToolProcessResponse {
+  success: boolean
+  status: ImageToolTaskStatus
+  message: string
+  result?: ImageToolResultRef
+}
+
+// 图片处理批量请求
+export interface ImageToolBatchRequest {
+  sourceIds: string[]
+  options: ImageToolProcessOptions
+}
+
+// 图片处理批量条目
+export interface ImageToolBatchItemResult {
+  sourceId: string
+  sourceName: string
+  success: boolean
+  path?: string
+  message: string
+}
+
+// 图片处理批量响应
+export interface ImageToolBatchResponse {
+  success: boolean
+  status: ImageToolTaskStatus
+  message: string
+  outputDir?: string
+  items: ImageToolBatchItemResult[]
+}
+
+// 图片处理批量进度
+export interface ImageToolBatchProgress {
+  total: number
+  completed: number
+  currentName?: string
+}
+
+// 图片处理保存结果
+export interface ImageToolSaveResult {
+  success: boolean
+  status: ImageToolTaskStatus
+  path?: string
+  message: string
+}
+
+// 发送图片到图片处理工具
+export interface ImageToolSendRequest {
+  dataUrl: string
+  name?: string
+  sourceKind?: ImageToolSourceKind
+}
+
+// 图片工具偏好
+export interface ImageToolPreferences {
+  defaultFormat: ImageToolFormat
+  quality: number
+  metadataStrategy: 'strip' | 'keep'
+}
+
+// OCR 识别模式
+export type OcrMode = 'auto' | 'paragraph' | 'code' | 'table'
+
+// OCR 图片来源类型
+export type OcrImageSourceKind =
+  | 'data-url'
+  | 'clipboard'
+  | 'clipboard-history'
+  | 'screenshot'
+
+// OCR 图片来源
+export type OcrImageSource =
+  | {
+    kind: 'data-url' | 'screenshot'
+    dataUrl: string
+    name?: string
+  }
+  | {
+    kind: 'clipboard'
+  }
+  | {
+    kind: 'clipboard-history'
+    id: string
+  }
+
+// OCR 工具源引用
+export interface OcrSourceRef {
+  id: string
+  name: string
+  kind: OcrImageSourceKind
+  dataUrl: string
+  width: number
+  height: number
+  createdAt: string
+}
+
+// OCR 识别请求
+export interface OcrRecognizeRequest {
+  source: OcrImageSource
+  mode: OcrMode
+}
+
+// OCR 表格结果
+export interface OcrTableResult {
+  rows: string[][]
+  markdown: string
+  tsv: string
+}
+
+// OCR 提取 URL
+export interface OcrDetectedUrl {
+  text: string
+  normalized: string
+}
+
+// OCR 二维码结果
+export interface OcrQrResult {
+  text: string
+  isUrl: boolean
+  normalizedUrl?: string
+}
+
+// OCR 操作状态
+export type OcrTaskStatus = 'success' | 'empty' | 'no-image' | 'error'
+
+// OCR 识别结果
+export interface OcrRecognizeResult {
+  success: boolean
+  status: OcrTaskStatus
+  message: string
+  source?: OcrSourceRef
+  mode: OcrMode
+  text: string
+  paragraphText: string
+  codeText: string
+  table: OcrTableResult | null
+  urls: OcrDetectedUrl[]
+  qrCodes: OcrQrResult[]
+  colors: ImagePaletteColor[]
+  confidence: number
+  createdAt: string
+}
+
+// OCR 快速动作结果
+export interface OcrQuickResult {
+  success: boolean
+  status: OcrTaskStatus
+  message: string
+  source?: OcrSourceRef
+  qrCodes?: OcrQrResult[]
+  colors?: ImagePaletteColor[]
+}
+
+// 发送图片到 OCR 工具
+export interface OcrSendRequest {
+  dataUrl: string
+  name?: string
+  sourceKind?: OcrImageSourceKind
+  mode?: OcrMode
+}
+
+// OCR 偏好
+export interface OcrPreferences {
+  mode: OcrMode
+  languages: string
 }
 
 // 屏幕取色图片源
@@ -780,6 +1089,29 @@ export interface ElectronAPI {
     finishColorPick: (result: ScreenColorPickResult) => void
     cancelColorPick: () => void
     onColorPickerData: (callback: (payload: ScreenColorPickerPayload) => void) => () => void
+  }
+  imageTool: {
+    openImages: () => Promise<ImageToolSourceRef[]>
+    importClipboard: () => Promise<ImageToolSourceRef | null>
+    importClipboardHistory: (id: string) => Promise<ImageToolSourceRef | null>
+    importDataUrl: (dataUrl: string, name?: string) => Promise<ImageToolSourceRef | null>
+    sendToTool: (request: ImageToolSendRequest) => Promise<ImageToolSourceRef | null>
+    process: (request: ImageToolProcessRequest) => Promise<ImageToolProcessResponse>
+    processBatch: (request: ImageToolBatchRequest) => Promise<ImageToolBatchResponse>
+    copyResult: (resultId: string) => Promise<ClipboardActionResult>
+    saveResult: (resultId: string) => Promise<ImageToolSaveResult>
+    exportDataUrl: (resultId: string) => Promise<string | null>
+    onOpenSource: (callback: (source: ImageToolSourceRef) => void) => () => void
+    onBatchProgress: (callback: (progress: ImageToolBatchProgress) => void) => () => void
+  }
+  ocr: {
+    recognize: (request: OcrRecognizeRequest) => Promise<OcrRecognizeResult>
+    recognizeClipboard: () => Promise<OcrRecognizeResult>
+    detectQr: (request: OcrRecognizeRequest) => Promise<OcrQuickResult>
+    extractColors: (request: OcrRecognizeRequest) => Promise<OcrQuickResult>
+    copyText: (text: string) => Promise<ClipboardActionResult>
+    sendToTool: (request: OcrSendRequest) => Promise<OcrSourceRef | null>
+    onOpenSource: (callback: (source: OcrSourceRef) => void) => () => void
   }
   screenCapture: {
     start: () => Promise<ScreenCaptureStartResponse>

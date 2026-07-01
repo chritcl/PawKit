@@ -55,6 +55,29 @@ export const IPC_CHANNELS = {
   SCREENSHOT_COLOR_PICKER_FINISH: 'screenshot:color-picker-finish',
   SCREENSHOT_COLOR_PICKER_CANCEL: 'screenshot:color-picker-cancel',
 
+  // 图片处理相关
+  IMAGE_TOOL_OPEN_IMAGES: 'image-tool:open-images',
+  IMAGE_TOOL_IMPORT_CLIPBOARD: 'image-tool:import-clipboard',
+  IMAGE_TOOL_IMPORT_CLIPBOARD_HISTORY: 'image-tool:import-clipboard-history',
+  IMAGE_TOOL_IMPORT_DATA_URL: 'image-tool:import-data-url',
+  IMAGE_TOOL_SEND_TO_TOOL: 'image-tool:send-to-tool',
+  IMAGE_TOOL_PROCESS: 'image-tool:process',
+  IMAGE_TOOL_PROCESS_BATCH: 'image-tool:process-batch',
+  IMAGE_TOOL_COPY_RESULT: 'image-tool:copy-result',
+  IMAGE_TOOL_SAVE_RESULT: 'image-tool:save-result',
+  IMAGE_TOOL_EXPORT_DATA_URL: 'image-tool:export-data-url',
+  IMAGE_TOOL_OPEN_SOURCE: 'image-tool:open-source',
+  IMAGE_TOOL_BATCH_PROGRESS: 'image-tool:batch-progress',
+
+  // OCR 识别相关
+  OCR_RECOGNIZE: 'ocr:recognize',
+  OCR_RECOGNIZE_CLIPBOARD: 'ocr:recognize-clipboard',
+  OCR_DETECT_QR: 'ocr:detect-qr',
+  OCR_EXTRACT_COLORS: 'ocr:extract-colors',
+  OCR_COPY_TEXT: 'ocr:copy-text',
+  OCR_SEND_TO_TOOL: 'ocr:send-to-tool',
+  OCR_OPEN_SOURCE: 'ocr:open-source',
+
   // 全新截图会话相关
   SCREEN_CAPTURE_START: 'screen-capture:start',
   SCREEN_CAPTURE_OVERLAY_READY: 'screen-capture:overlay-ready',

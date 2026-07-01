@@ -8,6 +8,7 @@ import {
   Check,
   Clipboard,
   Edit3,
+  Image as ImageIcon,
   PaintBucket,
   RotateCcw,
   RotateCw,
@@ -301,6 +302,22 @@ export function PinnedOverlay(): JSX.Element {
       setMessage('更新置顶截图失败')
     }
   }, [data, exportCurrent, resetEditor])
+
+  const sendCurrentToImageTool = useCallback(async (): Promise<void> => {
+    if (!data) return
+    const target = mode === 'edit' ? exportCurrent() : data
+    if (!target) return
+    try {
+      const source = await window.electronAPI.imageTool.sendToTool({
+        dataUrl: target.dataUrl,
+        name: `pinned-${Date.now()}.png`,
+        sourceKind: 'screenshot'
+      })
+      setMessage(source ? '已发送到图片处理' : '发送到图片处理失败')
+    } catch {
+      setMessage('发送到图片处理失败')
+    }
+  }, [data, exportCurrent, mode])
 
   const beginTextInputAtPoint = useCallback((point: CapturePoint, annotation?: TextAnnotation): void => {
     const style = annotation
@@ -1049,6 +1066,7 @@ export function PinnedOverlay(): JSX.Element {
         <PinnedToolButton title="撤销 Ctrl+Z" disabled={state.past.length === 0} onClick={() => dispatch({ type: 'undo' })}><RotateCcw className="h-4 w-4" /></PinnedToolButton>
         <PinnedToolButton title="重做 Ctrl+Y" disabled={state.future.length === 0} onClick={() => dispatch({ type: 'redo' })}><RotateCw className="h-4 w-4" /></PinnedToolButton>
         <PinnedToolButton title="复制 Ctrl+C" onClick={() => void performCurrentAction('copy')}><Clipboard className="h-4 w-4" /></PinnedToolButton>
+        <PinnedToolButton title="发送到图片处理" onClick={() => void sendCurrentToImageTool()}><ImageIcon className="h-4 w-4" /></PinnedToolButton>
         <PinnedToolButton title="保存 Ctrl+S" onClick={() => void performCurrentAction('save')}><Save className="h-4 w-4" /></PinnedToolButton>
         <PinnedToolButton title="取消编辑 Esc" onClick={cancelEdit}><X className="h-4 w-4" /></PinnedToolButton>
         <button className="flex h-8 items-center gap-1 rounded-md bg-[#3f8cff] px-3 text-sm hover:bg-[#277bf5]" onClick={() => void finishEdit()} title="完成编辑 Enter">

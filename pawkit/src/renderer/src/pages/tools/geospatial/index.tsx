@@ -70,7 +70,12 @@ import { OperationPanel } from './operation-panel'
 import { operationTabs, type AttributePanelMode, type BasemapMode, type DrawMode, type OperationPanelId, type WorkStatus } from './types'
 import { useGeoWorker } from './use-geo-worker'
 import { useMapLayerSync } from './use-map-layer-sync'
-import { getNextActiveLayerAfterRemoval } from './page-helpers'
+import {
+  areStringArraysEqual,
+  getNextActiveLayerAfterRemoval,
+  getNextFeatureSelectionKeys,
+  getValidFeatureSelectionKeys
+} from './page-helpers'
 
 const exportFormats: Array<{ id: GeoDataFormat; label: string }> = [
   { id: 'geojson', label: 'GeoJSON' },
@@ -168,19 +173,6 @@ function featureKey(layerId: string, featureIndex: number): string {
   return `${layerId}:${featureIndex}`
 }
 
-function areStringArraysEqual(left: string[], right: string[]): boolean {
-  return left.length === right.length && left.every((item, index) => item === right[index])
-}
-
-function validFeatureSelectionKeys(layerId: string, keys: string[], featureCount: number): string[] {
-  const prefix = `${layerId}:`
-  return keys.filter((key) => {
-    if (!key.startsWith(prefix)) return false
-    const index = Number(key.slice(prefix.length))
-    return Number.isInteger(index) && index >= 0 && index < featureCount
-  })
-}
-
 function geometryLabel(geometry: Geometry | null | undefined): string {
   return geometry?.type ?? '无几何'
 }
@@ -273,6 +265,7 @@ export function GeospatialPage(): JSX.Element {
   }, [activeCollection, activeLayer?.id, attributeFilter])
 
   const setSelectedFeatureIdsStable = useCallback((nextIds: string[]): void => {
+    selectedFeatureIdsRef.current = nextIds
     setSelectedFeatureIds((currentIds) => (
       areStringArraysEqual(currentIds, nextIds) ? currentIds : nextIds
     ))
@@ -281,12 +274,18 @@ export function GeospatialPage(): JSX.Element {
   const syncMapSelectionFromKeys = useCallback((keys: string[]): void => {
     const select = selectRef.current
     const source = vectorSourceRef.current
-    if (!select || !source) return
-    const keySet = new Set(keys)
-    const nextFeatures = source.getFeatures().filter((feature) => {
+    if (!select || !source) {
+      setSelectedFeatureIdsStable(keys)
+      return
+    }
+    const featuresByKey = new Map<string, OlFeature<OlGeometry>>()
+    source.getFeatures().forEach((feature) => {
       const key = feature.get('__pawkitFeatureKey') as string | undefined
-      return Boolean(key && keySet.has(key))
+      if (key) featuresByKey.set(key, feature)
     })
+    const nextFeatures = keys
+      .map((key) => featuresByKey.get(key))
+      .filter((feature): feature is OlFeature<OlGeometry> => Boolean(feature))
     const nextKeys = nextFeatures
       .map((feature) => feature.get('__pawkitFeatureKey') as string | undefined)
       .filter((key): key is string => Boolean(key))
@@ -378,7 +377,7 @@ export function GeospatialPage(): JSX.Element {
         : layer
     )))
     const nextSelectedKeys = options.selectedKeys
-      ?? validFeatureSelectionKeys(targetId, selectedFeatureIdsRef.current, collection.features.length)
+      ?? getValidFeatureSelectionKeys(targetId, selectedFeatureIdsRef.current, collection.features.length)
     setSelectedFeatureIdsStable(nextSelectedKeys)
     setJsonText(JSON.stringify(collection, null, 2))
     setJsonDirty(false)
@@ -406,7 +405,7 @@ export function GeospatialPage(): JSX.Element {
       return updateGeoLayerCollection(layer, collection)
     }))
     const nextSelectedKeys = options.selectedKeys
-      ?? validFeatureSelectionKeys(targetId, selectedFeatureIdsRef.current, collection.features.length)
+      ?? getValidFeatureSelectionKeys(targetId, selectedFeatureIdsRef.current, collection.features.length)
     setSelectedFeatureIdsStable(nextSelectedKeys)
     setJsonText(JSON.stringify(collection, null, 2))
     setJsonDirty(false)
@@ -414,18 +413,14 @@ export function GeospatialPage(): JSX.Element {
     setStatus({ kind: 'success', message: nextMessage })
   }, [activeLayer, setSelectedFeatureIdsStable])
 
-  const focusFeature = useCallback((featureIndex: number): void => {
+  const fitFeatureOnMap = useCallback((featureIndex: number): void => {
     if (!activeLayerId) return
     const source = vectorSourceRef.current
-    const select = selectRef.current
     const map = mapRef.current
-    if (!source || !select || !map) return
+    if (!source || !map) return
     const key = featureKey(activeLayerId, featureIndex)
     const feature = source.getFeatures().find((item) => item.get('__pawkitFeatureKey') === key)
     if (!feature) return
-    select.getFeatures().clear()
-    select.getFeatures().push(feature)
-    setSelectedFeatureIdsStable([key])
     const geometry = feature.getGeometry()
     if (geometry) {
       map.getView().fit(geometry.getExtent(), {
@@ -434,7 +429,20 @@ export function GeospatialPage(): JSX.Element {
         duration: 180
       })
     }
-  }, [activeLayerId, setSelectedFeatureIdsStable])
+  }, [activeLayerId])
+
+  const selectTableFeature = useCallback((featureIndex: number, toggle: boolean): void => {
+    if (!activeLayer || !activeLayerId) return
+    const nextKeys = getNextFeatureSelectionKeys({
+      layerId: activeLayerId,
+      featureIndex,
+      featureCount: activeLayer.featureCount,
+      currentKeys: selectedFeatureIdsRef.current,
+      toggle
+    })
+    syncMapSelectionFromKeys(nextKeys)
+    if (!toggle) fitFeatureOnMap(featureIndex)
+  }, [activeLayer, activeLayerId, fitFeatureOnMap, syncMapSelectionFromKeys])
 
   const editFeatureProperty = useCallback((featureIndex: number, field: string, value: unknown): void => {
     if (!activeCollection) return
@@ -466,6 +474,7 @@ export function GeospatialPage(): JSX.Element {
     if (!activeCollection) return
     try {
       applyCollectionToActiveLayer(addPropertyField(activeCollection, tableFieldName), `字段 ${tableFieldName.trim()} 已新增`)
+      setFieldName(tableFieldName.trim())
       setTableFieldName('')
     } catch (error) {
       setStatus({ kind: 'error', message: error instanceof Error ? error.message : '新增字段失败' })
@@ -475,13 +484,13 @@ export function GeospatialPage(): JSX.Element {
   const renameTableField = useCallback((): void => {
     if (!activeCollection) return
     try {
-      applyCollectionToActiveLayer(renamePropertyField(activeCollection, fieldName, newFieldName), `字段 ${fieldName.trim()} 已重命名`)
-      setFieldName(newFieldName.trim())
-      setNewFieldName('')
+      applyCollectionToActiveLayer(renamePropertyField(activeCollection, fieldName, tableFieldName), `字段 ${fieldName.trim()} 已重命名`)
+      setFieldName(tableFieldName.trim())
+      setTableFieldName('')
     } catch (error) {
       setStatus({ kind: 'error', message: error instanceof Error ? error.message : '重命名字段失败' })
     }
-  }, [activeCollection, applyCollectionToActiveLayer, fieldName, newFieldName])
+  }, [activeCollection, applyCollectionToActiveLayer, fieldName, tableFieldName])
 
   const dropTableField = useCallback((): void => {
     if (!activeCollection) return
@@ -623,7 +632,7 @@ export function GeospatialPage(): JSX.Element {
       map.addInteraction(select)
       selectRef.current = select
 
-      const currentSelection = validFeatureSelectionKeys(
+      const currentSelection = getValidFeatureSelectionKeys(
         activeLayerId,
         selectedFeatureIdsRef.current,
         activeLayer?.featureCount ?? 0
@@ -1220,11 +1229,12 @@ export function GeospatialPage(): JSX.Element {
                       renameTableField={renameTableField}
                       dropTableField={dropTableField}
                       activeFields={activeFields}
+                      fieldName={fieldName}
                       setFieldName={setFieldName}
                       filteredRows={filteredRows}
                       selectedFeatureSet={selectedFeatureSet}
                       featureKey={featureKey}
-                      focusFeature={focusFeature}
+                      selectFeature={selectTableFeature}
                       editFeatureProperty={editFeatureProperty}
                       editFeatureGeometry={editFeatureGeometry}
                     />

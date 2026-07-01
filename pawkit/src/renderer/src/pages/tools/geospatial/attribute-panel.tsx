@@ -30,11 +30,12 @@ interface AttributePanelProps {
   renameTableField: () => void
   dropTableField: () => void
   activeFields: string[]
+  fieldName: string
   setFieldName: (value: string) => void
   filteredRows: Array<{ feature: Feature<Geometry, GeoJsonProperties>; index: number }>
   selectedFeatureSet: Set<string>
   featureKey: (layerId: string, featureIndex: number) => string
-  focusFeature: (featureIndex: number) => void
+  selectFeature: (featureIndex: number, toggle: boolean) => void
   editFeatureProperty: (featureIndex: number, field: string, value: unknown) => void
   editFeatureGeometry: (featureIndex: number, geometry: Geometry) => void
 }
@@ -64,16 +65,18 @@ export function AttributePanel({
   renameTableField,
   dropTableField,
   activeFields,
+  fieldName,
   setFieldName,
   filteredRows,
   selectedFeatureSet,
   featureKey,
-  focusFeature,
+  selectFeature,
   editFeatureProperty,
   editFeatureGeometry
 }: AttributePanelProps): JSX.Element {
   const [cellDrafts, setCellDrafts] = useState<Record<string, string>>({})
   const [tableEditError, setTableEditError] = useState('')
+  const selectedField = activeFields.includes(fieldName) ? fieldName : ''
 
   const removeCellDraft = (cellKey: string): void => {
     setCellDrafts((drafts) => {
@@ -166,22 +169,55 @@ export function AttributePanel({
 
   return (
     <div className="geo-attribute-content flex h-full min-h-0 flex-col gap-2">
-      <div className="shrink-0 flex flex-wrap items-center gap-2">
+      <div className="geo-table-toolbar">
         <input
-          className="min-w-40 flex-1 rounded-md border border-[var(--glass-border)] bg-[var(--input-surface)] px-2 py-1.5 text-xs text-[color:var(--text-primary)]"
+          className="geo-table-filter"
           value={attributeFilter}
           onChange={(event) => setAttributeFilter(event.target.value)}
           placeholder="筛选表格内容"
         />
+        <select
+          className="geo-field-select"
+          value={selectedField}
+          onChange={(event) => setFieldName(event.target.value)}
+          disabled={activeFields.length === 0}
+          title="当前字段"
+        >
+          <option value="">选择字段</option>
+          {activeFields.map((field) => (
+            <option key={field} value={field}>{field}</option>
+          ))}
+        </select>
         <input
-          className="w-32 rounded-md border border-[var(--glass-border)] bg-[var(--input-surface)] px-2 py-1.5 text-xs text-[color:var(--text-primary)]"
+          className="geo-field-name-input"
           value={tableFieldName}
           onChange={(event) => setTableFieldName(event.target.value)}
-          placeholder="新字段"
+          placeholder={selectedField ? '新字段名/重命名目标' : '新字段名'}
         />
-        <button className="toolbar-button h-8 px-2 text-xs" onClick={addTableField} disabled={!canEditActiveLayer}>新增字段</button>
-        <button className="toolbar-button h-8 px-2 text-xs" onClick={renameTableField} disabled={!canEditActiveLayer}>重命名字段</button>
-        <button className="toolbar-button-danger h-8 px-2 text-xs" onClick={dropTableField} disabled={!canEditActiveLayer}>删除字段</button>
+        <button
+          type="button"
+          className="toolbar-button h-8 px-2 text-xs"
+          onClick={addTableField}
+          disabled={!canEditActiveLayer || tableFieldName.trim().length === 0}
+        >
+          新增字段
+        </button>
+        <button
+          type="button"
+          className="toolbar-button h-8 px-2 text-xs"
+          onClick={renameTableField}
+          disabled={!canEditActiveLayer || !selectedField || tableFieldName.trim().length === 0}
+        >
+          重命名字段
+        </button>
+        <button
+          type="button"
+          className="toolbar-button-danger h-8 px-2 text-xs"
+          onClick={dropTableField}
+          disabled={!canEditActiveLayer || !selectedField}
+        >
+          删除字段
+        </button>
       </div>
       {activeFields.length === 0 && filteredRows.length > 0 && (
         <div className="shrink-0 rounded-md border border-[var(--glass-border)] bg-[var(--input-surface)] px-3 py-2 text-xs text-[color:var(--text-muted)]">
@@ -193,16 +229,16 @@ export function AttributePanel({
           {tableEditError}
         </div>
       )}
-      <div className="min-h-0 flex-1 overflow-auto rounded-md border border-[var(--glass-border)]">
-        <table className="min-w-full border-collapse text-xs">
-          <thead className="sticky top-0 z-10 bg-[var(--window-surface)] text-[color:var(--text-muted)]">
+      <div className="geo-table-shell">
+        <table className="geo-attribute-table">
+          <thead>
             <tr>
-              <th className="border-b border-[var(--glass-border)] px-2 py-2 text-left font-medium">#</th>
-              <th className="border-b border-[var(--glass-border)] px-2 py-2 text-left font-medium">几何</th>
-              <th className="min-w-64 border-b border-[var(--glass-border)] px-2 py-2 text-left font-medium">几何(WKT)</th>
+              <th className="geo-table-sticky geo-table-index">#</th>
+              <th className="geo-table-sticky geo-table-geometry">几何</th>
+              <th className="geo-table-wkt">几何(WKT)</th>
               {activeFields.map((field) => (
-                <th key={field} className="min-w-36 border-b border-[var(--glass-border)] px-2 py-2 text-left font-medium">
-                  <button className="text-left hover:text-[color:var(--text-primary)]" onClick={() => setFieldName(field)}>
+                <th key={field} className={`geo-field-header ${selectedField === field ? 'geo-field-header-active' : ''}`}>
+                  <button type="button" onClick={() => setFieldName(field)}>
                     {field}
                   </button>
                 </th>
@@ -223,17 +259,20 @@ export function AttributePanel({
               return (
                 <tr
                   key={key}
-                  className={`cursor-pointer border-b border-[var(--glass-border)] ${selected ? 'bg-[var(--surface-selected)]' : 'hover:bg-[var(--glass-surface-hover)]'}`}
-                  onClick={() => focusFeature(index)}
+                  className={`geo-attribute-row ${selected ? 'geo-attribute-row-selected' : ''}`}
+                  aria-selected={selected}
+                  onClick={(event) => selectFeature(index, event.ctrlKey || event.metaKey)}
                 >
-                  <td className="whitespace-nowrap px-2 py-1.5 text-[color:var(--text-muted)]">{index + 1}</td>
-                  <td className="whitespace-nowrap px-2 py-1.5 text-[color:var(--text-secondary)]">{geometryLabel(feature.geometry)}</td>
-                  <td className="px-2 py-1.5">
+                  <td className="geo-table-sticky geo-table-index text-[color:var(--text-muted)]">{index + 1}</td>
+                  <td className="geo-table-sticky geo-table-geometry text-[color:var(--text-secondary)]">{geometryLabel(feature.geometry)}</td>
+                  <td className="geo-table-wkt-cell">
                     <input
-                      className="w-full min-w-56 rounded border border-transparent bg-transparent px-1.5 py-1 font-mono text-[color:var(--text-primary)] hover:border-[var(--glass-border)] focus:border-[rgba(var(--color-primary-rgb),0.55)] focus:bg-[var(--input-surface)] focus:outline-none"
+                      className="geo-table-input geo-table-input-wkt"
                       value={cellDrafts[`${key}:__pawkitGeometry`] ?? formatGeometryCellValue(feature.geometry)}
+                      disabled={!canEditActiveLayer}
                       onClick={(event) => event.stopPropagation()}
                       onChange={(event) => {
+                        setTableEditError('')
                         setCellDrafts((drafts) => ({ ...drafts, [`${key}:__pawkitGeometry`]: event.currentTarget.value }))
                       }}
                       onBlur={() => commitGeometryDraft(`${key}:__pawkitGeometry`, feature, index)}
@@ -252,12 +291,14 @@ export function AttributePanel({
                     const cellKey = `${key}:${field}`
                     const value = cellDrafts[cellKey] ?? formatPropertyCellValue(feature.properties?.[field])
                     return (
-                      <td key={field} className="px-2 py-1.5">
+                      <td key={field} className="geo-field-cell">
                         <input
-                          className="w-full min-w-28 rounded border border-transparent bg-transparent px-1.5 py-1 text-[color:var(--text-primary)] hover:border-[var(--glass-border)] focus:border-[rgba(var(--color-primary-rgb),0.55)] focus:bg-[var(--input-surface)] focus:outline-none"
+                          className="geo-table-input"
                           value={value}
+                          disabled={!canEditActiveLayer}
                           onClick={(event) => event.stopPropagation()}
                           onChange={(event) => {
+                            setTableEditError('')
                             setCellDrafts((drafts) => ({ ...drafts, [cellKey]: event.currentTarget.value }))
                           }}
                           onBlur={() => commitCellDraft(cellKey, feature, index, field)}

@@ -23,7 +23,11 @@ import {
   updateGeoLayerCollection,
   validateGeoOperationRequest
 } from './geospatial'
-import { getNextActiveLayerAfterRemoval } from '../pages/tools/geospatial/page-helpers'
+import {
+  getNextActiveLayerAfterRemoval,
+  getNextFeatureSelectionKeys,
+  getValidFeatureSelectionKeys
+} from '../pages/tools/geospatial/page-helpers'
 
 vi.mock('flatgeobuf', () => {
   throw new Error('GeoJSON 不应加载 FlatGeobuf')
@@ -418,6 +422,40 @@ describe('地理空间工具函数', () => {
     expect(getNextActiveLayerAfterRemoval(layers, 'b', 'b')?.id).toBe('c')
     expect(getNextActiveLayerAfterRemoval(layers, 'c', 'c')?.id).toBe('b')
     expect(getNextActiveLayerAfterRemoval(layers, 'a', 'b')?.id).toBe('b')
+  })
+
+  it('计算表格和地图共用的要素选择键', () => {
+    expect(getValidFeatureSelectionKeys('layer-1', [
+      'layer-1:0',
+      'other:1',
+      'layer-1:99',
+      'layer-1:0',
+      'layer-1:1'
+    ], 2)).toEqual(['layer-1:0', 'layer-1:1'])
+
+    expect(getNextFeatureSelectionKeys({
+      layerId: 'layer-1',
+      featureIndex: 1,
+      featureCount: 3,
+      currentKeys: ['layer-1:0'],
+      toggle: false
+    })).toEqual(['layer-1:1'])
+
+    expect(getNextFeatureSelectionKeys({
+      layerId: 'layer-1',
+      featureIndex: 2,
+      featureCount: 3,
+      currentKeys: ['layer-1:0', 'other:2'],
+      toggle: true
+    })).toEqual(['layer-1:0', 'layer-1:2'])
+
+    expect(getNextFeatureSelectionKeys({
+      layerId: 'layer-1',
+      featureIndex: 0,
+      featureCount: 3,
+      currentKeys: ['layer-1:0', 'layer-1:2'],
+      toggle: true
+    })).toEqual(['layer-1:2'])
   })
 
   it('重型地理格式不再导入', async () => {

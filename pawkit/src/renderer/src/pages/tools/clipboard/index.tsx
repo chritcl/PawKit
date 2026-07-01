@@ -12,6 +12,7 @@ import {
   Image as ImageIcon,
   ListFilter,
   MoreHorizontal,
+  ScanText,
   Save,
   Star,
   Terminal,
@@ -19,7 +20,11 @@ import {
   X
 } from 'lucide-react'
 import { ClipboardFileItem, ClipboardItem } from '../../../../../shared/types'
+import { TOOL_IDS } from '../../../../../shared/constants'
 import { useClipboardStore } from '../../../stores/clipboard-store'
+import { useAppStore } from '../../../stores/app-store'
+import { useImageToolStore } from '../../../stores/image-tool-store'
+import { useOcrToolStore } from '../../../stores/ocr-tool-store'
 import {
   ClipboardFilter,
   filterClipboardItems,
@@ -151,6 +156,8 @@ function ClipboardDetail({
   onDelete,
   onOpenLink,
   onSaveImage,
+  onSendImage,
+  onOcrImage,
   onShowFile
 }: {
   item: ClipboardItem
@@ -161,6 +168,8 @@ function ClipboardDetail({
   onDelete: () => void
   onOpenLink: () => void
   onSaveImage: () => void
+  onSendImage: () => void
+  onOcrImage: () => void
   onShowFile: (path: string) => void
 }): JSX.Element {
   const [imageData, setImageData] = useState<string | null>(item.type === 'image' ? item.thumbnailDataUrl : null)
@@ -223,7 +232,11 @@ function ClipboardDetail({
           <button className="toolbar-button" onClick={onOpenLink}><ExternalLink className="h-4 w-4" />打开链接</button>
         )}
         {item.type === 'image' && (
-          <button className="toolbar-button" onClick={onSaveImage}><Save className="h-4 w-4" />保存图片</button>
+          <>
+            <button className="toolbar-button" onClick={onSaveImage}><Save className="h-4 w-4" />保存图片</button>
+            <button className="toolbar-button" onClick={onSendImage}><ImageIcon className="h-4 w-4" />图片处理</button>
+            <button className="toolbar-button" onClick={onOcrImage}><ScanText className="h-4 w-4" />OCR 识别</button>
+          </>
         )}
         {(item.type === 'file' || item.type === 'richText') && (
           <button className="toolbar-button" onClick={onCopyText}><Copy className="h-4 w-4" />复制纯文本</button>
@@ -311,6 +324,11 @@ export function ClipboardPage(): JSX.Element {
   const toggleFavorite = useClipboardStore((state) => state.toggleFavorite)
   const copyItem = useClipboardStore((state) => state.copyItem)
   const init = useClipboardStore((state) => state.init)
+  const setActiveTool = useAppStore((state) => state.setActiveTool)
+  const enabledTools = useAppStore((state) => state.enabledTools)
+  const setEnabledTools = useAppStore((state) => state.setEnabledTools)
+  const addImageSources = useImageToolStore((state) => state.addSources)
+  const addOcrSources = useOcrToolStore((state) => state.addSources)
 
   const [showConfirm, setShowConfirm] = useState(false)
   const [filter, setFilter] = useState<ClipboardFilter>('all')
@@ -388,6 +406,46 @@ export function ClipboardPage(): JSX.Element {
   const handleSaveImage = async (item: ClipboardItem): Promise<void> => {
     const result = await window.electronAPI.clipboard.saveImage(item.id)
     showFeedback({ message: result.message ?? '图片保存失败', tone: result.success ? 'success' : result.status === 'cancelled' ? 'neutral' : 'danger' })
+  }
+
+  const handleSendImage = async (item: ClipboardItem): Promise<void> => {
+    if (item.type !== 'image') return
+    const source = await window.electronAPI.imageTool.importClipboardHistory(item.id)
+    if (!source) {
+      showFeedback({ message: '图片文件已失效，无法发送到图片处理', tone: 'danger' })
+      return
+    }
+    addImageSources([source])
+    if (!enabledTools.includes(TOOL_IDS.IMAGE_TOOL)) {
+      setEnabledTools([...enabledTools, TOOL_IDS.IMAGE_TOOL])
+    }
+    setActiveTool(TOOL_IDS.IMAGE_TOOL)
+    showFeedback({ message: '已发送到图片处理', tone: 'success' })
+  }
+
+  const handleOcrImage = async (item: ClipboardItem): Promise<void> => {
+    if (item.type !== 'image') return
+    const dataUrl = await window.electronAPI.clipboard.getImageData(item.id)
+    if (!dataUrl) {
+      showFeedback({ message: '图片文件已失效，无法 OCR 识别', tone: 'danger' })
+      return
+    }
+    const source = await window.electronAPI.ocr.sendToTool({
+      dataUrl,
+      name: `clipboard-${item.id}.png`,
+      sourceKind: 'clipboard-history',
+      mode: 'auto'
+    })
+    if (!source) {
+      showFeedback({ message: '发送到 OCR 识别失败', tone: 'danger' })
+      return
+    }
+    addOcrSources([source])
+    if (!enabledTools.includes(TOOL_IDS.OCR_TOOL)) {
+      setEnabledTools([...enabledTools, TOOL_IDS.OCR_TOOL])
+    }
+    setActiveTool(TOOL_IDS.OCR_TOOL)
+    showFeedback({ message: '已发送到 OCR 识别', tone: 'success' })
   }
 
   const handleShowFile = async (item: ClipboardFileItem, path: string): Promise<void> => {
@@ -521,6 +579,8 @@ export function ClipboardPage(): JSX.Element {
             onDelete={() => void handleDelete(selectedItem)}
             onOpenLink={() => void handleOpenLink(selectedItem)}
             onSaveImage={() => void handleSaveImage(selectedItem)}
+            onSendImage={() => void handleSendImage(selectedItem)}
+            onOcrImage={() => void handleOcrImage(selectedItem)}
             onShowFile={(path) => selectedItem.type === 'file' && void handleShowFile(selectedItem, path)}
           />
         ) : (
@@ -545,7 +605,11 @@ export function ClipboardPage(): JSX.Element {
             <button onClick={() => { setContextMenu(null); void handleOpenLink(contextMenu.item) }}><ExternalLink className="h-4 w-4" />打开链接</button>
           )}
           {contextMenu.item.type === 'image' && (
-            <button onClick={() => { setContextMenu(null); void handleSaveImage(contextMenu.item) }}><Save className="h-4 w-4" />保存图片</button>
+            <>
+              <button onClick={() => { setContextMenu(null); void handleSaveImage(contextMenu.item) }}><Save className="h-4 w-4" />保存图片</button>
+              <button onClick={() => { setContextMenu(null); void handleSendImage(contextMenu.item) }}><ImageIcon className="h-4 w-4" />图片处理</button>
+              <button onClick={() => { setContextMenu(null); void handleOcrImage(contextMenu.item) }}><ScanText className="h-4 w-4" />OCR 识别</button>
+            </>
           )}
           {contextMenu.item.type === 'file' && contextFirstExistingFile && (
             <button onClick={() => { setContextMenu(null); void handleShowFile(contextMenu.item as ClipboardFileItem, contextFirstExistingFile.path) }}>

@@ -1359,6 +1359,172 @@
   flex: 1 1 auto;
 }
 
+.geo-table-toolbar {
+  display: grid;
+  flex-shrink: 0;
+  grid-template-columns: minmax(10rem, 1fr) minmax(8.5rem, 11rem) minmax(10rem, 12rem) auto auto auto;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.geo-table-filter,
+.geo-field-select,
+.geo-field-name-input {
+  min-width: 0;
+  height: 2rem;
+  border: 1px solid var(--glass-border);
+  border-radius: 7px;
+  background: var(--input-surface);
+  padding: 0 0.6rem;
+  color: var(--text-primary);
+  font-size: 0.75rem;
+}
+
+.geo-field-select:disabled {
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
+.geo-table-shell {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: auto;
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  background: var(--input-surface);
+  scrollbar-gutter: stable both-edges;
+}
+
+.geo-attribute-table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  color: var(--text-primary);
+  font-size: 0.75rem;
+  table-layout: fixed;
+}
+
+.geo-attribute-table th,
+.geo-attribute-table td {
+  border-bottom: 1px solid var(--glass-border);
+  padding: 0.375rem 0.5rem;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.geo-attribute-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  background: var(--window-surface);
+  color: var(--text-muted);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.geo-table-sticky {
+  position: sticky;
+  z-index: 5;
+  background: var(--input-surface);
+  white-space: nowrap;
+}
+
+.geo-attribute-table thead .geo-table-sticky {
+  z-index: 8;
+  background: var(--window-surface);
+}
+
+.geo-table-index {
+  left: 0;
+  width: 3.25rem;
+  min-width: 3.25rem;
+  max-width: 3.25rem;
+}
+
+.geo-table-geometry {
+  left: 3.25rem;
+  width: 6.5rem;
+  min-width: 6.5rem;
+  max-width: 6.5rem;
+}
+
+.geo-table-wkt,
+.geo-table-wkt-cell {
+  width: 22rem;
+  min-width: 22rem;
+}
+
+.geo-field-header,
+.geo-field-cell {
+  width: 10rem;
+  min-width: 10rem;
+}
+
+.geo-field-header button {
+  display: block;
+  width: max-content;
+  max-width: none;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.geo-field-header button:hover {
+  color: var(--text-primary);
+}
+
+.geo-field-header-active {
+  color: var(--text-primary) !important;
+}
+
+.geo-attribute-row {
+  cursor: pointer;
+  transition: background-color 140ms ease;
+}
+
+.geo-attribute-row:hover td,
+.geo-attribute-row:hover .geo-table-sticky {
+  background: var(--glass-surface-hover);
+}
+
+.geo-attribute-row-selected td,
+.geo-attribute-row-selected .geo-table-sticky {
+  background: var(--surface-selected);
+}
+
+.geo-table-input {
+  width: 100%;
+  min-width: 9rem;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  padding: 0.25rem 0.4rem;
+  color: var(--text-primary);
+  outline: none;
+}
+
+.geo-table-input:hover {
+  border-color: var(--glass-border);
+}
+
+.geo-table-input:focus {
+  border-color: rgba(var(--color-primary-rgb), 0.55);
+  background: var(--input-surface);
+}
+
+.geo-table-input:disabled {
+  color: var(--text-muted);
+}
+
+.geo-table-input-wkt {
+  min-width: 21rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+
 .tool-toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -1989,6 +2155,10 @@ button.encoding-detail-card:hover {
     min-height: auto;
   }
 
+  .geo-table-toolbar {
+    grid-template-columns: minmax(12rem, 1fr) minmax(8rem, 10rem) minmax(10rem, 1fr);
+  }
+
   .tool-grid-editor,
   .tool-grid-qrcode,
   .qrcode-workbench {
@@ -2100,6 +2270,14 @@ button.encoding-detail-card:hover {
     right: 0.75rem;
     left: 0.75rem;
     justify-content: flex-start;
+  }
+
+  .geo-table-toolbar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .geo-table-shell {
+    min-height: 24rem;
   }
 
   .toolbar-button,
@@ -5454,5 +5632,240 @@ button.encoding-detail-card:hover {
 
   .text-toolbox-operation-list {
     max-height: 16rem;
+  }
+}
+
+/* OCR 识别工具 */
+.ocr-tool-page {
+  gap: 1rem;
+}
+
+.ocr-toolbar {
+  align-items: center;
+}
+
+.ocr-workbench {
+  display: grid;
+  min-height: 0;
+  flex: 1 1 auto;
+  grid-template-columns: minmax(16rem, 0.75fr) minmax(18rem, 0.9fr) minmax(24rem, 1.35fr);
+  gap: 1rem;
+}
+
+.ocr-source-panel,
+.ocr-preview-panel,
+.ocr-result-panel {
+  min-height: 0;
+  padding: 1rem;
+}
+
+.ocr-source-panel,
+.ocr-result-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.ocr-section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.ocr-section-heading h2 {
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  font-weight: 650;
+}
+
+.ocr-section-heading p {
+  margin-top: 0.2rem;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.ocr-empty-source {
+  min-height: 18rem;
+}
+
+.ocr-source-list {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 0.65rem;
+  overflow: auto;
+  padding-right: 0.2rem;
+}
+
+.ocr-source-row {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.75rem;
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  background: var(--input-surface);
+  padding: 0.55rem;
+  color: var(--text-primary);
+  text-align: left;
+}
+
+.ocr-source-row:hover,
+.ocr-source-row-active {
+  border-color: color-mix(in srgb, var(--accent) 52%, var(--glass-border));
+  background: color-mix(in srgb, var(--accent) 10%, var(--input-surface));
+}
+
+.ocr-source-row img {
+  height: 3.25rem;
+  width: 4.5rem;
+  flex: 0 0 auto;
+  border-radius: 6px;
+  object-fit: cover;
+  background: #05070a;
+}
+
+.ocr-source-row strong,
+.ocr-source-row small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ocr-source-row strong {
+  font-size: 0.8125rem;
+  font-weight: 650;
+}
+
+.ocr-source-row small {
+  margin-top: 0.2rem;
+  color: var(--text-muted);
+  font-size: 0.6875rem;
+}
+
+.ocr-preview-panel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.ocr-preview-panel img {
+  max-height: 100%;
+  max-width: 100%;
+  border-radius: 8px;
+  object-fit: contain;
+  box-shadow: 0 18px 48px rgb(0 0 0 / 0.28);
+}
+
+.ocr-view-tabs {
+  width: fit-content;
+}
+
+.ocr-view-tabs .segmented-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.ocr-result-content {
+  min-height: 16rem;
+  flex: 1 1 auto;
+  overflow: auto;
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  background: var(--input-surface);
+}
+
+.ocr-result-content pre {
+  margin: 0;
+  min-height: 100%;
+  padding: 1rem;
+  color: var(--text-primary);
+  font-family: Consolas, "Cascadia Code", "Microsoft YaHei UI", monospace;
+  font-size: 0.8125rem;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.ocr-insight-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.ocr-insight-block {
+  min-width: 0;
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  background: var(--input-surface);
+  padding: 0.7rem;
+}
+
+.ocr-insight-title {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 650;
+}
+
+.ocr-insight-body {
+  margin-top: 0.55rem;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.ocr-insight-body button {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--accent);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ocr-color-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.ocr-color-strip button {
+  height: 1.45rem;
+  width: 1.45rem;
+  border: 1px solid rgb(255 255 255 / 0.26);
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.16);
+}
+
+@media (max-width: 1220px) {
+  .ocr-workbench {
+    grid-template-columns: minmax(15rem, 0.72fr) minmax(0, 1fr);
+  }
+
+  .ocr-result-panel {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 860px) {
+  .ocr-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .ocr-workbench,
+  .ocr-insight-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ocr-preview-panel {
+    min-height: 16rem;
   }
 }
