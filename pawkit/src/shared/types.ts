@@ -951,6 +951,26 @@ export interface OcrPreferences {
   languages: string
 }
 
+// OCR 文字区域（图片像素坐标系）
+export interface OcrTextRegion {
+  text: string
+  bbox: { x0: number; y0: number; x1: number; y1: number }
+  confidence: number
+  level: 'word' | 'line' | 'paragraph'
+  children?: OcrTextRegion[]
+}
+
+// 截图覆盖层专用 OCR 结果
+export interface OcrOverlayResult {
+  success: boolean
+  message: string
+  regions: OcrTextRegion[]
+  fullText: string
+  confidence: number
+  imageWidth: number
+  imageHeight: number
+}
+
 // 屏幕取色图片源
 export interface ScreenColorPickerSource {
   displayId: string
@@ -1107,6 +1127,7 @@ export interface ElectronAPI {
   ocr: {
     recognize: (request: OcrRecognizeRequest) => Promise<OcrRecognizeResult>
     recognizeClipboard: () => Promise<OcrRecognizeResult>
+    recognizeOverlay: (request: OcrRecognizeRequest) => Promise<OcrOverlayResult>
     detectQr: (request: OcrRecognizeRequest) => Promise<OcrQuickResult>
     extractColors: (request: OcrRecognizeRequest) => Promise<OcrQuickResult>
     copyText: (text: string) => Promise<ClipboardActionResult>

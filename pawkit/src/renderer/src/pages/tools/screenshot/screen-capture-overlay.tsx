@@ -7,6 +7,7 @@ import {
   Check,
   Clipboard,
   Image as ImageIcon,
+  Loader2,
   PaintBucket,
   Palette,
   Pin,
@@ -18,6 +19,9 @@ import {
   SquareDashed,
   X
 } from 'lucide-react'
+import type { OcrOverlayResult } from '../../../../../shared/types'
+import { OcrOverlayLayer } from './ocr-overlay-layer'
+import { OcrSidebar } from './ocr-sidebar'
 import type {
   ScreenCaptureDisplayPayload,
   ScreenCaptureSessionState
@@ -99,6 +103,9 @@ export function ScreenCaptureOverlay(): JSX.Element {
   const [cursor, setCursor] = useState('crosshair')
   const [mosaicSubMode, setMosaicSubMode] = useState<MosaicSubMode>('paint')
   const [brushPoint, setBrushPoint] = useState<{ x: number; y: number } | null>(null)
+  const [ocrState, setOcrState] = useState<'idle' | 'loading' | 'result' | 'error'>('idle')
+  const [ocrResult, setOcrResult] = useState<OcrOverlayResult | null>(null)
+  const [ocrSidebarOpen, setOcrSidebarOpen] = useState(false)
   const backgroundRef = useRef<HTMLCanvasElement>(null)
   const annotationRef = useRef<HTMLCanvasElement>(null)
   const interactionRef = useRef<HTMLCanvasElement>(null)
@@ -298,23 +305,26 @@ export function ScreenCaptureOverlay(): JSX.Element {
     }
   }, [exportCurrent])
 
-  const sendCurrentToOcrTool = useCallback(async (): Promise<void> => {
+  const performInlineOcr = useCallback(async (): Promise<void> => {
     const exported = exportCurrent()
     if (!exported) return
+    setOcrState('loading')
     try {
-      const source = await window.electronAPI.ocr.sendToTool({
-        dataUrl: exported.dataUrl,
-        name: `screenshot-${Date.now()}.png`,
-        sourceKind: 'screenshot',
+      const result = await window.electronAPI.ocr.recognizeOverlay({
+        source: { kind: 'screenshot', dataUrl: exported.dataUrl },
         mode: 'auto'
       })
-      if (source) {
-        window.electronAPI.screenCapture.cancel()
+      if (result.success) {
+        setOcrResult(result)
+        setOcrState('result')
+        setOcrSidebarOpen(true)
       } else {
-        setMessage('发送到 OCR 识别失败')
+        setOcrState('error')
+        setMessage(result.message)
       }
     } catch {
-      setMessage('发送到 OCR 识别失败')
+      setOcrState('error')
+      setMessage('OCR 识别失败')
     }
   }, [exportCurrent])
 
@@ -526,6 +536,9 @@ export function ScreenCaptureOverlay(): JSX.Element {
 
       event.currentTarget.setPointerCapture(event.pointerId)
       pointerInteractionRef.current = { type: 'selecting', start: point }
+      setOcrState('idle')
+      setOcrResult(null)
+      setOcrSidebarOpen(false)
       dispatch({
         type: 'set-selection',
         selection: { x: point.x, y: point.y, width: 0, height: 0 },
@@ -1041,6 +1054,12 @@ export function ScreenCaptureOverlay(): JSX.Element {
         return
       }
       if (event.key === 'Escape') {
+        if (ocrState !== 'idle') {
+          setOcrState('idle')
+          setOcrResult(null)
+          setOcrSidebarOpen(false)
+          return
+        }
         if (state.selectedId) {
           dispatch({ type: 'set-selected', id: null })
         } else {
@@ -1072,7 +1091,7 @@ export function ScreenCaptureOverlay(): JSX.Element {
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [cancelTextInput, performOutput, state.annotations, state.selectedId, state.selection, textEditor])
+  }, [cancelTextInput, ocrState, performOutput, state.annotations, state.selectedId, state.selection, textEditor])
 
   if (!payload) {
     return <div className="flex h-screen w-screen items-center justify-center bg-black text-sm text-white">正在冻结屏幕...</div>
@@ -1132,7 +1151,21 @@ export function ScreenCaptureOverlay(): JSX.Element {
             <ToolbarButton title="撤销 Ctrl+Z" disabled={state.past.length === 0} onClick={() => dispatch({ type: 'undo' })}><RotateCcw className="h-4 w-4" /></ToolbarButton>
             <ToolbarButton title="重做 Ctrl+Y" disabled={state.future.length === 0} onClick={() => dispatch({ type: 'redo' })}><RotateCw className="h-4 w-4" /></ToolbarButton>
             <ToolbarButton title="复制图片 Ctrl+C" onClick={() => void performOutput('copy')}><Clipboard className="h-4 w-4" /></ToolbarButton>
-            <ToolbarButton title="OCR 识别" onClick={() => void sendCurrentToOcrTool()}><ScanText className="h-4 w-4" /></ToolbarButton>
+            <ToolbarButton
+              title={ocrState === 'result' ? '切换 OCR 结果面板' : 'OCR 识别'}
+              onClick={() => {
+                if (ocrState === 'result') {
+                  setOcrSidebarOpen(!ocrSidebarOpen)
+                } else {
+                  void performInlineOcr()
+                }
+              }}
+            >
+              {ocrState === 'loading'
+                ? <Loader2 className="h-4 w-4 animate-spin" />
+                : <ScanText className="h-4 w-4" />
+              }
+            </ToolbarButton>
             <ToolbarButton title="识别二维码" onClick={() => void detectCurrentQrCode()}><QrCode className="h-4 w-4" /></ToolbarButton>
             <ToolbarButton title="提取颜色" onClick={() => void extractCurrentColors()}><Palette className="h-4 w-4" /></ToolbarButton>
             <ToolbarButton title="钉在桌面" onClick={() => void pinCurrent()}><Pin className="h-4 w-4" /></ToolbarButton>
@@ -1214,6 +1247,28 @@ export function ScreenCaptureOverlay(): JSX.Element {
             boxShadow: '0 0 0 2px rgba(63, 140, 255, 0.35), 0 12px 32px rgba(0, 0, 0, 0.38)'
           }}
           placeholder="输入标注文字（Shift+Enter 换行）"
+        />
+      )}
+
+      {ocrState === 'loading' && (
+        <div className="pointer-events-none absolute left-1/2 top-1/2 z-[100] flex -translate-x-1/2 -translate-y-1/2 items-center gap-2 rounded-lg bg-black/75 px-4 py-2 text-sm shadow-2xl">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          正在识别文字...
+        </div>
+      )}
+
+      {ocrState === 'result' && ocrResult && state.selection && (
+        <OcrOverlayLayer
+          result={ocrResult}
+          selection={state.selection}
+        />
+      )}
+
+      {ocrSidebarOpen && ocrResult && (
+        <OcrSidebar
+          result={ocrResult}
+          onClose={() => setOcrSidebarOpen(false)}
+          onCopyAll={() => void window.electronAPI.ocr.copyText(ocrResult.fullText)}
         />
       )}
 

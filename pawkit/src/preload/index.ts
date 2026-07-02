@@ -12,6 +12,7 @@ import type {
   ImageToolProcessRequest,
   ImageToolSendRequest,
   ImageToolSourceRef,
+  OcrOverlayResult,
   OcrQuickResult,
   OcrRecognizeRequest,
   OcrRecognizeResult,
@@ -196,6 +197,9 @@ const electronAPI: ElectronAPI = {
     // 识别当前剪贴板图片
     recognizeClipboard: (): Promise<OcrRecognizeResult> =>
       ipcRenderer.invoke(IPC_CHANNELS.OCR_RECOGNIZE_CLIPBOARD),
+    // 截图覆盖层专用 OCR 识别（返回文字位置信息）
+    recognizeOverlay: (request: OcrRecognizeRequest): Promise<OcrOverlayResult> =>
+      ipcRenderer.invoke(IPC_CHANNELS.OCR_RECOGNIZE_OVERLAY, request),
     // 仅识别二维码
     detectQr: (request: OcrRecognizeRequest): Promise<OcrQuickResult> =>
       ipcRenderer.invoke(IPC_CHANNELS.OCR_DETECT_QR, request),

@@ -1,3 +1,8 @@
+.ocr-line-region::selection {
+  background: rgba(63, 140, 255, 0.35);
+  color: transparent;
+}
+
 .color-picker-magnifier {
   border-radius: 10px;
   background-repeat: no-repeat;

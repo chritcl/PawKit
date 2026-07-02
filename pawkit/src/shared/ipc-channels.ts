@@ -72,6 +72,7 @@ export const IPC_CHANNELS = {
   // OCR 识别相关
   OCR_RECOGNIZE: 'ocr:recognize',
   OCR_RECOGNIZE_CLIPBOARD: 'ocr:recognize-clipboard',
+  OCR_RECOGNIZE_OVERLAY: 'ocr:recognize-overlay',
   OCR_DETECT_QR: 'ocr:detect-qr',
   OCR_EXTRACT_COLORS: 'ocr:extract-colors',
   OCR_COPY_TEXT: 'ocr:copy-text',

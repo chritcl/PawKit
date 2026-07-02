@@ -10,10 +10,10 @@ import Tesseract from 'tesseract.js'
 import type {
   ClipboardActionResult,
   ClipboardImageItem,
-  ImagePaletteColor,
   OcrDetectedUrl,
   OcrImageSource,
   OcrMode,
+  OcrOverlayResult,
   OcrQrResult,
   OcrQuickResult,
   OcrRecognizeRequest,
@@ -21,7 +21,8 @@ import type {
   OcrSendRequest,
   OcrSourceRef,
   OcrTaskStatus,
-  OcrTableResult
+  OcrTableResult,
+  OcrTextRegion
 } from '../../shared/types'
 import { IPC_CHANNELS } from '../../shared/ipc-channels'
 import { logger } from '../logger'
@@ -198,6 +199,66 @@ export async function recognizeOcr(request: OcrRecognizeRequest): Promise<OcrRec
 // 识别当前剪贴板图片
 export async function recognizeClipboardImage(): Promise<OcrRecognizeResult> {
   return await recognizeOcr({ source: { kind: 'clipboard' }, mode: 'auto' })
+}
+
+// 截图覆盖层专用 OCR 识别（返回文字位置信息）
+export async function recognizeOcrOverlay(request: OcrRecognizeRequest): Promise<OcrOverlayResult> {
+  try {
+    const input = await readOcrImageInput(request?.source)
+    if (!input) {
+      return { success: false, message: '没有可识别的图片', regions: [], fullText: '', confidence: 0, imageWidth: 0, imageHeight: 0 }
+    }
+
+    const worker = await getOcrWorker()
+    await worker.setParameters({
+      tessedit_pageseg_mode: Tesseract.PSM.AUTO,
+      preserve_interword_spaces: '0'
+    })
+    const recognition = await worker.recognize(input.buffer, {}, { text: true, blocks: true })
+
+    const blocks = recognition.data.blocks as OcrBlockLike[] | null
+    const text = (recognition.data.text ?? '').trim()
+    const confidence = Number(recognition.data.confidence ?? 0)
+
+    // 从 blocks 中提取 line 级别的文字区域
+    const regions: OcrTextRegion[] = []
+    if (blocks) {
+      for (const block of blocks) {
+        for (const paragraph of block.paragraphs ?? []) {
+          for (const line of paragraph.lines ?? []) {
+            const lineRegion: OcrTextRegion = {
+              text: line.text,
+              bbox: line.bbox ?? { x0: 0, y0: 0, x1: 0, y1: 0 },
+              confidence,
+              level: 'line',
+              children: (line.words ?? []).map((word) => ({
+                text: word.text,
+                bbox: word.bbox ?? { x0: 0, y0: 0, x1: 0, y1: 0 },
+                confidence,
+                level: 'word' as const
+              }))
+            }
+            regions.push(lineRegion)
+          }
+        }
+      }
+    }
+
+    const metadata = await sharp(input.buffer, { failOn: 'none' }).metadata()
+
+    return {
+      success: Boolean(text),
+      message: text ? '识别完成' : '未识别到文本内容',
+      regions,
+      fullText: text,
+      confidence,
+      imageWidth: metadata.width ?? input.source.width,
+      imageHeight: metadata.height ?? input.source.height
+    }
+  } catch (error) {
+    logger.error('OCR 覆盖层识别失败:', error)
+    return { success: false, message: `识别失败: ${error instanceof Error ? error.message : '未知错误'}`, regions: [], fullText: '', confidence: 0, imageWidth: 0, imageHeight: 0 }
+  }
 }
 
 // 仅识别二维码

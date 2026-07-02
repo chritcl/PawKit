@@ -7,6 +7,7 @@ import {
   extractColorsFromImage,
   recognizeClipboardImage,
   recognizeOcr,
+  recognizeOcrOverlay,
   sendImageToOcrTool
 } from '../services/ocr-service'
 import { validateSender } from './validate-sender'
@@ -25,6 +26,13 @@ export function registerOcrIpcHandlers(): void {
       return createInvalidOcrResult('auto')
     }
     return await recognizeClipboardImage()
+  })
+
+  ipcMain.handle(IPC_CHANNELS.OCR_RECOGNIZE_OVERLAY, async (event, request: OcrRecognizeRequest) => {
+    if (!validateSender(event)) {
+      return { success: false, message: 'IPC 请求来源无效', regions: [], fullText: '', confidence: 0, imageWidth: 0, imageHeight: 0 }
+    }
+    return await recognizeOcrOverlay(request)
   })
 
   ipcMain.handle(IPC_CHANNELS.OCR_DETECT_QR, async (event, request: OcrRecognizeRequest) => {
